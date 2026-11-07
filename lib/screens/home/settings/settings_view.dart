@@ -27,11 +27,13 @@ enum SettingsCategory {
 class SettingsView extends StatefulWidget {
   final FocusNode? sidebarFocusNode;
   final VoidCallback onLogout;
+  final VoidCallback? onLogin;
 
   const SettingsView({
     super.key,
     this.sidebarFocusNode,
     required this.onLogout,
+    this.onLogin,
   });
 
   @override
@@ -274,7 +276,9 @@ class SettingsViewState extends State<SettingsView> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // 頭像
-                  if (AuthService.face != null && AuthService.face!.isNotEmpty)
+                  if (AuthService.isLoggedIn &&
+                      AuthService.face != null &&
+                      AuthService.face!.isNotEmpty)
                     VipAvatarBadge(
                       size: 45,
                       child: ClipOval(
@@ -295,30 +299,37 @@ class SettingsViewState extends State<SettingsView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        AuthService.uname ?? '已登入',
+                        AuthService.isLoggedIn
+                            ? (AuthService.uname ?? '已登入')
+                            : '未登入',
                         style: TextStyle(
-                          color: AuthService.isVip
+                          color: AuthService.isLoggedIn && AuthService.isVip
                               ? const Color(0xFFfb7299) // VIP 粉色
                               : Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      Text(
-                        'UID: ${AuthService.mid ?? ""}',
-                        style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
+                      if (AuthService.isLoggedIn)
+                        Text(
+                          'UID: ${AuthService.mid ?? ""}',
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                   const SizedBox(width: 30),
-                  // 退出登入按鈕
+                  // 登入 / 退出登入按鈕
                   _buildActionButton(
-                    label: '退出登入',
-                    color: Colors.red,
-                    onTap: _handleLogout,
+                    label: AuthService.isLoggedIn ? '退出登入' : '登入',
+                    color: AuthService.isLoggedIn
+                        ? Colors.red
+                        : const Color(0xFFfb7299),
+                    onTap: AuthService.isLoggedIn
+                        ? _handleLogout
+                        : () => widget.onLogin?.call(),
                     focusNode: _logoutFocusNode,
                   ),
                 ],

@@ -191,6 +191,12 @@ class _HomeScreenState extends State<HomeScreen>
           return;
         }
 
+        if (_selectedTabIndex == 5 &&
+            (_loginTabKey.currentState?.handleBack() ?? false)) {
+          // 登入畫面 → 回設定頁
+          return;
+        }
+
         if (_selectedTabIndex != 1) {
           // 其他標籤（歷史、直播、登入）按返回鍵都回到主頁
           setState(() => _selectedTabIndex = 1);
@@ -251,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen>
                           ? () {
                               _liveTabKey.currentState?.focusFirstItem();
                             }
-                          : isUserTab && AuthService.isLoggedIn
+                          : isUserTab
                           ? () =>
                                 _loginTabKey.currentState?.focusFirstCategory()
                           : null,
