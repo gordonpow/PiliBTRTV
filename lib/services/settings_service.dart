@@ -163,6 +163,28 @@ class SettingsService {
     await _prefs!.setBool(_autoPlayKey, value);
   }
 
+  // 自動檢查更新
+  static const String _autoUpdateKey = 'auto_update';
+  static const String _updateIntervalKey = 'update_interval_hours';
+
+  /// 可選的檢查間隔（小時）
+  static const List<int> updateIntervalOptions = [1, 6, 12, 24, 48, 168];
+
+  static bool get autoUpdate => _prefs?.getBool(_autoUpdateKey) ?? true;
+
+  static Future<void> setAutoUpdate(bool value) async {
+    await init();
+    await _prefs!.setBool(_autoUpdateKey, value);
+  }
+
+  static int get updateIntervalHours =>
+      _prefs?.getInt(_updateIntervalKey) ?? 24;
+
+  static Future<void> setUpdateIntervalHours(int value) async {
+    await init();
+    await _prefs!.setInt(_updateIntervalKey, value);
+  }
+
   // 介面語言設定（0 跟隨系統、1 繁體中文、2 簡體中文）
   static const String _appLanguageKey = 'app_language';
 

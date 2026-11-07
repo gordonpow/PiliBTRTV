@@ -1,8 +1,11 @@
-import 'package:bili_tv_app/utils/zh_toast.dart';
+import 'package:bili_tv_app/btr_version.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:flutter/services.dart';
+import '../../../../services/settings_service.dart';
 import '../../../../services/update_service.dart';
 import '../widgets/setting_action_row.dart';
+import '../widgets/setting_dropdown_row.dart';
+import '../widgets/setting_toggle_row.dart';
 
 class AboutSettings extends StatefulWidget {
   final VoidCallback onMoveUp;
@@ -19,59 +22,32 @@ class AboutSettings extends StatefulWidget {
 }
 
 class _AboutSettingsState extends State<AboutSettings> {
-  bool _isCheckingUpdate = false;
-  String _currentVersion = '';
-  final FocusNode _buttonFocusNode = FocusNode();
+  bool _autoUpdate = SettingsService.autoUpdate;
+  int _interval = SettingsService.updateIntervalHours;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadCurrentVersion();
-  }
+  static String _intervalLabel(int hours) =>
+      hours >= 48 ? '${hours ~/ 24} 天' : '$hours 小時';
 
-  @override
-  void dispose() {
-    _buttonFocusNode.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadCurrentVersion() async {
-    final version = await UpdateService.getCurrentVersion();
-    if (mounted) setState(() => _currentVersion = version);
-  }
-
-  Future<void> _checkForUpdate() async {
-    setState(() => _isCheckingUpdate = true);
-
-    final result = await UpdateService.checkForUpdate();
-
-    if (!mounted) return;
-    setState(() => _isCheckingUpdate = false);
-
-    if (result.error != null) {
-      showZhToast(
-        msg: result.error!,
-        toastLength: Toast.LENGTH_LONG,
-        gravity: ToastGravity.CENTER,
-      );
-      return;
-    }
-
-    if (result.hasUpdate && result.updateInfo != null) {
-      UpdateService.showUpdateDialog(
-        context,
-        result.updateInfo!,
-        onUpdate: () {
-          UpdateService.showDownloadProgress(context, result.updateInfo!);
-        },
-      );
+  Future<void> _onCheckTap() async {
+    final info = UpdateService.available.value;
+    if (info != null) {
+      showUpdateDialog(context, info);
     } else {
-      showZhToast(
-        msg: '已是最新版本',
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.CENTER,
-      );
+      await UpdateService.check(silent: false);
     }
+  }
+
+  Future<void> _setAutoUpdate(bool value) async {
+    setState(() => _autoUpdate = value);
+    await SettingsService.setAutoUpdate(value);
+    UpdateService.startAuto();
+  }
+
+  Future<void> _setInterval(int? value) async {
+    if (value == null) return;
+    setState(() => _interval = value);
+    await SettingsService.setUpdateIntervalHours(value);
+    UpdateService.startAuto();
   }
 
   @override
@@ -79,19 +55,163 @@ class _AboutSettingsState extends State<AboutSettings> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SettingActionRow(
-          label: '檢查更新',
-          value: '當前版本: $_currentVersion',
-          buttonLabel: _isCheckingUpdate ? '檢查中...' : '檢查',
-          autofocus: true,
-          focusNode: _buttonFocusNode,
-          isFirst: true,
-          isLast: true,
-          onMoveUp: widget.onMoveUp,
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '目前版本',
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+              ),
+              Text(
+                btrVersion,
+                style: TextStyle(color: Colors.white54, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+        ValueListenableBuilder<bool>(
+          valueListenable: UpdateService.checking,
+          builder: (_, checking, _) => ValueListenableBuilder<UpdateInfo?>(
+            valueListenable: UpdateService.available,
+            builder: (_, info, _) => SettingActionRow(
+              label: '檢查更新',
+              value: checking
+                  ? '檢查中…'
+                  : (info != null ? '有新版本 ${info.tag}' : '已是最新'),
+              showDot: !checking && info != null,
+              buttonLabel: info != null ? '查看' : '檢查',
+              autofocus: true,
+              isFirst: true,
+              onMoveUp: widget.onMoveUp,
+              sidebarFocusNode: widget.sidebarFocusNode,
+              onTap: checking ? null : _onCheckTap,
+            ),
+          ),
+        ),
+        SettingToggleRow(
+          label: '自動檢查更新',
+          value: _autoUpdate,
+          onChanged: _setAutoUpdate,
           sidebarFocusNode: widget.sidebarFocusNode,
-          onTap: _isCheckingUpdate ? null : _checkForUpdate,
+        ),
+        SettingDropdownRow<int>(
+          label: '檢查間隔',
+          value: _interval,
+          items: SettingsService.updateIntervalOptions,
+          itemLabel: _intervalLabel,
+          onChanged: _setInterval,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          isLast: true,
         ),
       ],
+    );
+  }
+}
+
+/// 顯示更新對話框。
+Future<void> showUpdateDialog(BuildContext context, UpdateInfo info) {
+  return showDialog<void>(
+    context: context,
+    builder: (_) => _UpdateDialog(info: info),
+  );
+}
+
+class _UpdateDialog extends StatefulWidget {
+  final UpdateInfo info;
+
+  const _UpdateDialog({required this.info});
+
+  @override
+  State<_UpdateDialog> createState() => _UpdateDialogState();
+}
+
+class _UpdateDialogState extends State<_UpdateDialog> {
+  final ScrollController _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  // 上下鍵捲動版本說明；焦點在按鈕上，事件會冒泡到這裡。
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent || !_scroll.hasClients) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key != LogicalKeyboardKey.arrowUp &&
+        key != LogicalKeyboardKey.arrowDown) {
+      return KeyEventResult.ignored;
+    }
+    final delta = key == LogicalKeyboardKey.arrowDown ? 80.0 : -80.0;
+    final target = (_scroll.offset + delta).clamp(
+      0.0,
+      _scroll.position.maxScrollExtent,
+    );
+    _scroll.jumpTo(target);
+    return KeyEventResult.handled;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final info = widget.info;
+    return ValueListenableBuilder<double?>(
+      valueListenable: UpdateService.progress,
+      builder: (context, progress, _) {
+        final downloading = progress != null;
+        return PopScope(
+          canPop: !downloading,
+          child: Focus(
+            canRequestFocus: false,
+            onKeyEvent: _onKey,
+            child: AlertDialog(
+              backgroundColor: const Color(0xFF2A2A2A),
+              title: Text(
+                '發現新版本 ${info.tag}',
+                style: const TextStyle(color: Colors.white),
+              ),
+              content: SizedBox(
+                width: 480,
+                height: 220,
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  child: Text(
+                    info.body.isEmpty ? '（無版本說明）' : info.body,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: downloading
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  child: const Text(
+                    '稍後',
+                    style: TextStyle(color: Colors.white54),
+                  ),
+                ),
+                TextButton(
+                  autofocus: true,
+                  onPressed: downloading
+                      ? null
+                      : () => UpdateService.downloadAndInstall(info),
+                  child: Text(
+                    downloading
+                        ? '下載中 ${(progress * 100).toStringAsFixed(0)}%'
+                        : '下載並安裝',
+                    style: const TextStyle(color: Color(0xFFfb7299)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

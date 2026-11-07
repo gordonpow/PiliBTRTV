@@ -38,6 +38,7 @@
 ### 已實作、尚未 commit
 
 - 繁簡切換（T-3）：原始碼文字轉台灣繁體、執行時 ZhConvert、語言設定與重啟（規格：`docs/work/zh-update-icon/`）；已於 feat/zh-update 分支 commit。
+- GitHub 自動更新（T-4）：`UpdateService` 改為檢查 gordonpow/PiliBTRTV releases，App 內下載並安裝（`installApk` 回傳 ok/permission、`getSupportedAbis`）；關於軟體分頁新增檢查更新、自動檢查、間隔，有新版時顯示紅點；已於 feat/zh-update 分支 commit。
 
 ### 待辦
 

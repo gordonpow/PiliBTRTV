@@ -17,6 +17,9 @@ class SettingActionRow extends StatelessWidget {
   final bool isFirst;
   final bool isLast;
 
+  /// 值文字旁是否顯示紅點
+  final bool showDot;
+
   const SettingActionRow({
     super.key,
     required this.label,
@@ -30,6 +33,7 @@ class SettingActionRow extends StatelessWidget {
     this.focusNode,
     this.isFirst = false,
     this.isLast = false,
+    this.showDot = false,
   });
 
   @override
@@ -74,12 +78,28 @@ class SettingActionRow extends StatelessWidget {
                       if (value.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            value,
-                            style: const TextStyle(
-                              color: Colors.white38,
-                              fontSize: 12,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                value,
+                                style: const TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (showDot) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                     ],

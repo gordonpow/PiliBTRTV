@@ -1,379 +1,212 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:bili_tv_app/widgets/zh_material.dart';
-import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import 'dart:async' show Timer;
+import 'dart:io' show Directory, File, Platform;
+
+import 'package:bili_tv_app/btr_version.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart'
+    show ValueNotifier, debugPrint, kDebugMode;
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:path_provider/path_provider.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
-import '../config/env.dart';
 
-/// 更新資訊模型
+import 'settings_service.dart';
+
+/// GitHub 上比目前版本新的 release。
 class UpdateInfo {
-  final String version;
-  final int versionCode;
-  final String downloadUrl;
-  final String changelog;
-  final bool forceUpdate;
-
-  UpdateInfo({
-    required this.version,
-    required this.versionCode,
-    required this.downloadUrl,
-    required this.changelog,
-    required this.forceUpdate,
+  const UpdateInfo({
+    required this.tag,
+    required this.body,
+    required this.htmlUrl,
+    required this.assets,
   });
 
-  factory UpdateInfo.fromJson(Map<String, dynamic> json) {
-    return UpdateInfo(
-      version: json['version'] ?? '',
-      versionCode: json['versionCode'] ?? 0,
-      downloadUrl: json['download_url'] ?? '',
-      changelog: json['changelog'] ?? '',
-      forceUpdate: json['force_update'] ?? false,
-    );
-  }
+  final String tag;
+  final String body;
+  final String htmlUrl;
+
+  /// release 內每個檔案的名稱與下載網址。
+  final List<({String name, String url})> assets;
 }
 
-/// 更新檢查結果
-class UpdateCheckResult {
-  final bool hasUpdate;
-  final UpdateInfo? updateInfo;
-  final String? error;
+/// 檢查 GitHub 上的 PiliBTRTV release。不會自己彈出對話框：
+/// 有新版本時只設定 [available]，由介面顯示紅點。
+abstract final class UpdateService {
+  static final available = ValueNotifier<UpdateInfo?>(null);
+  static final checking = ValueNotifier<bool>(false);
 
-  UpdateCheckResult({required this.hasUpdate, this.updateInfo, this.error});
-}
+  /// 下載進度 0 到 1；沒有下載時為 null。
+  static final progress = ValueNotifier<double?>(null);
 
-/// 更新服務
-class UpdateService {
-  static const String _serverUrlKey = 'update_server_url';
-  static const String _apiKeyKey = 'update_api_key';
+  static const _channel = MethodChannel('com.bili.tv/update');
+  static const _releasesUrl =
+      'https://api.github.com/repos/gordonpow/PiliBTRTV/releases';
+  static const _abis = ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
 
-  // 固定配置 (開源版本留空，需要更新功能請自行配置伺服器)
-  static const String defaultServerUrl = Env.updateServerUrl;
-  static const String defaultApiKey = Env.updateApiKey;
+  static final _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 15),
+      headers: {
+        'accept': 'application/vnd.github+json',
+        'user-agent': 'PiliBTRTV',
+      },
+    ),
+  );
 
-  static SharedPreferences? _prefs;
-
-  /// 初始化
-  static Future<void> init() async {
-    _prefs ??= await SharedPreferences.getInstance();
+  /// 解析 `v2.2.0-btr.7` 這類 tag 的版本數字。
+  static List<int> _parse(String tag) {
+    final m = RegExp(r'(\d+)\.(\d+)\.(\d+)(?:-btr\.(\d+))?').firstMatch(tag);
+    if (m == null) return const [0, 0, 0, 0];
+    return [for (var i = 1; i <= 4; i++) int.tryParse(m[i] ?? '') ?? 0];
   }
 
-  /// 獲取更新伺服器地址
-  static String get serverUrl {
-    return _prefs?.getString(_serverUrlKey) ?? defaultServerUrl;
-  }
-
-  /// 設定更新伺服器地址
-  static Future<void> setServerUrl(String url) async {
-    await init();
-    await _prefs!.setString(_serverUrlKey, url);
-  }
-
-  /// 獲取 API Key
-  static String get apiKey {
-    return _prefs?.getString(_apiKeyKey) ?? defaultApiKey;
-  }
-
-  /// 設定 API Key
-  static Future<void> setApiKey(String key) async {
-    await init();
-    await _prefs!.setString(_apiKeyKey, key);
-  }
-
-  /// 獲取裝置 CPU 架構
-  static String _getDeviceArch() {
-    // Android 裝置架構檢測
-    // arm64-v8a 對應 64 位 ARM
-    // armeabi-v7a 對應 32 位 ARM
-    final arch = Platform.version;
-    if (arch.contains('arm64') || arch.contains('aarch64')) {
-      return 'arm64-v8a';
-    } else if (arch.contains('arm')) {
-      return 'armeabi-v7a';
+  static bool _isNewer(String tag, String current) {
+    final a = _parse(tag), b = _parse(current);
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return a[i] > b[i];
     }
-    // 預設返回 arm64-v7a
-    return 'arm64-v7a';
+    return false;
   }
 
-  /// 檢查更新
-  static Future<UpdateCheckResult> checkForUpdate() async {
-    try {
-      await init();
+  /// 上次檢查的開始時間（自動或手動）。
+  static DateTime? _lastCheck;
+  static Timer? _timer;
 
-      // 如果未配置伺服器地址，跳過更新檢查
-      if (serverUrl.isEmpty) {
-        return UpdateCheckResult(hasUpdate: false, error: null);
-      }
-
-      // 獲取伺服器版本資訊
-      final response = await http
-          .get(Uri.parse('$serverUrl/version'), headers: {'X-API-Key': apiKey})
-          .timeout(const Duration(seconds: 10));
-
-      if (response.statusCode != 200) {
-        return UpdateCheckResult(
-          hasUpdate: false,
-          error: '伺服器響應錯誤: ${response.statusCode}',
-        );
-      }
-
-      final json = jsonDecode(response.body);
-      final updateInfo = UpdateInfo.fromJson(json);
-
-      // 獲取當前 App 版本
-      final packageInfo = await PackageInfo.fromPlatform();
-      final currentVersionCode = int.tryParse(packageInfo.buildNumber) ?? 0;
-
-      // 比較版本號
-      final hasUpdate = updateInfo.versionCode > currentVersionCode;
-
-      return UpdateCheckResult(hasUpdate: hasUpdate, updateInfo: updateInfo);
-    } catch (e) {
-      return UpdateCheckResult(hasUpdate: false, error: '檢查更新失敗: $e');
+  /// 啟動或更新自動檢查。距上次檢查已超過間隔（或 App 啟動後還沒檢查過）
+  /// 就立即檢查，之後每隔一個間隔再檢查。App 啟動、回到前景
+  /// （背景時計時器不會跑）與設定變更時呼叫。自動更新關閉時會停止。
+  static void startAuto() {
+    _timer?.cancel();
+    _timer = null;
+    if (!SettingsService.autoUpdate) return;
+    final interval = Duration(hours: SettingsService.updateIntervalHours);
+    final last = _lastCheck;
+    final wait = last == null
+        ? Duration.zero
+        : last.add(interval).difference(DateTime.now());
+    if (wait <= Duration.zero) {
+      check();
+      _timer = Timer(interval, startAuto);
+    } else {
+      _timer = Timer(wait, startAuto);
     }
   }
 
-  /// 下載並安裝更新
-  static Future<void> downloadAndInstall(
-    UpdateInfo updateInfo, {
-    Function(double)? onProgress,
-    Function(String)? onError,
-    VoidCallback? onComplete,
-  }) async {
+  /// 檢查新版本。[silent] 為 true 時不顯示訊息。
+  static Future<void> check({bool silent = true}) async {
+    if (checking.value) return;
+    checking.value = true;
+    _lastCheck = DateTime.now();
     try {
-      await init();
-
-      // 請求儲存許可權
-      final status = await Permission.storage.request();
-      if (!status.isGranted) {
-        // 部分 Android 版本 (11+) 不需要 WRITE_EXTERNAL_STORAGE，而是 scoped storage
-        // 但為了相容舊版本，還是建議請求。如果請求失敗，嘗試繼續（以防是 scoped storage 的情況）
-        // 或者請求 REQUEST_INSTALL_PACKAGES (在安裝時會觸發)
-
-        // 嘗試請求 manageExternalStorage (Android 11+)
-        if (await Permission.manageExternalStorage.isGranted == false) {
-          // 簡單的相容處理: 即使 denied 也嘗試繼續，因為可能是 Scoped Storage
+      final res = await _dio.get(_releasesUrl);
+      final data = res.data;
+      if (data is! List) throw const FormatException('no release list');
+      Map? release;
+      for (final e in data.cast<Map>()) {
+        if (e['draft'] != true && e['prerelease'] != true) {
+          release = e;
+          break;
         }
       }
-
-      // 獲取裝置架構
-      final arch = _getDeviceArch();
-
-      // 下載 APK（帶架構引數）
-      final downloadUrl = Uri.parse(
-        '$serverUrl/download',
-      ).replace(queryParameters: {'arch': arch});
-      final request = http.Request('GET', downloadUrl);
-      request.headers['X-API-Key'] = apiKey;
-
-      final streamedResponse = await request.send();
-
-      if (streamedResponse.statusCode != 200) {
-        onError?.call('下載失敗: ${streamedResponse.statusCode}');
+      final tag = release?['tag_name'] as String?;
+      if (release == null || tag == null || !_isNewer(tag, btrVersion)) {
+        available.value = null;
+        _deleteDownloads();
+        if (!silent) SettingsService.toast(null, '已是最新版本');
         return;
       }
-
-      final contentLength = streamedResponse.contentLength ?? 0;
-      final bytes = <int>[];
-      var received = 0;
-
-      await for (final chunk in streamedResponse.stream) {
-        bytes.addAll(chunk);
-        received += chunk.length;
-        if (contentLength > 0) {
-          onProgress?.call(received / contentLength);
-        }
-      }
-
-      // 儲存到本地
-      final dir = await getExternalStorageDirectory();
-      if (dir == null) {
-        onError?.call('無法獲取儲存目錄');
-        return;
-      }
-
-      final apkFile = File('${dir.path}/bilitv_update.apk');
-      await apkFile.writeAsBytes(bytes);
-
-      // 通知下載完成
-      onComplete?.call();
-
-      // 稍等一下確保檔案寫入完成
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // 呼叫 Android Intent 安裝 APK
-      await _installApk(apkFile.path);
-    } catch (e) {
-      onError?.call('下載安裝失敗: $e');
-    }
-  }
-
-  /// 呼叫系統安裝 APK
-  static Future<void> _installApk(String apkPath) async {
-    const platform = MethodChannel('com.bili.tv/update');
-    try {
-      await platform.invokeMethod('installApk', {'path': apkPath});
-    } catch (e) {
-      // 如果原生方法不存在，使用備用方案
-      throw Exception('安裝 APK 需要原生程式碼支援: $e');
-    }
-  }
-
-  /// 獲取當前版本資訊
-  static Future<String> getCurrentVersion() async {
-    final packageInfo = await PackageInfo.fromPlatform();
-    return '${packageInfo.version} (${packageInfo.buildNumber})';
-  }
-
-  /// 顯示更新對話方塊
-  static void showUpdateDialog(
-    BuildContext context,
-    UpdateInfo updateInfo, {
-    VoidCallback? onUpdate,
-    VoidCallback? onCancel,
-  }) {
-    showDialog(
-      context: context,
-      barrierDismissible: !updateInfo.forceUpdate,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        title: Text(
-          '發現新版本 ${updateInfo.version}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '更新內容:',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+      available.value = UpdateInfo(
+        tag: tag,
+        body: (release['body'] as String?)?.trim() ?? '',
+        htmlUrl:
+            release['html_url'] as String? ??
+            'https://github.com/gordonpow/PiliBTRTV/releases/latest',
+        assets: [
+          for (final Map a in (release['assets'] as List? ?? const []))
+            (
+              name: a['name'] as String,
+              url: a['browser_download_url'] as String,
             ),
-            const SizedBox(height: 8),
-            Text(
-              updateInfo.changelog,
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ],
-        ),
-        actions: [
-          if (!updateInfo.forceUpdate)
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                onCancel?.call();
-              },
-              child: const Text(
-                '稍後再說',
-                style: TextStyle(color: Colors.white54),
-              ),
-            ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              onUpdate?.call();
-            },
-            child: const Text(
-              '立即更新',
-              style: TextStyle(color: Color(0xFFfb7299)),
-            ),
-          ),
         ],
-      ),
-    );
+      );
+      if (!silent) SettingsService.toast(null, '發現新版本 $tag');
+    } catch (e) {
+      if (kDebugMode) debugPrint('failed to check update: $e');
+      if (!silent) SettingsService.toast(null, '檢查更新失敗，請檢查網路');
+    } finally {
+      checking.value = false;
+    }
   }
 
-  /// 顯示下載進度對話方塊
-  static void showDownloadProgress(
-    BuildContext context,
-    UpdateInfo updateInfo,
+  /// 刪除已下載的 APK：目前版本已是最新，舊檔不再需要。
+  static Future<void> _deleteDownloads() async {
+    try {
+      final dir = Directory('${(await getTemporaryDirectory()).path}/update');
+      if (dir.existsSync()) await dir.delete(recursive: true);
+    } catch (_) {}
+  }
+
+  /// 選擇此裝置的 APK：檔名含 ABI 者優先（依裝置支援順序），
+  /// 否則選檔名不含任何 ABI 字樣的通用 APK。
+  static ({String name, String url})? _pickAsset(
+    UpdateInfo info,
+    List<String> abis,
   ) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => _DownloadProgressDialog(updateInfo: updateInfo),
-    );
-  }
-}
-
-/// 下載進度對話方塊
-class _DownloadProgressDialog extends StatefulWidget {
-  final UpdateInfo updateInfo;
-
-  const _DownloadProgressDialog({required this.updateInfo});
-
-  @override
-  State<_DownloadProgressDialog> createState() =>
-      _DownloadProgressDialogState();
-}
-
-class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
-  double _progress = 0;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _startDownload();
+    final apks = info.assets.where((e) => e.name.endsWith('.apk')).toList();
+    for (final abi in abis) {
+      for (final a in apks) {
+        if (a.name.contains(abi)) return a;
+      }
+    }
+    for (final a in apks) {
+      if (!_abis.any(a.name.contains)) return a;
+    }
+    return null;
   }
 
-  void _startDownload() {
-    UpdateService.downloadAndInstall(
-      widget.updateInfo,
-      onProgress: (progress) {
-        if (mounted) {
-          setState(() => _progress = progress);
-        }
-      },
-      onError: (error) {
-        if (mounted) {
-          setState(() => _error = error);
-        }
-      },
-      onComplete: () {
-        if (mounted) {
-          // 下載完成，關閉對話方塊，系統會彈出安裝介面
-          Navigator.of(context).pop();
-        }
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: const Color(0xFF2A2A2A),
-      title: const Text('正在下載更新', style: TextStyle(color: Colors.white)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_error != null) ...[
-            const Icon(Icons.error, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(_error!, style: const TextStyle(color: Colors.red)),
-          ] else ...[
-            LinearProgressIndicator(value: _progress),
-            const SizedBox(height: 16),
-            Text(
-              '${(_progress * 100).toStringAsFixed(1)}%',
-              style: const TextStyle(color: Colors.white70),
-            ),
-          ],
-        ],
-      ),
-      actions: [
-        if (_error != null)
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('關閉', style: TextStyle(color: Colors.white54)),
-          ),
-      ],
-    );
+  /// 下載此裝置的 APK 並開啟系統安裝程式。
+  static Future<void> downloadAndInstall(UpdateInfo info) async {
+    if (progress.value != null) return;
+    if (!Platform.isAndroid) return;
+    List<String> abis = const [];
+    try {
+      final r = await _channel.invokeListMethod<String>('getSupportedAbis');
+      abis = r ?? const [];
+    } catch (_) {}
+    final asset = _pickAsset(info, abis);
+    if (asset == null) {
+      SettingsService.toast(null, '找不到適用此裝置的安裝檔');
+      return;
+    }
+    // 安裝程式透過 FileProvider 的 cache-path 讀檔（file_paths.xml 涵蓋 cache/update/）。
+    final dir = Directory('${(await getTemporaryDirectory()).path}/update');
+    final file = File('${dir.path}/${asset.name}');
+    progress.value = 0;
+    try {
+      // 完整檔案會保留（例如使用者要先允許安裝來源），再次使用即可。
+      if (!file.existsSync()) {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+        dir.createSync(recursive: true);
+        final part = '${file.path}.part';
+        await _dio.download(
+          asset.url,
+          part,
+          onReceiveProgress: (received, total) {
+            if (total > 0) progress.value = received / total;
+          },
+        );
+        File(part).renameSync(file.path);
+      }
+      progress.value = null;
+      final result = await _channel.invokeMethod<String>('installApk', {
+        'path': file.path,
+      });
+      if (result == 'permission') {
+        SettingsService.toast(null, '請允許 PiliBTRTV 安裝應用程式，再按一次安裝');
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('update download error: $e');
+      SettingsService.toast(null, '下載更新失敗');
+    } finally {
+      progress.value = null;
+    }
   }
 }

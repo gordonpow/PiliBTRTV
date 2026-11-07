@@ -12,6 +12,7 @@ import 'home/live_tab.dart';
 import '../widgets/tv_focusable_item.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
+import '../services/update_service.dart';
 
 /// 主頁框架 - 完全按照 animeone_tv_app 的方式
 class HomeScreen extends StatefulWidget {
@@ -23,7 +24,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver {
   int _selectedTabIndex = 1; // 預設選中首頁
   DateTime? _lastBackPressed;
   DateTime? _backFromSearchHandled; // 防止搜尋鍵盤返回鍵重複處理
@@ -56,6 +58,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    UpdateService.startAuto();
     _sideBarFocusNodes = List.generate(
       _tabIcons.length,
       (index) => FocusNode(),
@@ -115,7 +119,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) UpdateService.startAuto();
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (var node in _sideBarFocusNodes) {
       node.dispose();
     }
@@ -226,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? AuthService.face
                         : null;
 
-                    return TvFocusableItem(
+                    final item = TvFocusableItem(
                       iconPath: _tabIcons[index],
                       avatarUrl: avatarUrl,
                       isSelected: _selectedTabIndex == index,
@@ -245,6 +255,33 @@ class _HomeScreenState extends State<HomeScreen> {
                           ? () =>
                                 _loginTabKey.currentState?.focusFirstCategory()
                           : null,
+                    );
+                    if (!isUserTab) return item;
+                    // 設定入口：有新版本時顯示紅點
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        item,
+                        Positioned(
+                          top: 8,
+                          right: 10,
+                          child: IgnorePointer(
+                            child: ValueListenableBuilder<UpdateInfo?>(
+                              valueListenable: UpdateService.available,
+                              builder: (_, info, _) => info == null
+                                  ? const SizedBox.shrink()
+                                  : Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ],
                     );
                   }),
                 ),

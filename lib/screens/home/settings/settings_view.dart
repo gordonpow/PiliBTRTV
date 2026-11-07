@@ -1,6 +1,7 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/auth_service.dart';
+import '../../../services/update_service.dart';
 import 'tabs/playback_settings.dart';
 import 'tabs/btr_settings.dart';
 import 'tabs/interface_settings.dart';
@@ -161,6 +162,7 @@ class SettingsViewState extends State<SettingsView> {
     required FocusNode focusNode,
     required VoidCallback onTap,
     VoidCallback? onMoveLeft,
+    bool showDot = false,
   }) {
     return Padding(
       padding: const EdgeInsets.only(right: 16),
@@ -198,19 +200,39 @@ class SettingsViewState extends State<SettingsView> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: isFocused
-                          ? Colors.white
-                          : (isSelected
-                                ? const Color(0xFFfb7299)
-                                : Colors.grey),
-                      fontSize: 15,
-                      fontWeight: isFocused || isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: isFocused
+                              ? Colors.white
+                              : (isSelected
+                                    ? const Color(0xFFfb7299)
+                                    : Colors.grey),
+                          fontSize: 15,
+                          fontWeight: isFocused || isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      if (showDot)
+                        ValueListenableBuilder<UpdateInfo?>(
+                          valueListenable: UpdateService.available,
+                          builder: (_, info, _) => info == null
+                              ? const SizedBox.shrink()
+                              : Container(
+                                  margin: const EdgeInsets.only(left: 6),
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Container(
@@ -315,6 +337,7 @@ class SettingsViewState extends State<SettingsView> {
                   return _buildCategoryTab(
                     label: category.label,
                     isSelected: isSelected,
+                    showDot: category == SettingsCategory.about,
                     focusNode: _categoryFocusNodes[index],
                     onTap: () => setState(() => _selectedCategoryIndex = index),
                     onMoveLeft: index == 0

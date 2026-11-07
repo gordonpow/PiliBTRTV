@@ -103,3 +103,12 @@ T-1、T-2 平行 → T-3（會改動幾乎所有檔案，單獨執行）→ T-4 
 - `lib/plugins/ad_filter_plugin.dart:37-48`、`:53-83` 廣告／標題黨關鍵詞，`:88-129` `_simplifiedToTraditional` 簡繁對照表（`_normalizeChineseChars` 用它）
 - `lib/plugins/danmaku_enhance_plugin.dart:156`、`:163` 預設屏蔽詞 `['剧透', '前方高能']`
 - 未改動（兩種字體相同）：`video.dart:105` 的 `contains('直播')`。
+
+### T-4 實作偏差（2026-11-07）
+
+- 類別名稱沿用 `UpdateService`（不叫 `Update`）；`UpdateService.init()` 已移除，splash_screen 同步修改。
+- 非 Android 平台 `downloadAndInstall` 直接返回（不開網頁）；找不到 APK 只 toast，不開 release 頁。
+- 下載失敗 toast 不附例外內容。
+- `file_paths.xml` 的 `cache-path path="."` 已涵蓋 `cache/update/`，未修改。
+- 首頁側欄沒有獨立「設定」項，紅點放在使用者／設定入口（index 5）。
+- `SettingActionRow` 新增 `showDot` 參數；更新對話框的上下鍵由外層 `Focus` 捕捉以捲動版本說明。

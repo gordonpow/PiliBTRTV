@@ -6,7 +6,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart'; // 包含 BiliCacheManager
-import '../services/update_service.dart';
 import '../services/bilibili_api.dart';
 import '../services/api/base_api.dart';
 import '../models/video.dart';
@@ -76,7 +75,6 @@ class _SplashScreenState extends State<SplashScreen> {
       videoInitFuture,
       AuthService.init(),
       SettingsService.init(),
-      UpdateService.init(),
     ]);
 
     // Ensure buvid3 cookie exists before any Bilibili API call
