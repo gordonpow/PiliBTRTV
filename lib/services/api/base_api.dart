@@ -77,7 +77,7 @@ class BaseApi {
             Uri.parse('$apiBase/x/frontend/finger/spi'),
             headers: {
               'User-Agent': _userAgent,
-              'Referer': 'https://www.bilibili.com',
+              'Referer': 'https://www.bilibili.com/',
             },
           )
           .timeout(const Duration(seconds: 5));
@@ -106,7 +106,7 @@ class BaseApi {
   static Map<String, String> getHeaders({bool withCookie = false}) {
     final headers = {
       'User-Agent': _userAgent,
-      'Referer': 'https://www.bilibili.com',
+      'Referer': 'https://www.bilibili.com/',
     };
 
     final parts = <String>[];
