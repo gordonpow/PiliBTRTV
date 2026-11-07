@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../services/settings_service.dart'; // 包含 BiliCacheManager
 import '../services/update_service.dart';
 import '../services/bilibili_api.dart';
+import '../services/api/base_api.dart';
 import '../models/video.dart';
 import 'home_screen.dart';
 import '../utils/image_url_utils.dart';
@@ -77,6 +78,16 @@ class _SplashScreenState extends State<SplashScreen> {
       SettingsService.init(),
       UpdateService.init(),
     ]);
+
+    // Ensure buvid3 cookie exists before any Bilibili API call
+    try {
+      await BaseApi.ensureBuvid().timeout(
+        const Duration(seconds: 6),
+        onTimeout: () {},
+      );
+    } catch (e) {
+      debugPrint('ensureBuvid failed: $e');
+    }
 
     try {
       BtrConfig.applyLocaleDefault();

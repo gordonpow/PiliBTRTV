@@ -7,6 +7,7 @@ import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/api/live_api.dart';
+import '../../services/api/base_api.dart';
 import '../../services/live_socket_service.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/time_display.dart';
@@ -340,6 +341,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
           'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
           'Referer': 'https://live.bilibili.com/',
+          if (BaseApi.cookieHeader != null) 'Cookie': BaseApi.cookieHeader!,
         },
         viewType: VideoViewType.platformView,
       );

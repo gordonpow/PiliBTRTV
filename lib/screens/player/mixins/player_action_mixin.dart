@@ -11,6 +11,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/mpd_generator.dart';
 import '../../../services/local_server.dart';
 import '../../../services/api/videoshot_api.dart';
+import '../../../services/api/base_api.dart';
 import '../widgets/settings_panel.dart';
 import '../player_screen.dart';
 import '../widgets/quality_picker_sheet.dart';
@@ -264,8 +265,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
                 'Referer': 'https://www.bilibili.com/',
                 'Origin': 'https://www.bilibili.com',
-                if (AuthService.sessdata != null)
-                  'Cookie': 'SESSDATA=${AuthService.sessdata}',
+                if (BaseApi.cookieHeader != null)
+                  'Cookie': BaseApi.cookieHeader!,
               },
               viewType: VideoViewType.platformView,
             );
@@ -1166,8 +1167,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
             'Referer': 'https://www.bilibili.com/',
             'Origin': 'https://www.bilibili.com',
-            if (AuthService.sessdata != null)
-              'Cookie': 'SESSDATA=${AuthService.sessdata}',
+            if (BaseApi.cookieHeader != null)
+              'Cookie': BaseApi.cookieHeader!,
           },
           viewType: VideoViewType.platformView,
         );
@@ -1288,8 +1289,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
           'Referer': 'https://www.bilibili.com/',
           'Origin': 'https://www.bilibili.com',
-          if (AuthService.sessdata != null)
-            'Cookie': 'SESSDATA=${AuthService.sessdata}',
+          if (BaseApi.cookieHeader != null)
+            'Cookie': BaseApi.cookieHeader!,
         },
         viewType: VideoViewType.platformView,
       );

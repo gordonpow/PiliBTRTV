@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../auth_service.dart';
@@ -14,25 +15,101 @@ class BaseApi {
   static DateTime? wbiKeysTime;
   static bool _wbiLoaded = false;
 
+  // buvid3 / buvid4 device cookies (required by x/web-interface/view etc.)
+  static String? buvid3;
+  static String? buvid4;
+
+  /// Full Cookie string: buvid3 / buvid4 always, SESSDATA / bili_jct when
+  /// logged in. Returns null when nothing is available.
+  static String? get cookieHeader {
+    final parts = <String>[];
+    if (buvid3 != null && buvid3!.isNotEmpty) parts.add('buvid3=$buvid3');
+    if (buvid4 != null && buvid4!.isNotEmpty) parts.add('buvid4=$buvid4');
+    final sessdata = AuthService.sessdata;
+    final biliJct = AuthService.biliJct;
+    if (sessdata != null && sessdata.isNotEmpty) {
+      parts.add('SESSDATA=$sessdata');
+      if (biliJct != null && biliJct.isNotEmpty) {
+        parts.add('bili_jct=$biliJct');
+      }
+    }
+    return parts.isEmpty ? null : parts.join('; ');
+  }
+
+  static const String _userAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36';
+
+  /// Random buvid in the format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX + 5 digits + infoc
+  static String _generateBuvid() {
+    final rnd = Random.secure();
+    String hex(int n) => List.generate(
+      n,
+      (_) => rnd.nextInt(16).toRadixString(16).toUpperCase(),
+    ).join();
+    final digits = List.generate(5, (_) => rnd.nextInt(10)).join();
+    return '${hex(8)}-${hex(4)}-${hex(4)}-${hex(4)}-${hex(12)}${digits}infoc';
+  }
+
+  /// Make sure buvid3 / buvid4 exist: prefs, then finger/spi, then random.
+  static Future<void> ensureBuvid() async {
+    SharedPreferences? prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+      buvid3 = prefs.getString('buvid3');
+      buvid4 = prefs.getString('buvid4');
+    } catch (_) {}
+    if (buvid3 != null && buvid3!.isNotEmpty) return;
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$apiBase/x/frontend/finger/spi'),
+            headers: {
+              'User-Agent': _userAgent,
+              'Referer': 'https://www.bilibili.com',
+            },
+          )
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['code'] == 0 && json['data'] != null) {
+          final b3 = json['data']['b_3'] as String?;
+          final b4 = json['data']['b_4'] as String?;
+          if (b3 != null && b3.isNotEmpty) buvid3 = b3;
+          if (b4 != null && b4.isNotEmpty) buvid4 = b4;
+        }
+      }
+    } catch (_) {}
+
+    buvid3 ??= _generateBuvid();
+    try {
+      await prefs?.setString('buvid3', buvid3!);
+      if (buvid4 != null) await prefs?.setString('buvid4', buvid4!);
+    } catch (_) {}
+  }
+
   /// 获取通用请求头
+  /// Cookie always carries buvid3; [withCookie] only controls login cookies.
   static Map<String, String> getHeaders({bool withCookie = false}) {
     final headers = {
-      'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+      'User-Agent': _userAgent,
       'Referer': 'https://www.bilibili.com',
     };
 
+    final parts = <String>[];
+    if (buvid3 != null && buvid3!.isNotEmpty) parts.add('buvid3=$buvid3');
+    if (buvid4 != null && buvid4!.isNotEmpty) parts.add('buvid4=$buvid4');
     if (withCookie) {
       final sessdata = AuthService.sessdata;
       final biliJct = AuthService.biliJct;
       if (sessdata != null && sessdata.isNotEmpty) {
-        var cookie = 'SESSDATA=$sessdata';
+        parts.add('SESSDATA=$sessdata');
         if (biliJct != null && biliJct.isNotEmpty) {
-          cookie += '; bili_jct=$biliJct';
+          parts.add('bili_jct=$biliJct');
         }
-        headers['Cookie'] = cookie;
       }
     }
+    if (parts.isNotEmpty) headers['Cookie'] = parts.join('; ');
 
     return headers;
   }
