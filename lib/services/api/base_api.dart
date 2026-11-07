@@ -19,12 +19,16 @@ class BaseApi {
   static String? buvid3;
   static String? buvid4;
 
+  /// b_nut cookie (seconds when buvid3 was made). Search returns 412 without it.
+  static String? bNut;
+
   /// Full Cookie string: buvid3 / buvid4 always, SESSDATA / bili_jct when
   /// logged in. Returns null when nothing is available.
   static String? get cookieHeader {
     final parts = <String>[];
     if (buvid3 != null && buvid3!.isNotEmpty) parts.add('buvid3=$buvid3');
     if (buvid4 != null && buvid4!.isNotEmpty) parts.add('buvid4=$buvid4');
+    if (bNut != null && bNut!.isNotEmpty) parts.add('b_nut=$bNut');
     final sessdata = AuthService.sessdata;
     final biliJct = AuthService.biliJct;
     if (sessdata != null && sessdata.isNotEmpty) {
@@ -57,8 +61,15 @@ class BaseApi {
       prefs = await SharedPreferences.getInstance();
       buvid3 = prefs.getString('buvid3');
       buvid4 = prefs.getString('buvid4');
+      bNut = prefs.getString('b_nut');
     } catch (_) {}
-    if (buvid3 != null && buvid3!.isNotEmpty) return;
+    if (buvid3 != null && buvid3!.isNotEmpty) {
+      if (bNut == null || bNut!.isEmpty) {
+        bNut = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
+        await prefs?.setString('b_nut', bNut!);
+      }
+      return;
+    }
 
     try {
       final response = await http
@@ -84,6 +95,8 @@ class BaseApi {
     buvid3 ??= _generateBuvid();
     try {
       await prefs?.setString('buvid3', buvid3!);
+      bNut = (DateTime.now().millisecondsSinceEpoch ~/ 1000).toString();
+      await prefs?.setString('b_nut', bNut!);
       if (buvid4 != null) await prefs?.setString('buvid4', buvid4!);
     } catch (_) {}
   }
@@ -99,6 +112,7 @@ class BaseApi {
     final parts = <String>[];
     if (buvid3 != null && buvid3!.isNotEmpty) parts.add('buvid3=$buvid3');
     if (buvid4 != null && buvid4!.isNotEmpty) parts.add('buvid4=$buvid4');
+    if (bNut != null && bNut!.isNotEmpty) parts.add('b_nut=$bNut');
     if (withCookie) {
       final sessdata = AuthService.sessdata;
       final biliJct = AuthService.biliJct;
