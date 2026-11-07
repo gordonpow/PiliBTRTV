@@ -179,8 +179,9 @@ class LiveApi {
           return list;
         }
       }
+      debugPrint('getFollowedLive: HTTP ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
     } catch (e) {
-      // ignore
+      debugPrint('getFollowedLive error: $e');
     }
     return [];
   }

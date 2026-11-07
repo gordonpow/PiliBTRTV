@@ -162,6 +162,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _refreshCurrentTab() {
     setState(() {});
+    // 登入後重新載入各分頁；原本只刷新畫面，分頁仍保留登入前的空資料。
+    _homeTabKey.currentState?.refreshCurrentCategory();
+    _dynamicTabKey.currentState?.refresh();
+    _historyTabKey.currentState?.refresh();
+    _liveTabKey.currentState?.refresh();
   }
 
   @override

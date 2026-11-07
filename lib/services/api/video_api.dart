@@ -112,7 +112,7 @@ class VideoApi {
     int max = 0,
   }) async {
     if (!AuthService.isLoggedIn) {
-      return {'list': <Video>[], 'hasMore': false};
+      return {'list': <Video>[], 'viewAt': 0, 'max': 0, 'hasMore': false};
     }
 
     try {
@@ -154,10 +154,11 @@ class VideoApi {
           };
         }
       }
+      debugPrint('getHistory: HTTP ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
     } catch (e) {
-      // 忽略錯誤
+      debugPrint('getHistory error: $e');
     }
-    return {'list': <Video>[], 'hasMore': false};
+    return {'list': <Video>[], 'viewAt': 0, 'max': 0, 'hasMore': false};
   }
 
   /// 獲取搜尋建議
@@ -297,23 +298,25 @@ class VideoApi {
                   pic: BaseApi.fixPicUrl(archive['cover'] ?? ''),
                   ownerName: author['name'] ?? '',
                   ownerFace: BaseApi.fixPicUrl(author['face'] ?? ''),
-                  ownerMid: author['mid'] ?? 0,
+                  ownerMid: BaseApi.toInt(author['mid']),
                   view: BaseApi.toInt(viewValue),
                   danmaku: BaseApi.toInt(danmakuValue),
                   duration: BaseApi.parseDuration(
                     archive['duration_text'] ?? '',
                   ),
-                  pubdate: author['pub_ts'] ?? 0,
+                  pubdate: BaseApi.toInt(author['pub_ts']),
                   badge:
                       (archive['badge'] as Map<String, dynamic>?)?['text'] ??
                       '',
                 ),
               );
             } catch (e) {
+              debugPrint('getDynamicFeed item error: $e');
               continue;
             }
           }
 
+          debugPrint('getDynamicFeed: items=${items.length} videos=${videos.length} hasMore=$hasMore');
           return DynamicFeed(
             videos: videos,
             offset: newOffset,
@@ -321,8 +324,9 @@ class VideoApi {
           );
         }
       }
+      debugPrint('getDynamicFeed: HTTP ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
     } catch (e) {
-      // 忽略錯誤
+      debugPrint('getDynamicFeed error: $e');
     }
     return DynamicFeed(videos: [], offset: '', hasMore: false);
   }
