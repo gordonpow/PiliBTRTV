@@ -1,17 +1,17 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/utils/zh_toast.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../models/video.dart';
 
-/// 点赞/投币/收藏 按钮组件
+/// 點贊/投幣/收藏 按鈕元件
 class ActionButtons extends StatefulWidget {
   final Video video;
   final int aid;
-  final bool isFocused; // 整个组件是否被聚焦
-  final VoidCallback? onFocusExit; // 用户退出时回调
-  final VoidCallback? onUserInteraction; // 用户交互回调 (用于重置定时器)
+  final bool isFocused; // 整個元件是否被聚焦
+  final VoidCallback? onFocusExit; // 使用者退出時回撥
+  final VoidCallback? onUserInteraction; // 使用者互動回撥 (用於重置定時器)
 
   const ActionButtons({
     super.key,
@@ -30,7 +30,7 @@ class _ActionButtonsState extends State<ActionButtons> {
   bool _isLiked = false;
   int _coinCount = 0;
   bool _isFavorited = false;
-  int _focusedIndex = 0; // 0=点赞, 1=投币, 2=收藏
+  int _focusedIndex = 0; // 0=點贊, 1=投幣, 2=收藏
   bool _isLoading = false;
   final FocusNode _focusNode = FocusNode();
 
@@ -51,7 +51,7 @@ class _ActionButtonsState extends State<ActionButtons> {
     if (oldWidget.aid != widget.aid) {
       _loadStatus();
     }
-    // 当 isFocused 变为 true 时请求焦点
+    // 當 isFocused 變為 true 時請求焦點
     if (widget.isFocused && !oldWidget.isFocused) {
       _focusNode.requestFocus();
     }
@@ -92,9 +92,9 @@ class _ActionButtonsState extends State<ActionButtons> {
 
     if (success) {
       setState(() => _isLiked = !_isLiked);
-      Fluttertoast.showToast(msg: _isLiked ? '已点赞' : '已取消点赞');
+      showZhToast(msg: _isLiked ? '已點贊' : '已取消點贊');
     } else {
-      Fluttertoast.showToast(msg: '操作失败');
+      showZhToast(msg: '操作失敗');
     }
     setState(() => _isLoading = false);
   }
@@ -102,7 +102,7 @@ class _ActionButtonsState extends State<ActionButtons> {
   Future<void> _onCoin() async {
     if (_isLoading || _coinCount >= 2) {
       if (_coinCount >= 2) {
-        Fluttertoast.showToast(msg: '已投满2个硬币');
+        showZhToast(msg: '已投滿2個硬幣');
       }
       return;
     }
@@ -112,12 +112,12 @@ class _ActionButtonsState extends State<ActionButtons> {
 
     if (error == null) {
       setState(() => _coinCount = _coinCount + 1);
-      Fluttertoast.showToast(msg: '投币成功 ($_coinCount/2)');
+      showZhToast(msg: '投幣成功 ($_coinCount/2)');
 
-      // 触发交互回调，重置隐藏定时器
+      // 觸發互動回撥，重置隱藏定時器
       widget.onUserInteraction?.call();
     } else {
-      Fluttertoast.showToast(msg: error);
+      showZhToast(msg: error);
     }
     setState(() => _isLoading = false);
   }
@@ -133,9 +133,9 @@ class _ActionButtonsState extends State<ActionButtons> {
 
     if (success) {
       setState(() => _isFavorited = !_isFavorited);
-      Fluttertoast.showToast(msg: _isFavorited ? '已收藏' : '已取消收藏');
+      showZhToast(msg: _isFavorited ? '已收藏' : '已取消收藏');
     } else {
-      Fluttertoast.showToast(msg: '操作失败');
+      showZhToast(msg: '操作失敗');
     }
     setState(() => _isLoading = false);
   }
@@ -194,14 +194,14 @@ class _ActionButtonsState extends State<ActionButtons> {
             _buildButton(
               index: 0,
               svgPath: 'assets/icons/like.svg',
-              label: _isLiked ? '已点赞' : '点赞',
+              label: _isLiked ? '已點贊' : '點贊',
               isActive: _isLiked,
             ),
             const SizedBox(width: 24),
             _buildButton(
               index: 1,
               svgPath: 'assets/icons/coin.svg',
-              label: _coinCount > 0 ? '已投($_coinCount/2)个币' : '投币',
+              label: _coinCount > 0 ? '已投($_coinCount/2)個幣' : '投幣',
               isActive: _coinCount > 0,
             ),
             const SizedBox(width: 24),

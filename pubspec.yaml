@@ -80,6 +80,7 @@ flutter:
   uses-material-design: true
   
   assets:
+    - assets/zh/
     - assets/icons/startup.mp4
     - assets/icons/startup_frame.jpg
     - assets/icons/home.svg

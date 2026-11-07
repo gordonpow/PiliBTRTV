@@ -1,5 +1,5 @@
 import 'package:canvas_danmaku/canvas_danmaku.dart';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 
 class DanmakuLayer extends StatelessWidget {
   final Function(DanmakuController) onCreated;

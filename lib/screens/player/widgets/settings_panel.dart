@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 
 import '../../../services/btr/btr_config.dart';
 import 'cdn_status_view.dart';
@@ -92,10 +92,10 @@ class _SettingsPanelState extends State<SettingsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    String title = '设置';
-    if (widget.menuType == SettingsMenuType.danmaku) title = '弹幕设置';
+    String title = '設定';
+    if (widget.menuType == SettingsMenuType.danmaku) title = '彈幕設定';
     if (widget.menuType == SettingsMenuType.speed) title = '倍速播放';
-    if (widget.menuType == SettingsMenuType.quality) title = '画质选择';
+    if (widget.menuType == SettingsMenuType.quality) title = '畫質選擇';
     if (widget.menuType == SettingsMenuType.cdn) title = 'CDN 狀態';
 
     return Positioned(
@@ -107,7 +107,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
         color: const Color(0xFF1F1F1F).withValues(alpha: 0.95),
         child: Column(
           children: [
-            // 标题栏
+            // 標題欄
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -140,7 +140,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
                 ],
               ),
             ),
-            // 列表内容
+            // 列表內容
             Expanded(child: _buildSettingsList()),
           ],
         ),
@@ -169,15 +169,15 @@ class _SettingsPanelState extends State<SettingsPanel> {
         _buildSettingItem(
           index: 0,
           icon: Icons.hd,
-          title: '画质',
+          title: '畫質',
           value: widget.qualityDesc,
           onTap: widget.onQualityPicker,
         ),
         _buildSettingItem(
           index: 1,
           icon: Icons.subtitles,
-          title: '弹幕设置',
-          value: widget.danmakuEnabled ? '开' : '关',
+          title: '彈幕設定',
+          value: widget.danmakuEnabled ? '開' : '關',
           onTap: () => widget.onNavigate(SettingsMenuType.danmaku, 0),
         ),
         _buildSettingItem(
@@ -206,50 +206,50 @@ class _SettingsPanelState extends State<SettingsPanel> {
         _buildSettingItem(
           index: 0,
           icon: widget.danmakuEnabled ? Icons.subtitles : Icons.subtitles_off,
-          title: '弹幕开关',
-          value: widget.danmakuEnabled ? '开' : '关',
+          title: '彈幕開關',
+          value: widget.danmakuEnabled ? '開' : '關',
           onTap: () {},
         ),
         _buildSettingItem(
           index: 1,
           icon: Icons.opacity,
-          title: '弹幕透明度',
+          title: '彈幕透明度',
           value: widget.danmakuOpacity.toStringAsFixed(1),
           onTap: () {},
         ),
         _buildSettingItem(
           index: 2,
           icon: Icons.format_size,
-          title: '弹幕字体大小',
+          title: '彈幕字型大小',
           value: widget.danmakuFontSize.toInt().toString(),
           onTap: () {},
         ),
         _buildSettingItem(
           index: 3,
           icon: Icons.aspect_ratio,
-          title: '弹幕占屏比',
+          title: '彈幕佔屏比',
           value: _getDanmakuAreaText(),
           onTap: () {},
         ),
         _buildSettingItem(
           index: 4,
           icon: Icons.shutter_speed,
-          title: '弹幕速度',
+          title: '彈幕速度',
           value: widget.danmakuSpeed.toInt().toString(),
           onTap: () {},
         ),
         _buildSettingItem(
           index: 5,
           icon: Icons.vertical_align_top,
-          title: '允许顶部悬停弹幕',
-          value: !widget.hideTopDanmaku ? '开' : '关',
+          title: '允許頂部懸停彈幕',
+          value: !widget.hideTopDanmaku ? '開' : '關',
           onTap: () {},
         ),
         _buildSettingItem(
           index: 6,
           icon: Icons.vertical_align_bottom,
-          title: '允许底部悬停弹幕',
-          value: !widget.hideBottomDanmaku ? '开' : '关',
+          title: '允許底部懸停彈幕',
+          value: !widget.hideBottomDanmaku ? '開' : '關',
           onTap: () {},
         ),
       ],
@@ -267,7 +267,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
           index: index,
           icon: Icons.speed,
           title: '${speed}x',
-          value: isSelected ? '当前' : '',
+          value: isSelected ? '當前' : '',
           onTap: () {},
         );
       }).toList(),
@@ -275,7 +275,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
   }
 
   String _getDanmakuAreaText() {
-    if (widget.danmakuArea >= 1.0) return '满屏';
+    if (widget.danmakuArea >= 1.0) return '滿屏';
     if (widget.danmakuArea >= 0.75) return '3/4屏';
     if (widget.danmakuArea >= 0.5) return '半屏';
     if (widget.danmakuArea >= 0.25) return '1/4屏';

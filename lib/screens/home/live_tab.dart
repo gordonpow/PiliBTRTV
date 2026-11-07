@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:keframe/keframe.dart';
@@ -52,12 +52,12 @@ class LiveTabState extends State<LiveTab> {
     _categories = [
       _LiveCategory(
         id: 'following',
-        label: '我的关注',
+        label: '我的關注',
         type: _LiveCategoryType.following,
       ),
       _LiveCategory(
         id: 'recommend',
-        label: '推荐直播',
+        label: '推薦直播',
         type: _LiveCategoryType.recommend,
       ),
     ];
@@ -228,7 +228,7 @@ class LiveTabState extends State<LiveTab> {
         _categories[_selectedCategoryIndex].type == _LiveCategoryType.following;
     final showLoginText = isFollowingTab && !AuthService.isLoggedIn;
 
-    // 判断是否是"启动后的第一屏数据" (Simulated)
+    // 判斷是否是"啟動後的第一屏資料" (Simulated)
     final bool isInitialLoad =
         _categoryPage[_selectedCategoryIndex] == 1 &&
         !_categoryLoading[_selectedCategoryIndex]!;
@@ -240,7 +240,7 @@ class LiveTabState extends State<LiveTab> {
           child: FocusTraversalGroup(
             child: showLoginText
                 ? const Center(
-                    child: Text("请先登录", style: TextStyle(color: Colors.white)),
+                    child: Text("請先登入", style: TextStyle(color: Colors.white)),
                   )
                 : isLoading && currentRooms.isEmpty
                 ? const Center(
@@ -249,7 +249,7 @@ class LiveTabState extends State<LiveTab> {
                 : currentRooms.isEmpty
                 ? const Center(
                     child: Text(
-                      "暂无开播的主播",
+                      "暫無開播的主播",
                       style: TextStyle(
                         color: Colors.white54,
                         fontSize: 24,
@@ -281,7 +281,7 @@ class LiveTabState extends State<LiveTab> {
 
                               final room = currentRooms[index];
 
-                              // 构建卡片
+                              // 構建卡片
                               Widget buildCard(BuildContext ctx) {
                                 return TvLiveCard(
                                   room: room,
@@ -347,7 +347,7 @@ class LiveTabState extends State<LiveTab> {
                                 );
                               }
 
-                              // 只有刷新时使用分帧渲染 (match HomeTab)
+                              // 只有重新整理時使用分幀渲染 (match HomeTab)
                               if (_isRefreshing) {
                                 return FrameSeparateWidget(
                                   index: index,

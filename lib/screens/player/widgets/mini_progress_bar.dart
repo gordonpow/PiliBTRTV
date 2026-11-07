@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 
-/// 迷你进度条 - 显示在屏幕底部，当控制栏隐藏时显示
+/// 迷你進度條 - 顯示在螢幕底部，當控制欄隱藏時顯示
 class MiniProgressBar extends StatelessWidget {
   final Duration position;
   final Duration duration;
@@ -25,22 +25,22 @@ class MiniProgressBar extends StatelessWidget {
         height: 4,
         child: Stack(
           children: [
-            // 背景条
+            // 背景條
             Container(color: Colors.white.withValues(alpha: 0.3)),
-            // 进度条
+            // 進度條
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: progress.clamp(0.0, 1.0),
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // 粉色进度
+                  // 粉色進度
                   Container(
                     decoration: const BoxDecoration(
                       color: Color(0xFFfb7299), // B站粉
                     ),
                   ),
-                  // 半圆指示器
+                  // 半圓指示器
                   Positioned(
                     right: -4,
                     top: -2,

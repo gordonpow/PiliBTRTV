@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../core/focus/focus_navigation.dart';
 
-/// TV 视频卡片基类
+/// TV 影片卡片基類
 ///
-/// 使用统一的焦点管理系统，支持网格导航模式
+/// 使用統一的焦點管理系統，支援網格導航模式
 class BaseTvCard extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onFocus;
@@ -103,20 +103,20 @@ class _BaseTvCardState extends State<BaseTvCard>
       onSelect: widget.onTap,
       isFirst: widget.isFirst,
       isLast: widget.isLast,
-      enableKeyRepeat: true, // 网格导航支持按住快速移动
+      enableKeyRepeat: true, // 網格導航支援按住快速移動
       child: ScaleTransition(
         scale: _scaleAnim,
         child: RepaintBoundary(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 封面区域
+              // 封面區域
               AspectRatio(
                 aspectRatio: 16 / 9,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // 阴影层
+                    // 陰影層
                     Positioned.fill(
                       top: 10,
                       child: FadeTransition(
@@ -138,7 +138,7 @@ class _BaseTvCardState extends State<BaseTvCard>
                         ),
                       ),
                     ),
-                    // 图片与内容层
+                    // 圖片與內容層
                     Stack(
                       fit: StackFit.expand,
                       children: [
@@ -146,7 +146,7 @@ class _BaseTvCardState extends State<BaseTvCard>
                           borderRadius: BorderRadius.circular(10),
                           child: widget.imageContent,
                         ),
-                        // 聚焦时的边框
+                        // 聚焦時的邊框
                         if (_isFocused)
                           IgnorePointer(
                             child: Container(
@@ -166,7 +166,7 @@ class _BaseTvCardState extends State<BaseTvCard>
                 ),
               ),
               const SizedBox(height: 10),
-              // 底部信息区域
+              // 底部資訊區域
               widget.infoContentBuilder(context, _isFocused),
             ],
           ),

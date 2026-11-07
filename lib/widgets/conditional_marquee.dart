@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/utils/zh_convert.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:marquee/marquee.dart';
 
 class ConditionalMarquee extends StatelessWidget {
@@ -7,7 +8,7 @@ class ConditionalMarquee extends StatelessWidget {
   final double blankSpace;
   final double velocity;
   final int? maxLines;
-  final bool alwaysScroll; // 如果为 true，则强制滚动（不推荐，除非无法计算宽度）
+  final bool alwaysScroll; // 如果為 true，則強制滾動（不推薦，除非無法計算寬度）
 
   const ConditionalMarquee({
     super.key,
@@ -27,19 +28,19 @@ class ConditionalMarquee extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 使用 TextPainter 测量文本宽度
+        // 使用 TextPainter 測量文本寬度
         final textPainter = TextPainter(
-          text: TextSpan(text: text, style: style),
+          text: TextSpan(text: ZhConvert.convert(text), style: style),
           maxLines: 1,
           textDirection: TextDirection.ltr,
         )..layout(minWidth: 0, maxWidth: double.infinity);
 
-        // 如果文本宽度超出了容器的最大宽度，使用 Marquee
+        // 如果文本寬度超出了容器的最大寬度，使用 Marquee
         if (textPainter.width > constraints.maxWidth) {
           return _buildMarquee();
         }
 
-        // 否则显示普通文本
+        // 否則顯示普通文本
         return Text(
           text,
           style: style,
@@ -52,13 +53,13 @@ class ConditionalMarquee extends StatelessWidget {
 
   Widget _buildMarquee() {
     return Marquee(
-      text: text,
+      text: ZhConvert.convert(text),
       style: style,
       scrollAxis: Axis.horizontal,
       crossAxisAlignment: CrossAxisAlignment.start,
       blankSpace: blankSpace,
       velocity: velocity,
-      pauseAfterRound: const Duration(seconds: 2), // 停顿久一点
+      pauseAfterRound: const Duration(seconds: 2), // 停頓久一點
       startPadding: 0.0,
       accelerationDuration: const Duration(milliseconds: 500),
       accelerationCurve: Curves.linear,

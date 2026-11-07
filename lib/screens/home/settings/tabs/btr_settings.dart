@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/utils/zh_convert.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../../services/btr/btr_config.dart';
 import '../../../../services/btr/btr_proxy.dart';
@@ -7,7 +8,7 @@ import '../widgets/setting_action_row.dart';
 import '../widgets/setting_dropdown_row.dart';
 import '../widgets/setting_toggle_row.dart';
 
-/// 線程撕裂者（BTR）播放加速設定
+/// 執行緒撕裂者（BTR）播放加速設定
 class BtrSettings extends StatefulWidget {
   final VoidCallback onMoveUp;
   final FocusNode? sidebarFocusNode;
@@ -193,9 +194,9 @@ class _CustomCdnDialogState extends State<_CustomCdnDialog> {
           maxLines: 8,
           keyboardType: TextInputType.multiline,
           style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: '每行一個，例如\nupos-sz-mirrorali.bilivideo.com',
-            helperText: '最多 32 個，原始位址會一併使用',
+          decoration: InputDecoration(
+            hintText: ZhConvert.convert('每行一個，例如\nupos-sz-mirrorali.bilivideo.com'),
+            helperText: ZhConvert.convert('最多 32 個，原始位址會一併使用'),
             hintStyle: TextStyle(color: Colors.white38),
             helperStyle: TextStyle(color: Colors.white54),
             border: OutlineInputBorder(),

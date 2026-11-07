@@ -1,7 +1,7 @@
 import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
 import '../services/auth_service.dart';
@@ -22,8 +22,8 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   VideoPlayerController? _videoController;
-  bool _showSplash = false; // 只有启用动画时才显示占位图
-  Completer<void>? _videoCompleter; // 用于等待视频播放完成
+  bool _showSplash = false; // 只有啟用動畫時才顯示佔位圖
+  Completer<void>? _videoCompleter; // 用於等待影片播放完成
 
   @override
   void initState() {
@@ -35,25 +35,25 @@ class _SplashScreenState extends State<SplashScreen> {
     List<Video> preloadedVideos = [];
     bool videoInitSuccess = false;
 
-    // 1. 初始化视频播放器 (尽早开始，与服务初始化并行)
+    // 1. 初始化影片播放器 (儘早開始，與服務初始化並行)
     _videoController = VideoPlayerController.asset(
       'assets/icons/startup.mp4',
       viewType: VideoViewType.platformView,
     );
     _videoCompleter = Completer<void>();
 
-    // 视频初始化 Future，添加超时和错误处理
+    // 影片初始化 Future，新增超時和錯誤處理
     final videoInitFuture = () async {
       try {
         await _videoController!.initialize().timeout(
           const Duration(seconds: 5),
           onTimeout: () {
-            throw TimeoutException('视频初始化超时');
+            throw TimeoutException('影片初始化超時');
           },
         );
-        _videoController!.setVolume(0); // 无声
+        _videoController!.setVolume(0); // 無聲
 
-        // 添加播放完成监听器
+        // 新增播放完成監聽器
         _videoController!.addListener(_onVideoPositionChanged);
 
         _videoController!.play();
@@ -61,17 +61,17 @@ class _SplashScreenState extends State<SplashScreen> {
         if (mounted) setState(() {});
       } catch (e) {
         debugPrint('Video initialization failed: $e');
-        // 视频初始化失败，立即完成 completer，跳过动画
+        // 影片初始化失敗，立即完成 completer，跳過動畫
         if (!_videoCompleter!.isCompleted) {
           _videoCompleter!.complete();
         }
-        // 清理失败的控制器
+        // 清理失敗的控制器
         _videoController?.dispose();
         _videoController = null;
       }
     }();
 
-    // 3. 初始化基础服务 (与视频初始化并行)
+    // 3. 初始化基礎服務 (與影片初始化並行)
     await Future.wait([
       videoInitFuture,
       AuthService.init(),
@@ -95,16 +95,16 @@ class _SplashScreenState extends State<SplashScreen> {
       debugPrint('BTR applyLocaleDefault failed: $e');
     }
 
-    // 4. 如果已登录，更新一下用户信息 (获取最新 VIP 状态)
-    // 不 await，让它在后台跑，或者如果很快完成也没关系
-    // 这里选择放在后面单独调一下，不阻塞核心服务初始化，但尽量在进入主页前完成
+    // 4. 如果已登入，更新一下使用者資訊 (獲取最新 VIP 狀態)
+    // 不 await，讓它在後臺跑，或者如果很快完成也沒關係
+    // 這裡選擇放在後面單獨調一下，不阻塞核心服務初始化，但儘量在進入主頁前完成
     if (AuthService.isLoggedIn) {
       BilibiliApi.fetchAndSaveUserInfo().catchError((e) {
         debugPrint('Failed to update user info on splash: $e');
       });
     }
 
-    // 检查是否禁用了启动动画 或 视频初始化失败
+    // 檢查是否停用了啟動動畫 或 影片初始化失敗
     if (!SettingsService.splashAnimationEnabled || !videoInitSuccess) {
       _videoController?.removeListener(_onVideoPositionChanged);
       _videoController?.dispose();
@@ -128,30 +128,30 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    // 启用动画，显示占位图和视频
+    // 啟用動畫，顯示佔位圖和影片
     _showSplash = true;
     if (mounted) setState(() {});
 
-    // 4. 异步预加载数据 (不 await，让它并行跑)
+    // 4. 非同步預載入資料 (不 await，讓它並行跑)
     final preloadFuture = Future(() async {
       try {
         final videos = await BilibiliApi.getRecommendVideos(idx: 0);
         preloadedVideos = videos;
 
         if (mounted && preloadedVideos.isNotEmpty) {
-          // 【用户请求】取消 12 个的数量限制，全部预加载
+          // 【使用者請求】取消 12 個的數量限制，全部預載入
           final int count = preloadedVideos.length;
 
-          // 【核心修复】创建预加载任务列表
+          // 【核心修復】建立預載入任務列表
           List<Future<void>> imageTasks = [];
 
           for (int i = 0; i < count; i++) {
             final url = preloadedVideos[i].pic;
             if (url.isNotEmpty) {
-              // 【必须完全匹配 TvVideoCard 的参数】
+              // 【必須完全匹配 TvVideoCard 的引數】
               // 1. maxWidth: 360
-              // 2. maxHeight: 200 (原本缺失导致缓存不匹配)
-              // 3. cacheManager: BiliCacheManager.instance (原本缺失导致路径不匹配)
+              // 2. maxHeight: 200 (原本缺失導致快取不匹配)
+              // 3. cacheManager: BiliCacheManager.instance (原本缺失導致路徑不匹配)
               final optimizedUrl = ImageUrlUtils.getResizedUrl(
                 url,
                 width: 640,
@@ -171,7 +171,7 @@ class _SplashScreenState extends State<SplashScreen> {
               );
             }
           }
-          // 并行等待所有图片下载
+          // 並行等待所有圖片下載
           if (imageTasks.isNotEmpty) {
             await Future.wait(imageTasks);
           }
@@ -181,18 +181,18 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     });
 
-    // 3. 等待视频真正播放完成 (而不是用 Future.delayed)
+    // 3. 等待影片真正播放完成 (而不是用 Future.delayed)
     await _videoCompleter!.future;
 
-    // 尝试获取预加载结果 (如果预加载还没跑完，就不用等了，直接 timeout 拿空数据进主页)
+    // 嘗試獲取預載入結果 (如果預載入還沒跑完，就不用等了，直接 timeout 拿空資料進主頁)
     try {
       await preloadFuture.timeout(Duration.zero);
     } catch (e) {
-      // 预加载未完成，忽略异常，preloadedVideos 可能是空的
+      // 預載入未完成，忽略異常，preloadedVideos 可能是空的
     }
 
     if (mounted) {
-      // 转场前暂停视频，防止继续播放
+      // 轉場前暫停影片，防止繼續播放
       _videoController?.pause();
 
       Navigator.of(context).pushReplacement(
@@ -209,7 +209,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 监听视频播放进度，当播放完成时触发 Completer
+  /// 監聽影片播放進度，當播放完成時觸發 Completer
   void _onVideoPositionChanged() {
     final controller = _videoController;
     if (controller == null || _videoCompleter == null) return;
@@ -217,7 +217,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final position = controller.value.position;
     final duration = controller.value.duration;
 
-    // 当播放位置接近结尾时（允许 100ms 误差），认为播放完成
+    // 當播放位置接近結尾時（允許 100ms 誤差），認為播放完成
     if (duration.inMilliseconds > 0 &&
         position.inMilliseconds >= duration.inMilliseconds - 100) {
       if (!_videoCompleter!.isCompleted) {

@@ -10,7 +10,7 @@ import 'dart:math'; // For random buvid
 import 'api/live_api.dart';
 import 'auth_service.dart'; // Import AuthService
 
-/// 直播弹幕 Socket 服务
+/// 直播彈幕 Socket 服務
 class LiveSocketService {
   WebSocketChannel? _channel;
   Timer? _heartbeatTimer;
@@ -26,15 +26,15 @@ class LiveSocketService {
   bool _isConnected = false;
   bool get isConnected => _isConnected;
 
-  /// 连接直播间
+  /// 連線直播間
   Future<void> connect(int roomId) async {
-    disconnect(); // 先断开旧连接
+    disconnect(); // 先斷開舊連線
 
     try {
-      // 1. 获取弹幕服务器配置
+      // 1. 獲取彈幕伺服器配置
       final conf = await LiveApi.getDanmakuConf(roomId);
       if (conf == null) {
-        _msgController.add({'type': 'error', 'msg': '获取弹幕配置失败'});
+        _msgController.add({'type': 'error', 'msg': '獲取彈幕配置失敗'});
         return;
       }
 
@@ -42,7 +42,7 @@ class LiveSocketService {
       final hostList = conf['host_list'] as List;
       if (hostList.isEmpty) return;
 
-      // 优先使用 wss
+      // 優先使用 wss
       final hostInfo = hostList.firstWhere(
         (h) => h['wss_port'] != null,
         orElse: () => hostList.first,
@@ -53,7 +53,7 @@ class LiveSocketService {
 
       _log('🔌 Connecting to Live WS: $wssUrl');
 
-      // 2. 建立连接
+      // 2. 建立連線
       try {
         final socket = await WebSocket.connect(
           wssUrl,
@@ -70,7 +70,7 @@ class LiveSocketService {
         _isConnected = true;
         _log('🚀 WS Connected & Channel Ready');
 
-        // 5. 监听消息 (先监听，再发送)
+        // 5. 監聽訊息 (先監聽，再發送)
         _channel!.stream.listen(
           (message) {
             try {
@@ -82,7 +82,7 @@ class LiveSocketService {
           onError: (error) {
             _log('WS Error: $error');
             _isConnected = false;
-            _msgController.add({'type': 'error', 'msg': '连接中断: $error'});
+            _msgController.add({'type': 'error', 'msg': '連線中斷: $error'});
             disconnect();
           },
           onDone: () {
@@ -94,19 +94,19 @@ class LiveSocketService {
           },
         );
 
-        // 3. 发送进房认证包
+        // 3. 傳送進房認證包
         _sendAuth(roomId, token);
 
-        // 4. 开启心跳
+        // 4. 開啟心跳
         _startHeartbeat();
       } catch (e) {
         _log('WS Handshake Error: $e');
-        _msgController.add({'type': 'error', 'msg': '握手失败: $e'});
+        _msgController.add({'type': 'error', 'msg': '握手失敗: $e'});
         return;
       }
     } catch (e) {
       _log('Connect Error: $e');
-      _msgController.add({'type': 'error', 'msg': '连接失败: $e'});
+      _msgController.add({'type': 'error', 'msg': '連線失敗: $e'});
     }
   }
 
@@ -152,7 +152,7 @@ class LiveSocketService {
 
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
-    // 每 30 秒发送一次心跳
+    // 每 30 秒傳送一次心跳
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (_isConnected) {
         // Bilibili quirk: server expects "[object Object]" as heartbeat body
@@ -167,7 +167,7 @@ class LiveSocketService {
     });
   }
 
-  /// 封包并发送
+  /// 封包併發送
   /// Total Len (4) | Header Len (2) | Proto Ver (2) | Opcode (4) | Seq (4) | Body
   void _sendPacket(int ver, int op, List<int> body) {
     final headerLen = 16;
@@ -187,7 +187,7 @@ class LiveSocketService {
     _channel?.sink.add(buffer.buffer.asUint8List());
   }
 
-  /// 处理接收到的二进制数据
+  /// 處理接收到的二進位制資料
   void _handleMessage(dynamic message) {
     if (message is! List<int>) return;
 

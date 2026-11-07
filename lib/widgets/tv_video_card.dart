@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/video.dart';
 import 'base_tv_card.dart';
@@ -55,7 +55,7 @@ class TvVideoCard extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           _buildImage(),
-          // 角标 (付费/充电专属)
+          // 角標 (付費/充電專屬)
           if (video.badge.isNotEmpty)
             Positioned(
               right: 4,
@@ -76,7 +76,7 @@ class TvVideoCard extends StatelessWidget {
                 ),
               ),
             ),
-          // 渐变遮罩
+          // 漸變遮罩
           Positioned(
             left: 0,
             right: 0,
@@ -95,7 +95,7 @@ class TvVideoCard extends StatelessWidget {
               ),
             ),
           ),
-          // 底部信息
+          // 底部資訊
           Positioned(
             left: 6,
             right: 6,
@@ -129,7 +129,7 @@ class TvVideoCard extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 标题区域
+            // 標題區域
             SizedBox(
               height: 20,
               child: isFocused
@@ -141,7 +141,7 @@ class TvVideoCard extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                       blankSpace: 30.0,
-                      velocity: 30.0, // 稍微慢一点
+                      velocity: 30.0, // 稍微慢一點
                     )
                   : Text(
                       video.title,
@@ -155,7 +155,7 @@ class TvVideoCard extends StatelessWidget {
                     ),
             ),
 
-            // UP主信息 + 发布时间
+            // UP主資訊 + 釋出時間
             const SizedBox(height: 4),
             Row(
               children: [
@@ -174,7 +174,7 @@ class TvVideoCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // 发布时间 - 固定位置，不省略
+                // 釋出時間 - 固定位置，不省略
                 if (video.pubdateFormatted.isNotEmpty)
                   Text(
                     video.pubdateFormatted,
@@ -189,11 +189,11 @@ class TvVideoCard extends StatelessWidget {
   }
 
   Widget _buildImage() {
-    // 360x200 必须与 SplashScreen 的 precache 参数完全一致
+    // 360x200 必須與 SplashScreen 的 precache 引數完全一致
     const int targetWidth = 360;
     const int targetHeight = 200;
 
-    // 交错加载逻辑
+    // 交錯載入邏輯
     if (staggerIndex != null) {
       return StaggeredImage(
         imageUrl: ImageUrlUtils.getResizedUrl(
@@ -208,16 +208,16 @@ class TvVideoCard extends StatelessWidget {
       );
     }
 
-    // 标准加载逻辑 (用于预加载过的数据或不需要交错的数据)
+    // 標準載入邏輯 (用於預載入過的資料或不需要交錯的資料)
     return CachedNetworkImage(
       imageUrl: ImageUrlUtils.getResizedUrl(video.pic, width: 360, height: 200),
       fit: BoxFit.cover,
-      // 这里的尺寸必须和 SplashScreen 完全一致
+      // 這裡的尺寸必須和 SplashScreen 完全一致
       memCacheWidth: targetWidth,
       memCacheHeight: targetHeight,
-      // 缓存管理器必须一致
+      // 快取管理器必須一致
       cacheManager: BiliCacheManager.instance,
-      // 【核心修复】淡入时间设为 0，因为图片已经在内存里了，不需要动画
+      // 【核心修復】淡入時間設為 0，因為圖片已經在記憶體裡了，不需要動畫
       fadeInDuration: Duration.zero,
       fadeOutDuration: Duration.zero,
 

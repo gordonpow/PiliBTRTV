@@ -1,19 +1,19 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// 登录认证服务
+/// 登入認證服務
 class AuthService {
   static const String _keyAccessToken = 'access_token';
   static const String _keyRefreshToken = 'refresh_token';
   static const String _keySessdata = 'sessdata';
   static const String _keyBiliJct = 'bili_jct';
   static const String _keyMid = 'mid';
-  static const String _keyFace = 'face'; // 用户头像
-  static const String _keyUname = 'uname'; // 用户昵称
-  static const String _keyIsVip = 'is_vip'; // 是否是大会员
+  static const String _keyFace = 'face'; // 使用者頭像
+  static const String _keyUname = 'uname'; // 使用者暱稱
+  static const String _keyIsVip = 'is_vip'; // 是否是大會員
 
   static SharedPreferences? _prefs;
 
-  // 内存缓存
+  // 記憶體快取
   static String? _accessToken;
   // ignore: unused_field
   static String? _refreshToken;
@@ -37,31 +37,31 @@ class AuthService {
     _isVip = _prefs?.getBool(_keyIsVip) ?? false;
   }
 
-  /// 是否已登录
+  /// 是否已登入
   static bool get isLoggedIn => _sessdata != null && _sessdata!.isNotEmpty;
 
-  /// 获取 SESSDATA
+  /// 獲取 SESSDATA
   static String? get sessdata => _sessdata;
 
-  /// 获取 CSRF token
+  /// 獲取 CSRF token
   static String? get biliJct => _biliJct;
 
-  /// 获取用户 mid
+  /// 獲取使用者 mid
   static int? get mid => _mid;
 
-  /// 获取 access_token
+  /// 獲取 access_token
   static String? get accessToken => _accessToken;
 
-  /// 获取用户头像
+  /// 獲取使用者頭像
   static String? get face => _face;
 
-  /// 获取用户昵称
+  /// 獲取使用者暱稱
   static String? get uname => _uname;
 
-  /// 是否是大会员
+  /// 是否是大會員
   static bool get isVip => _isVip;
 
-  /// 保存 TV 登录凭证
+  /// 儲存 TV 登入憑證
   static Future<void> saveLoginCredentials({
     required String accessToken,
     required String refreshToken,
@@ -76,7 +76,7 @@ class AuthService {
     await _prefs?.setString(_keyRefreshToken, refreshToken);
     await _prefs?.setInt(_keyMid, mid);
 
-    // 从 cookie_info 中提取 SESSDATA 和 bili_jct
+    // 從 cookie_info 中提取 SESSDATA 和 bili_jct
     if (cookieInfo != null) {
       final cookies = cookieInfo['cookies'] as List? ?? [];
       for (var cookie in cookies) {
@@ -94,7 +94,7 @@ class AuthService {
     }
   }
 
-  /// 保存用户信息 (从 nav 接口获取)
+  /// 儲存使用者資訊 (從 nav 介面獲取)
   static Future<void> saveUserInfo({
     required String face,
     required String uname,
@@ -111,7 +111,7 @@ class AuthService {
     }
   }
 
-  /// 退出登录
+  /// 退出登入
   static Future<void> logout() async {
     _accessToken = null;
     _refreshToken = null;

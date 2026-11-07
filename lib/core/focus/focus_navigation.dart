@@ -1,28 +1,28 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 
-/// TV 焦点导航模式
+/// TV 焦點導航模式
 enum FocusPattern {
-  /// 垂直列表：↑↓ 移动，←→ 是退出/动作
+  /// 垂直列表：↑↓ 移動，←→ 是退出/動作
   vertical,
 
-  /// 水平列表：←→ 移动，↑↓ 是退出
+  /// 水平列表：←→ 移動，↑↓ 是退出
   horizontal,
 
-  /// 网格：四方向移动
+  /// 網格：四方向移動
   grid,
 }
 
-/// 统一的 TV 按键处理工具类
+/// 統一的 TV 按鍵處理工具類
 class TvKeyHandler {
-  /// 处理方向键和确认键事件
+  /// 處理方向鍵和確認鍵事件
   ///
-  /// [event] - 键盘事件
-  /// [onUp/Down/Left/Right] - 方向键回调
-  /// [onSelect] - 确认键回调 (Enter/Select)
-  /// [blockUp/Down/Left/Right] - 是否阻止该方向的默认行为
+  /// [event] - 鍵盤事件
+  /// [onUp/Down/Left/Right] - 方向鍵回撥
+  /// [onSelect] - 確認鍵回撥 (Enter/Select)
+  /// [blockUp/Down/Left/Right] - 是否阻止該方向的預設行為
   ///
-  /// 返回 [KeyEventResult.handled] 如果按键被处理
+  /// 返回 [KeyEventResult.handled] 如果按鍵被處理
   static KeyEventResult handleNavigation(
     KeyEvent event, {
     VoidCallback? onUp,
@@ -35,7 +35,7 @@ class TvKeyHandler {
     bool blockLeft = false,
     bool blockRight = false,
   }) {
-    // 只处理 KeyDownEvent，避免重复触发
+    // 只處理 KeyDownEvent，避免重複觸發
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     switch (event.logicalKey) {
@@ -80,7 +80,7 @@ class TvKeyHandler {
     }
   }
 
-  /// 处理支持 KeyRepeat 的方向键（如在网格中按住快速移动）
+  /// 處理支援 KeyRepeat 的方向鍵（如在網格中按住快速移動）
   static KeyEventResult handleNavigationWithRepeat(
     KeyEvent event, {
     VoidCallback? onUp,
@@ -93,7 +93,7 @@ class TvKeyHandler {
     bool blockLeft = false,
     bool blockRight = false,
   }) {
-    // 处理 KeyDownEvent 和 KeyRepeatEvent
+    // 處理 KeyDownEvent 和 KeyRepeatEvent
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
@@ -129,7 +129,7 @@ class TvKeyHandler {
 
       case LogicalKeyboardKey.enter:
       case LogicalKeyboardKey.select:
-        // 确认键不支持重复
+        // 確認鍵不支援重複
         if (event is KeyDownEvent && onSelect != null) {
           onSelect();
           return KeyEventResult.handled;
@@ -142,47 +142,47 @@ class TvKeyHandler {
   }
 }
 
-/// 通用的 TV 焦点容器
+/// 通用的 TV 焦點容器
 ///
-/// 自动处理边界导航逻辑，减少重复代码
+/// 自動處理邊界導航邏輯，減少重複程式碼
 class TvFocusScope extends StatelessWidget {
-  /// 焦点模式
+  /// 焦點模式
   final FocusPattern pattern;
 
-  /// 子组件
+  /// 子元件
   final Widget child;
 
-  /// 焦点节点
+  /// 焦點節點
   final FocusNode? focusNode;
 
-  /// 是否自动获取焦点
+  /// 是否自動獲取焦點
   final bool autofocus;
 
-  /// 焦点变化回调
+  /// 焦點變化回撥
   final ValueChanged<bool>? onFocusChange;
 
-  /// 确认键回调
+  /// 確認鍵回撥
   final VoidCallback? onSelect;
 
-  /// 退出方向的目标焦点节点
+  /// 退出方向的目標焦點節點
   final FocusNode? exitUp;
   final FocusNode? exitDown;
   final FocusNode? exitLeft;
   final FocusNode? exitRight;
 
-  /// 退出方向的回调（优先级高于 exitXxx FocusNode）
+  /// 退出方向的回撥（優先順序高於 exitXxx FocusNode）
   final VoidCallback? onExitUp;
   final VoidCallback? onExitDown;
   final VoidCallback? onExitLeft;
   final VoidCallback? onExitRight;
 
-  /// 是否是列表中的第一项（垂直模式阻止向上，水平模式阻止向左）
+  /// 是否是列表中的第一項（垂直模式阻止向上，水平模式阻止向左）
   final bool isFirst;
 
-  /// 是否是列表中的最后一项（垂直模式阻止向下，水平模式阻止向右）
+  /// 是否是列表中的最後一項（垂直模式阻止向下，水平模式阻止向右）
   final bool isLast;
 
-  /// 是否支持按键重复（适用于快速滚动场景）
+  /// 是否支援按鍵重複（適用於快速滾動場景）
   final bool enableKeyRepeat;
 
   const TvFocusScope({
@@ -226,7 +226,7 @@ class TvFocusScope extends StatelessWidget {
       case FocusPattern.vertical:
         return handler(
           event,
-          // 垂直模式：上下移动由 Flutter 默认处理，除非是边界
+          // 垂直模式：上下移動由 Flutter 預設處理，除非是邊界
           onUp: isFirst ? _getExitUpHandler() : null,
           onDown: isLast ? _getExitDownHandler() : null,
           onLeft: _getExitLeftHandler(),
@@ -241,7 +241,7 @@ class TvFocusScope extends StatelessWidget {
           event,
           onUp: _getExitUpHandler(),
           onDown: _getExitDownHandler(),
-          // 水平模式：左右移动由 Flutter 默认处理，除非是边界
+          // 水平模式：左右移動由 Flutter 預設處理，除非是邊界
           onLeft: isFirst ? _getExitLeftHandler() : null,
           onRight: isLast ? _getExitRightHandler() : null,
           onSelect: onSelect,
@@ -250,8 +250,8 @@ class TvFocusScope extends StatelessWidget {
         );
 
       case FocusPattern.grid:
-        // 网格模式：如果提供了回调则强制使用回调（适用于明确指定导航目标的情况）
-        // 这样可以实现严格的 4x4 网格导航
+        // 網格模式：如果提供了回撥則強制使用回撥（適用於明確指定導航目標的情況）
+        // 這樣可以實現嚴格的 4x4 網格導航
         return handler(
           event,
           onUp: _getExitUpHandler(),
@@ -263,7 +263,7 @@ class TvFocusScope extends StatelessWidget {
     }
   }
 
-  /// 获取退出处理函数，如果没有配置则返回 null
+  /// 獲取退出處理函式，如果沒有配置則返回 null
   VoidCallback? _getExitUpHandler() {
     if (onExitUp != null) return _handleExitUp;
     if (exitUp != null) return _handleExitUp;
@@ -321,9 +321,9 @@ class TvFocusScope extends StatelessWidget {
   }
 }
 
-/// 简化版的垂直焦点列表项
+/// 簡化版的垂直焦點列表項
 ///
-/// 专为设置页面等垂直列表设计
+/// 專為設定頁面等垂直列表設計
 class TvVerticalListItem extends StatelessWidget {
   final Widget child;
   final FocusNode? focusNode;

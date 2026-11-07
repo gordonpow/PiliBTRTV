@@ -1,21 +1,22 @@
+import 'package:bili_tv_app/utils/zh_convert.dart';
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/plugin/plugin_types.dart';
 import '../services/local_server.dart';
 
-/// 弹幕屏蔽插件
+/// 彈幕遮蔽外掛
 ///
-/// 功能：屏蔽包含指定关键词的弹幕
+/// 功能：遮蔽包含指定關鍵詞的彈幕
 class DanmakuEnhancePlugin extends DanmakuPlugin {
   @override
   String get id => 'danmaku_enhance';
 
   @override
-  String get name => '弹幕屏蔽';
+  String get name => '彈幕遮蔽';
 
   @override
-  String get description => '屏蔽包含指定关键词的弹幕';
+  String get description => '遮蔽包含指定關鍵詞的彈幕';
 
   @override
   String get version => '2.1.0';
@@ -37,13 +38,13 @@ class DanmakuEnhancePlugin extends DanmakuPlugin {
   @override
   Future<void> onEnable() async {
     await _loadConfig();
-    debugPrint('✅ 弹幕屏蔽已启用');
-    debugPrint('📋 屏蔽词: ${_config.blockKeywords}');
+    debugPrint('✅ 彈幕遮蔽已啟用');
+    debugPrint('📋 遮蔽詞: ${_config.blockKeywords}');
   }
 
   @override
   Future<void> onDisable() async {
-    debugPrint('🔴 弹幕屏蔽已禁用');
+    debugPrint('🔴 彈幕遮蔽已停用');
   }
 
   Future<void> _loadConfig() async {
@@ -64,7 +65,7 @@ class DanmakuEnhancePlugin extends DanmakuPlugin {
     await prefs.setString('plugin_config_$id', jsonEncode(config.toJson()));
   }
 
-  // 添加屏蔽词
+  // 新增遮蔽詞
   void addBlockKeyword(String keyword) {
     if (keyword.isNotEmpty && !_config.blockKeywords.contains(keyword)) {
       _config.blockKeywords.add(keyword);
@@ -72,7 +73,7 @@ class DanmakuEnhancePlugin extends DanmakuPlugin {
     }
   }
 
-  // 移除屏蔽词
+  // 移除遮蔽詞
   void removeBlockKeyword(String keyword) {
     if (_config.blockKeywords.contains(keyword)) {
       _config.blockKeywords.remove(keyword);
@@ -80,19 +81,19 @@ class DanmakuEnhancePlugin extends DanmakuPlugin {
     }
   }
 
-  // 获取屏蔽词列表 (API 使用)
+  // 獲取遮蔽詞列表 (API 使用)
   List<String> getBlockKeywords() => List.unmodifiable(_config.blockKeywords);
 
-  // 获取配置 (API 使用)
+  // 獲取配置 (API 使用)
   DanmakuBlockConfig getConfig() => _config;
 
-  // 设置开关
+  // 設定開關
   void setEnableFilter(bool value) {
     _config.enableFilter = value;
     saveConfig(_config);
   }
 
-  // 添加全词屏蔽词
+  // 新增全詞遮蔽詞
   void addFullKeyword(String keyword) {
     if (keyword.isNotEmpty && !_config.fullKeywords.contains(keyword)) {
       _config.fullKeywords.add(keyword);
@@ -100,7 +101,7 @@ class DanmakuEnhancePlugin extends DanmakuPlugin {
     }
   }
 
-  // 移除全词屏蔽词
+  // 移除全詞遮蔽詞
   void removeFullKeyword(String keyword) {
     if (_config.fullKeywords.contains(keyword)) {
       _config.fullKeywords.remove(keyword);
@@ -108,7 +109,7 @@ class DanmakuEnhancePlugin extends DanmakuPlugin {
     }
   }
 
-  // 获取全词屏蔽词列表
+  // 獲取全詞遮蔽詞列表
   List<String> getFullKeywords() => List.unmodifiable(_config.fullKeywords);
 
   @override
@@ -118,17 +119,17 @@ class DanmakuEnhancePlugin extends DanmakuPlugin {
 
     final content = item['content'] as String? ?? '';
 
-    // 1. 部分匹配检测 (contains)
+    // 1. 部分匹配檢測 (contains)
     for (var keyword in _config.blockKeywords) {
       if (keyword.isNotEmpty && content.contains(keyword)) {
-        return null; // 屏蔽
+        return null; // 遮蔽
       }
     }
 
-    // 2. 全词匹配检测 (equals)
+    // 2. 全詞匹配檢測 (equals)
     for (var keyword in _config.fullKeywords) {
       if (keyword.isNotEmpty && content == keyword) {
-        return null; // 屏蔽
+        return null; // 遮蔽
       }
     }
 
@@ -141,22 +142,24 @@ class DanmakuEnhancePlugin extends DanmakuPlugin {
   }
 }
 
-/// 弹幕屏蔽配置
+/// 彈幕遮蔽配置
 class DanmakuBlockConfig {
-  bool enableFilter; // 启用屏蔽
-  List<String> blockKeywords; // 部分匹配关键词
-  List<String> fullKeywords; // 全词匹配关键词
+  bool enableFilter; // 啟用遮蔽
+  List<String> blockKeywords; // 部分匹配關鍵詞
+  List<String> fullKeywords; // 全詞匹配關鍵詞
 
   DanmakuBlockConfig({
     this.enableFilter = true,
     List<String>? blockKeywords,
     List<String>? fullKeywords,
+  // 與伺服器回傳的簡體文字比對，保留原文
   }) : blockKeywords = blockKeywords ?? ['剧透', '前方高能'],
        fullKeywords = fullKeywords ?? [];
 
   factory DanmakuBlockConfig.fromJson(Map<String, dynamic> json) {
     return DanmakuBlockConfig(
       enableFilter: json['enableFilter'] ?? true,
+      // 與伺服器回傳的簡體文字比對，保留原文
       blockKeywords: List<String>.from(json['blockKeywords'] ?? ['剧透', '前方高能']),
       fullKeywords: List<String>.from(json['fullKeywords'] ?? []),
     );
@@ -198,7 +201,7 @@ class _DanmakuBlockSettingsState extends State<_DanmakuBlockSettings> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 提示信息
+          // 提示資訊
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -212,7 +215,7 @@ class _DanmakuBlockSettingsState extends State<_DanmakuBlockSettings> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '推荐使用手机访问 $serverAddress 进行管理',
+                    '推薦使用手機訪問 $serverAddress 進行管理',
                     style: const TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ),
@@ -221,11 +224,11 @@ class _DanmakuBlockSettingsState extends State<_DanmakuBlockSettings> {
           ),
           const SizedBox(height: 16),
 
-          // 开关
+          // 開關
           SwitchListTile(
-            title: const Text('启用弹幕屏蔽', style: TextStyle(color: Colors.white)),
+            title: const Text('啟用彈幕遮蔽', style: TextStyle(color: Colors.white)),
             subtitle: const Text(
-              '屏蔽包含指定关键词的弹幕',
+              '遮蔽包含指定關鍵詞的彈幕',
               style: TextStyle(color: Colors.white70),
             ),
             value: config.enableFilter,
@@ -237,10 +240,10 @@ class _DanmakuBlockSettingsState extends State<_DanmakuBlockSettings> {
           const Divider(color: Colors.white24),
           const SizedBox(height: 16),
 
-          // 部分匹配关键词
+          // 部分匹配關鍵詞
           _buildKeywordSection(
-            title: '部分匹配关键词',
-            subtitle: '包含即屏蔽（如 "第一" 会屏蔽 "我是第一名"）',
+            title: '部分匹配關鍵詞',
+            subtitle: '包含即遮蔽（如 "第一" 會遮蔽 "我是第一名"）',
             controller: _partialInputController,
             keywords: config.blockKeywords,
             onAdd: (k) => widget.plugin.addBlockKeyword(k),
@@ -249,10 +252,10 @@ class _DanmakuBlockSettingsState extends State<_DanmakuBlockSettings> {
 
           const SizedBox(height: 24),
 
-          // 全词匹配关键词
+          // 全詞匹配關鍵詞
           _buildKeywordSection(
-            title: '全词匹配关键词',
-            subtitle: '完全一致才屏蔽（如 "第一" 只屏蔽 "第一"）',
+            title: '全詞匹配關鍵詞',
+            subtitle: '完全一致才遮蔽（如 "第一" 只遮蔽 "第一"）',
             controller: _fullInputController,
             keywords: config.fullKeywords,
             onAdd: (k) => widget.plugin.addFullKeyword(k),
@@ -294,8 +297,8 @@ class _DanmakuBlockSettingsState extends State<_DanmakuBlockSettings> {
             Expanded(
               child: TextField(
                 controller: controller,
-                decoration: const InputDecoration(
-                  hintText: '输入关键词',
+                decoration: InputDecoration(
+                  hintText: ZhConvert.convert('輸入關鍵詞'),
                   border: OutlineInputBorder(),
                   filled: true,
                   fillColor: Colors.white12,
@@ -330,10 +333,10 @@ class _DanmakuBlockSettingsState extends State<_DanmakuBlockSettings> {
         ),
         const SizedBox(height: 16),
 
-        // 关键词列表
+        // 關鍵詞列表
         keywords.isEmpty
             ? const Text(
-                '暂无屏蔽词',
+                '暫無遮蔽詞',
                 style: TextStyle(
                   color: Colors.white38,
                   fontStyle: FontStyle.italic,

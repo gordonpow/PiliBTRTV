@@ -1,18 +1,18 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/videoshot.dart';
 import '../../../services/api/videoshot_api.dart';
 
-/// 快进预览缩略图 Widget
-/// 从雪碧图中裁剪并显示指定帧
+/// 快進預覽縮圖 Widget
+/// 從雪碧圖中裁剪並顯示指定幀
 class SeekPreviewThumbnail extends StatelessWidget {
-  /// 快照数据
+  /// 快照資料
   final VideoshotData videoshotData;
 
-  /// 当前预览位置
+  /// 當前預覽位置
   final Duration previewPosition;
 
-  /// 显示尺寸缩放比例
+  /// 顯示尺寸縮放比例
   final double scale;
 
   const SeekPreviewThumbnail({
@@ -59,17 +59,17 @@ class SeekPreviewThumbnail extends StatelessWidget {
     double displayWidth,
     double displayHeight,
   ) {
-    // 计算雪碧图总尺寸
+    // 計算雪碧圖總尺寸
     final spriteWidth = (videoshotData.imgXLen * videoshotData.imgXSize)
         .toDouble();
     final spriteHeight = (videoshotData.imgYLen * videoshotData.imgYSize)
         .toDouble();
 
-    // 缩放后的雪碧图尺寸
+    // 縮放後的雪碧圖尺寸
     final scaledSpriteWidth = spriteWidth * scale;
     final scaledSpriteHeight = spriteHeight * scale;
 
-    // 缩放后的偏移
+    // 縮放後的偏移
     final offsetX = frameInfo.x * scale;
     final offsetY = frameInfo.y * scale;
 

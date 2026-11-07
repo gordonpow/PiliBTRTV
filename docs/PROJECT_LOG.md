@@ -37,7 +37,7 @@
 
 ### 已實作、尚未 commit
 
-（無）
+- 繁簡切換（T-3）：原始碼文字轉台灣繁體、執行時 ZhConvert、語言設定與重啟（規格：`docs/work/zh-update-icon/`）；已於 feat/zh-update 分支 commit。
 
 ### 待辦
 
@@ -58,3 +58,9 @@
 | 建置與發布 | 全專案 `flutter analyze` 無問題；JDK 25 與 Gradle 8.14 不相容，wrapper 升到 9.1.0 後 `flutter build apk --release` 成功（63.2MB）；commit `f1afe82` 推送到 origin/main |
 | 推到 GitHub、發 Release | 已推送；發布 Release `v1.2.2-btr.1`（附 APK，debug 金鑰簽署） |
 | 怎麼看 agy 進度 | agy 用 `--print`，跑完才輸出；可用 `/tasks` 看背景工作 |
+
+### 2026-11-07：繁簡切換（T-3）
+
+| 請求 | 結果 |
+|---|---|
+| 實作 T-3 繁簡切換 | 80 個檔案以 OpenCC s2twp 轉為繁體，伺服器比對點保留簡體；新增 ZhConvert、zh_text、語言設定與重啟；`flutter analyze` 無問題 |

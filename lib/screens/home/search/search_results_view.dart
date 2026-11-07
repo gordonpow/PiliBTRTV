@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -34,7 +34,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
   String _currentOrder = 'totalrank'; // totalrank, click, pubdate, dm
   bool _isLoadingMore = false;
   bool _hasMore = true;
-  bool _isRefreshing = false; // 用于控制分帧渲染
+  bool _isRefreshing = false; // 用於控制分幀渲染
 
   // Focus Management
   late final List<FocusNode> _sortFocusNodes;
@@ -42,10 +42,10 @@ class _SearchResultsViewState extends State<SearchResultsView> {
   bool _shouldFocusFirstResult = false;
 
   final Map<String, String> _sortOptions = {
-    'totalrank': '综合排序',
+    'totalrank': '綜合排序',
     'click': '最多播放',
-    'pubdate': '最新发布',
-    'dm': '最多弹幕',
+    'pubdate': '最新發布',
+    'dm': '最多彈幕',
   };
 
   @override
@@ -98,7 +98,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
       }
       setState(() {
         _isLoading = true;
-        _isRefreshing = true; // 开始刷新
+        _isRefreshing = true; // 開始重新整理
         _currentPage = 1;
         _searchResults = [];
         _hasMore = true;
@@ -121,7 +121,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
 
       _isLoading = false;
       _isLoadingMore = false;
-      _isRefreshing = false; // 刷新完成
+      _isRefreshing = false; // 重新整理完成
 
       if (results.length < 20) {
         _hasMore = false;
@@ -157,13 +157,13 @@ class _SearchResultsViewState extends State<SearchResultsView> {
   Widget build(BuildContext context) {
     Widget content;
 
-    // 初始加载或完全重新加载时显示加载圈
+    // 初始載入或完全重新載入時顯示載入圈
     if (_isLoading && _currentPage == 1) {
       if (_currentOrder == 'totalrank' && _searchResults.isEmpty) {
-        // 初始搜索加载
+        // 初始搜尋載入
         content = const Center(child: CircularProgressIndicator());
       } else {
-        // 切换排序或刷新 existing -> Loading overlaid but header visible
+        // 切換排序或重新整理 existing -> Loading overlaid but header visible
         content = const Center(child: CircularProgressIndicator());
       }
     } else if (_searchResults.isEmpty) {
@@ -182,12 +182,12 @@ class _SearchResultsViewState extends State<SearchResultsView> {
             ),
             const SizedBox(height: 20),
             const Text(
-              '未找到相关视频',
+              '未找到相關影片',
               style: TextStyle(color: Colors.white38, fontSize: 16),
             ),
             const SizedBox(height: 10),
             const Text(
-              '按返回键重新搜索',
+              '按返回鍵重新搜尋',
               style: TextStyle(color: Colors.white24, fontSize: 14),
             ),
           ],
@@ -218,15 +218,15 @@ class _SearchResultsViewState extends State<SearchResultsView> {
                       autofocus: index == 0,
                       disableCache: false,
                       onTap: () => _onVideoTap(video),
-                      // 最左列按左键跳到侧边栏
+                      // 最左列按左鍵跳到側邊欄
                       onMoveLeft: (index % 4 == 0)
                           ? () => widget.sidebarFocusNode?.requestFocus()
                           : () => _getFocusNode(index - 1).requestFocus(),
-                      // 强制向右导航
+                      // 強制向右導航
                       onMoveRight: (index + 1 < _searchResults.length)
                           ? () => _getFocusNode(index + 1).requestFocus()
                           : null,
-                      // 严格按列向上移动（4个一行），最顶行跳到排序按钮
+                      // 嚴格按列向上移動（4個一行），最頂行跳到排序按鈕
                       onMoveUp: index >= 4
                           ? () => _getFocusNode(index - 4).requestFocus()
                           : () {
@@ -238,7 +238,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
                                 _sortFocusNodes[sortIdx].requestFocus();
                               }
                             },
-                      // 严格按列向下移动
+                      // 嚴格按列向下移動
                       onMoveDown: (index + 4 < _searchResults.length)
                           ? () => _getFocusNode(index + 4).requestFocus()
                           : null,
@@ -271,7 +271,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
                     );
                   }
 
-                  // 只有刷新时使用分帧渲染
+                  // 只有重新整理時使用分幀渲染
                   if (_isRefreshing) {
                     return FrameSeparateWidget(
                       index: index,
@@ -306,7 +306,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
       clipBehavior: Clip.none,
       children: [
         Positioned.fill(child: content),
-        // 固定标题栏 + 排序栏
+        // 固定標題欄 + 排序欄
         Positioned(
           top: 0,
           left: 0,
@@ -318,7 +318,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '搜索结果: ${widget.query}',
+                  '搜尋結果: ${widget.query}',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,

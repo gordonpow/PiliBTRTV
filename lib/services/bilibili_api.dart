@@ -1,15 +1,15 @@
-/// Bilibili API 服务 - 统一入口
+/// Bilibili API 服務 - 統一入口
 ///
-/// 本文件作为门面(Facade)，委托给各子模块实现。
-/// 拆分后的模块位于 api/ 目录：
-/// - base_api.dart: 基础工具方法
-/// - auth_api.dart: 认证相关
-/// - video_api.dart: 视频列表、搜索
-/// - playback_api.dart: 播放、弹幕、进度
-/// - interaction_api.dart: 点赞、投币、收藏、关注
+/// 本檔案作為門面(Facade)，委託給各子模組實現。
+/// 拆分後的模組位於 api/ 目錄：
+/// - base_api.dart: 基礎工具方法
+/// - auth_api.dart: 認證相關
+/// - video_api.dart: 影片列表、搜尋
+/// - playback_api.dart: 播放、彈幕、進度
+/// - interaction_api.dart: 點贊、投幣、收藏、關注
 library;
 
-// 导出子模块，供外部直接使用
+// 匯出子模組，供外部直接使用
 export 'api/video_api.dart' show DynamicFeed;
 
 import 'api/auth_api.dart';
@@ -21,87 +21,87 @@ import 'settings_service.dart' show VideoCodec;
 import '../models/video.dart';
 import '../models/videoshot.dart';
 
-/// Bilibili API 服务 (门面模式)
-/// 保持与原有接口完全兼容
+/// Bilibili API 服務 (門面模式)
+/// 保持與原有介面完全相容
 class BilibiliApi {
-  // ========== 用户信息相关 ==========
+  // ========== 使用者資訊相關 ==========
 
-  /// 获取用户信息 (头像、昵称等)
+  /// 獲取使用者資訊 (頭像、暱稱等)
   static Future<void> fetchAndSaveUserInfo() => AuthApi.fetchAndSaveUserInfo();
 
-  // ========== TV 登录相关 ==========
+  // ========== TV 登入相關 ==========
 
-  /// 生成 TV 登录二维码
+  /// 生成 TV 登入二維碼
   static Future<Map<String, String>?> generateTvQrCode() =>
       AuthApi.generateTvQrCode();
 
-  /// 轮询 TV 登录状态
+  /// 輪詢 TV 登入狀態
   static Future<Map<String, dynamic>> pollTvLogin(String authCode) =>
       AuthApi.pollTvLogin(authCode);
 
-  // ========== 视频列表相关 ==========
+  // ========== 影片列表相關 ==========
 
-  /// 获取热门视频 (无需登录)
+  /// 獲取熱門影片 (無需登入)
   static Future<List<Video>> getPopularVideos({int page = 1}) =>
       VideoApi.getPopularVideos(page: page);
 
-  /// 获取推荐视频 (需要 WBI 签名)
+  /// 獲取推薦影片 (需要 WBI 簽名)
   static Future<List<Video>> getRecommendVideos({int idx = 0}) =>
       VideoApi.getRecommendVideos(idx: idx);
 
-  /// 获取分区视频 (按 tid)
+  /// 獲取分區影片 (按 tid)
   static Future<List<Video>> getRegionVideos({
     required int tid,
     int page = 1,
   }) => VideoApi.getRegionVideos(tid: tid, page: page);
 
-  /// 获取观看历史 (需要登录)
+  /// 獲取觀看歷史 (需要登入)
   static Future<Map<String, dynamic>> getHistory({
     int ps = 30,
     int viewAt = 0,
     int max = 0,
   }) => VideoApi.getHistory(ps: ps, viewAt: viewAt, max: max);
 
-  // ========== 搜索相关 ==========
+  // ========== 搜尋相關 ==========
 
-  /// 获取搜索建议
+  /// 獲取搜尋建議
   static Future<List<String>> getSearchSuggestions(String keyword) =>
       VideoApi.getSearchSuggestions(keyword);
 
-  /// 搜索视频 (需要 WBI 签名)
+  /// 搜尋影片 (需要 WBI 簽名)
   static Future<List<Video>> searchVideos(
     String keyword, {
     int page = 1,
     String order = 'totalrank',
   }) => VideoApi.searchVideos(keyword, page: page, order: order);
 
-  // ========== 动态相关 ==========
+  // ========== 動態相關 ==========
 
-  /// 获取动态视频列表
+  /// 獲取動態影片列表
   static Future<DynamicFeed> getDynamicFeed({String offset = ''}) =>
       VideoApi.getDynamicFeed(offset: offset);
 
-  /// 获取相关视频
+  /// 獲取相關影片
   static Future<List<Video>> getRelatedVideos(String bvid) =>
       VideoApi.getRelatedVideos(bvid);
 
-  /// 获取 UP主 投稿视频列表
+  /// 獲取 UP主 投稿影片列表
   static Future<List<Video>> getSpaceVideos({
     required int mid,
     int page = 1,
     String order = 'pubdate',
   }) => VideoApi.getSpaceVideos(mid: mid, page: page, order: order);
 
-  // ========== 播放相关 ==========
+  // ========== 播放相關 ==========
 
-  /// 获取视频详情（包含分P信息和播放历史）
+  /// 獲取影片詳情（包含分P資訊和播放歷史）
   static Future<Map<String, dynamic>?> getVideoInfo(String bvid) =>
       PlaybackApi.getVideoInfo(bvid);
 
-  /// 获取视频的 cid
+  /// 獲取影片的 cid
   static Future<int?> getVideoCid(String bvid) => PlaybackApi.getVideoCid(bvid);
 
-  /// 获取视频播放地址
+  /// 獲取影片播放地址
   static Future<Map<String, dynamic>?> getVideoPlayUrl({
     required String bvid,
     required int cid,
@@ -114,44 +114,44 @@ class BilibiliApi {
     forceCodec: forceCodec,
   );
 
-  /// 获取弹幕数据
+  /// 獲取彈幕資料
   static Future<List<Map<String, dynamic>>> getDanmaku(int cid) =>
       PlaybackApi.getDanmaku(cid);
 
-  /// 上报播放进度
+  /// 上報播放進度
   static Future<bool> reportProgress({
     required String bvid,
     required int cid,
     required int progress,
   }) => PlaybackApi.reportProgress(bvid: bvid, cid: cid, progress: progress);
 
-  /// 获取视频在线观看人数
+  /// 獲取影片線上觀看人數
   static Future<Map<String, String>?> getOnlineCount({
     required int aid,
     required int cid,
   }) => PlaybackApi.getOnlineCount(aid: aid, cid: cid);
 
-  /// 获取视频快照(雪碧图)数据
+  /// 獲取影片快照(雪碧圖)資料
   static Future<VideoshotData?> getVideoshot({
     required String bvid,
     int? cid,
   }) => VideoshotApi.getVideoshot(bvid: bvid, cid: cid);
 
-  // ========== 用户操作相关 ==========
+  // ========== 使用者操作相關 ==========
 
-  /// 点赞/取消点赞
+  /// 點贊/取消點贊
   static Future<bool> likeVideo({required int aid, required bool like}) =>
       InteractionApi.likeVideo(aid: aid, like: like);
 
-  /// 检查是否已点赞
+  /// 檢查是否已點贊
   static Future<bool> checkLikeStatus(int aid) =>
       InteractionApi.checkLikeStatus(aid);
 
-  /// 投币
+  /// 投幣
   static Future<String?> coinVideo({required int aid, int count = 1}) =>
       InteractionApi.coinVideo(aid: aid, count: count);
 
-  /// 检查已投币数
+  /// 檢查已投幣數
   static Future<int> checkCoinStatus(int aid) =>
       InteractionApi.checkCoinStatus(aid);
 
@@ -161,15 +161,15 @@ class BilibiliApi {
     required bool favorite,
   }) => InteractionApi.favoriteVideo(aid: aid, favorite: favorite);
 
-  /// 检查是否已收藏
+  /// 檢查是否已收藏
   static Future<bool> checkFavoriteStatus(int aid) =>
       InteractionApi.checkFavoriteStatus(aid);
 
-  /// 关注/取消关注 UP主
+  /// 關注/取消關注 UP主
   static Future<bool> followUser({required int mid, required bool follow}) =>
       InteractionApi.followUser(mid: mid, follow: follow);
 
-  /// 检查是否已关注
+  /// 檢查是否已關注
   static Future<bool> checkFollowStatus(int mid) =>
       InteractionApi.checkFollowStatus(mid);
 }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 
 enum LiveSettingsMenuType { main, quality, danmaku, line }
 
@@ -100,10 +100,10 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    String title = '设置';
-    if (widget.menuType == LiveSettingsMenuType.danmaku) title = '弹幕设置';
-    if (widget.menuType == LiveSettingsMenuType.quality) title = '画质选择';
-    if (widget.menuType == LiveSettingsMenuType.line) title = '线路选择';
+    String title = '設定';
+    if (widget.menuType == LiveSettingsMenuType.danmaku) title = '彈幕設定';
+    if (widget.menuType == LiveSettingsMenuType.quality) title = '畫質選擇';
+    if (widget.menuType == LiveSettingsMenuType.line) title = '線路選擇';
 
     return Positioned(
       top: 0,
@@ -114,7 +114,7 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
         color: const Color(0xFF1F1F1F).withValues(alpha: 0.95),
         child: Column(
           children: [
-            // 标题栏
+            // 標題欄
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -140,7 +140,7 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
                 ],
               ),
             ),
-            // 列表内容
+            // 列表內容
             Expanded(child: _buildSettingsList()),
           ],
         ),
@@ -164,8 +164,8 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
   Widget _buildMainSettingsList() {
     final hasLines = widget.lines.length > 1;
     final currentLineName = widget.lines.isNotEmpty
-        ? widget.lines[widget.currentLineIndex]['name'] ?? '默认'
-        : '默认';
+        ? widget.lines[widget.currentLineIndex]['name'] ?? '預設'
+        : '預設';
 
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -173,7 +173,7 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
         _buildSettingItem(
           index: 0,
           icon: Icons.hd,
-          title: '画质',
+          title: '畫質',
           value: widget.qualityDesc,
           onTap: () => widget.onNavigate(LiveSettingsMenuType.quality, 0),
         ),
@@ -181,15 +181,15 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
           _buildSettingItem(
             index: 1,
             icon: Icons.router,
-            title: '线路',
+            title: '線路',
             value: currentLineName,
             onTap: () => widget.onNavigate(LiveSettingsMenuType.line, 0),
           ),
         _buildSettingItem(
           index: hasLines ? 2 : 1,
           icon: Icons.subtitles,
-          title: '弹幕设置',
-          value: widget.danmakuEnabled ? '开' : '关',
+          title: '彈幕設定',
+          value: widget.danmakuEnabled ? '開' : '關',
           onTap: () => widget.onNavigate(LiveSettingsMenuType.danmaku, 0),
         ),
       ],
@@ -204,15 +204,15 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
         _buildSettingItem(
           index: 0,
           icon: widget.danmakuEnabled ? Icons.subtitles : Icons.subtitles_off,
-          title: '弹幕开关',
-          value: widget.danmakuEnabled ? '开' : '关',
+          title: '彈幕開關',
+          value: widget.danmakuEnabled ? '開' : '關',
           onTap: () =>
               widget.onDanmakuSettingChange('enabled', !widget.danmakuEnabled),
         ),
         _buildSettingItem(
           index: 1,
           icon: Icons.opacity,
-          title: '弹幕透明度',
+          title: '彈幕透明度',
           value: '${(widget.danmakuOpacity * 100).toInt()}%',
           onTap: () {
             double newVal = widget.danmakuOpacity + 0.2;
@@ -223,7 +223,7 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
         _buildSettingItem(
           index: 2,
           icon: Icons.format_size,
-          title: '弹幕字体大小',
+          title: '彈幕字型大小',
           value: widget.danmakuFontSize.toInt().toString(),
           onTap: () {
             double newVal = widget.danmakuFontSize + 5.0; // 15, 20, 25, 30
@@ -234,7 +234,7 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
         _buildSettingItem(
           index: 3,
           icon: Icons.aspect_ratio,
-          title: '弹幕占屏比',
+          title: '彈幕佔屏比',
           value: _getDanmakuAreaText(),
           onTap: () {
             double newVal = widget.danmakuArea + 0.25;
@@ -245,7 +245,7 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
         _buildSettingItem(
           index: 4,
           icon: Icons.shutter_speed,
-          title: '弹幕速度',
+          title: '彈幕速度',
           value: widget.danmakuSpeed.toInt().toString(),
           onTap: () {
             double newVal = widget.danmakuSpeed + 5.0;
@@ -256,16 +256,16 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
         _buildSettingItem(
           index: 5,
           icon: Icons.vertical_align_top,
-          title: '允许顶部悬停弹幕',
-          value: !widget.hideTopDanmaku ? '开' : '关',
+          title: '允許頂部懸停彈幕',
+          value: !widget.hideTopDanmaku ? '開' : '關',
           onTap: () =>
               widget.onDanmakuSettingChange('hideTop', !widget.hideTopDanmaku),
         ),
         _buildSettingItem(
           index: 6,
           icon: Icons.vertical_align_bottom,
-          title: '允许底部悬停弹幕',
-          value: !widget.hideBottomDanmaku ? '开' : '关',
+          title: '允許底部懸停彈幕',
+          value: !widget.hideBottomDanmaku ? '開' : '關',
           onTap: () => widget.onDanmakuSettingChange(
             'hideBottom',
             !widget.hideBottomDanmaku,
@@ -317,7 +317,7 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
   }
 
   String _getDanmakuAreaText() {
-    if (widget.danmakuArea >= 1.0) return '满屏';
+    if (widget.danmakuArea >= 1.0) return '滿屏';
     if (widget.danmakuArea >= 0.75) return '3/4屏';
     if (widget.danmakuArea >= 0.5) return '半屏';
     if (widget.danmakuArea >= 0.25) return '1/4屏';

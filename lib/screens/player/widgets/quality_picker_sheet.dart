@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 
 class QualityPickerSheet extends StatefulWidget {
@@ -91,7 +91,7 @@ class _QualityPickerSheetState extends State<QualityPickerSheet> {
             const Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                '画质',
+                '畫質',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,

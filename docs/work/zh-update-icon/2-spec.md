@@ -82,3 +82,24 @@ T-1、T-2 平行 → T-3（會改動幾乎所有檔案，單獨執行）→ T-4 
 ## 實作偏差
 
 （實作中補）
+
+### T-3 實作偏差（2026-11-07）
+
+- `SettingsService` 提供 `appLanguage` getter 與非同步的 `setAppLanguage(int)`（Dart 的 setter 不能 await，重啟前必須確保已寫入）。
+- `tool/s2twp_source.py` 跳過含「保留原文」的行與其下一行，以及 `(begin)`／`(end)` 標記之間的區塊，可重複執行。
+- s2twp 會把「分區」轉成「分割槽」，已全部改回「分區」。
+- 不經過 `Text` 的顯示路徑：toast 一律改走 `lib/utils/zh_toast.dart` 的 `showZhToast`（轉換 msg 後呼叫 `Fluttertoast.showToast`）；`SettingsService.toast` 自行轉換；彈幕 `DanmakuContentItem`、`Marquee`（`conditional_marquee.dart`、`history_video_card.dart`）、`hintText`／`helperText` 用 `ZhConvert.convert` 包起來。`hintText` 所在的 `InputDecoration` 因此不再是 `const`。專案內沒有 `Tab(text:)`、`tooltip`、`labelText`。
+- `t2s_ui.txt` 共 56 筆（`tool/gen_zh_dict.py --ui-only` 重新產生；`s2t.txt`／`t2s.txt` 直接複製自 PiliBTR）。含 `$` 的字串不收錄，簡體模式靠字表轉換。
+- `lib/services/local_server.dart` 內嵌 HTML 只在原始碼轉為繁體，不經 `ZhConvert`（簡體模式下網頁仍是繁體）。
+- 語言列放在介面設定分頁「總是顯示時間」之後；重啟對話框在 `lib/utils/app_restart.dart`（`AppRestart.ask(context)`）。
+- 全部 `lib/**/*.dart` 轉為 LF 行尾。
+
+保留簡體（與伺服器回傳文字比對）的位置，皆加註解「與伺服器回傳的簡體文字比對，保留原文」：
+
+- `lib/models/video.dart:45` `'投稿视频'`（badge）、`:105` `json['badge'] == '未开播'`
+- `lib/widgets/history_video_card.dart:78` `video.badge == '未开播'`
+- `lib/screens/live/live_player_screen.dart:292` `desc != '默认'`
+- `lib/services/api/base_api.dart:204-213` `万`、`亿` 數字單位解析
+- `lib/plugins/ad_filter_plugin.dart:38-47`、`:54-84` 廣告／標題黨關鍵詞，`:88-129` `_simplifiedToTraditional` 簡繁對照表（`_normalizeChineseChars` 用它）
+- `lib/plugins/danmaku_enhance_plugin.dart:156`、`:163` 預設屏蔽詞 `['剧透', '前方高能']`
+- 未改動（兩種字體相同）：`video.dart:105` 的 `contains('直播')`。

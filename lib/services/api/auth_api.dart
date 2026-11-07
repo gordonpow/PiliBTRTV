@@ -4,9 +4,9 @@ import 'base_api.dart';
 import 'sign_utils.dart';
 import '../auth_service.dart';
 
-/// 认证相关 API
+/// 認證相關 API
 class AuthApi {
-  /// 获取用户信息 (头像、昵称等)
+  /// 獲取使用者資訊 (頭像、暱稱等)
   static Future<void> fetchAndSaveUserInfo() async {
     if (!AuthService.isLoggedIn) return;
 
@@ -23,9 +23,9 @@ class AuthApi {
           final face = data['face'] as String? ?? '';
           final uname = data['uname'] as String? ?? '';
 
-          // 解析 VIP 状态
-          // vipStatus: 0=无, 1=大会员
-          // vipType: 0=无, 1=月度, 2=年度及以上
+          // 解析 VIP 狀態
+          // vipStatus: 0=無, 1=大會員
+          // vipType: 0=無, 1=月度, 2=年度及以上
           final vipData = data['vip'];
           final isVip = (vipData != null && (vipData['status'] == 1));
 
@@ -39,11 +39,11 @@ class AuthApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
   }
 
-  /// 生成 TV 登录二维码
+  /// 生成 TV 登入二維碼
   static Future<Map<String, String>?> generateTvQrCode() async {
     try {
       final params = SignUtils.signForTvLogin({'local_id': '0'});
@@ -64,12 +64,12 @@ class AuthApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return null;
   }
 
-  /// 轮询 TV 登录状态
+  /// 輪詢 TV 登入狀態
   /// 返回: {'status': 'success'|'waiting'|'scanned'|'expired', 'data': ...}
   static Future<Map<String, dynamic>> pollTvLogin(String authCode) async {
     try {

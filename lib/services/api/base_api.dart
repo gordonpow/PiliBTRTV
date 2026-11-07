@@ -4,12 +4,12 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../auth_service.dart';
 
-/// Bilibili API 基础类 - 提供共享工具方法
+/// Bilibili API 基礎類 - 提供共享工具方法
 class BaseApi {
   static const String apiBase = 'https://api.bilibili.com';
   static const String passportBase = 'https://passport.bilibili.com';
 
-  // WBI keys 缓存
+  // WBI keys 快取
   static String? imgKey;
   static String? subKey;
   static DateTime? wbiKeysTime;
@@ -88,7 +88,7 @@ class BaseApi {
     } catch (_) {}
   }
 
-  /// 获取通用请求头
+  /// 獲取通用請求頭
   /// Cookie always carries buvid3; [withCookie] only controls login cookies.
   static Map<String, String> getHeaders({bool withCookie = false}) {
     final headers = {
@@ -114,7 +114,7 @@ class BaseApi {
     return headers;
   }
 
-  /// 从本地存储加载 WBI keys
+  /// 從本地儲存載入 WBI keys
   static Future<void> _loadWbiFromStorage() async {
     if (_wbiLoaded) return;
     _wbiLoaded = true;
@@ -128,11 +128,11 @@ class BaseApi {
         wbiKeysTime = DateTime.fromMillisecondsSinceEpoch(timeMs);
       }
     } catch (e) {
-      // 忽略加载错误
+      // 忽略載入錯誤
     }
   }
 
-  /// 保存 WBI keys 到本地存储
+  /// 儲存 WBI keys 到本地儲存
   static Future<void> _saveWbiToStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -142,17 +142,17 @@ class BaseApi {
         prefs.setInt('wbi_keys_time', wbiKeysTime!.millisecondsSinceEpoch);
       }
     } catch (e) {
-      // 忽略保存错误
+      // 忽略儲存錯誤
     }
   }
 
-  /// 获取 WBI keys (从 nav 接口)
-  /// 缓存2小时，失败时继续使用旧值
+  /// 獲取 WBI keys (從 nav 介面)
+  /// 快取2小時，失敗時繼續使用舊值
   static Future<void> ensureWbiKeys() async {
-    // 首次启动时从本地加载
+    // 首次啟動時從本地載入
     await _loadWbiFromStorage();
 
-    // 缓存2小时
+    // 快取2小時
     if (imgKey != null && subKey != null && wbiKeysTime != null) {
       if (DateTime.now().difference(wbiKeysTime!).inMinutes < 120) {
         return;
@@ -177,23 +177,23 @@ class BaseApi {
             subKey = subUrl.split('/').last.split('.').first;
             wbiKeysTime = DateTime.now();
 
-            // 保存到本地存储
+            // 儲存到本地儲存
             _saveWbiToStorage();
           }
         }
       }
     } catch (e) {
-      // 刷新失败时继续使用旧值（如果有的话）
+      // 重新整理失敗時繼續使用舊值（如果有的話）
     }
   }
 
-  /// 修复图片 URL
+  /// 修復圖片 URL
   static String fixPicUrl(String url) {
     if (url.startsWith('//')) return 'https:$url';
     return url;
   }
 
-  /// 转换为整数 (支持 "1.2万" 格式)
+  /// 轉換為整數 (支援 "1.2萬" 格式)
   static int toInt(dynamic value) {
     if (value == null) return 0;
     if (value is int) return value;
@@ -201,6 +201,7 @@ class BaseApi {
       final direct = int.tryParse(value);
       if (direct != null) return direct;
 
+      // 與伺服器回傳的簡體文字比對，保留原文 (begin)
       if (value.endsWith('万')) {
         final num = double.tryParse(value.replaceAll('万', ''));
         if (num != null) return (num * 10000).round();
@@ -209,11 +210,12 @@ class BaseApi {
         final num = double.tryParse(value.replaceAll('亿', ''));
         if (num != null) return (num * 100000000).round();
       }
+      // 與伺服器回傳的簡體文字比對，保留原文 (end)
     }
     return 0;
   }
 
-  /// 解析时长 (支持 "1:23" 和 "1:23:45" 格式)
+  /// 解析時長 (支援 "1:23" 和 "1:23:45" 格式)
   static int parseDuration(dynamic value) {
     if (value is int) return value;
     if (value is String) {

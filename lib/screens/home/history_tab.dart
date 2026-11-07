@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/rendering.dart';
 import '../../models/video.dart';
@@ -9,7 +9,7 @@ import '../../widgets/history_video_card.dart';
 import '../../widgets/time_display.dart';
 import '../player/player_screen.dart';
 
-/// 观看历史 Tab
+/// 觀看歷史 Tab
 class HistoryTab extends StatefulWidget {
   final FocusNode? sidebarFocusNode;
   final bool isVisible;
@@ -29,8 +29,8 @@ class HistoryTabState extends State<HistoryTab> {
   int _max = 0;
   final ScrollController _scrollController = ScrollController();
   bool _hasLoaded = false;
-  bool _isRefreshing = false; // 标记是否正在刷新中（用于控制分帧渲染）
-  // 每个视频卡片的 FocusNode
+  bool _isRefreshing = false; // 標記是否正在重新整理中（用於控制分幀渲染）
+  // 每個影片卡片的 FocusNode
   final Map<int, FocusNode> _videoFocusNodes = {};
 
   @override
@@ -56,7 +56,7 @@ class HistoryTabState extends State<HistoryTab> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    // 清理所有视频卡片的 FocusNode
+    // 清理所有影片卡片的 FocusNode
     for (final node in _videoFocusNodes.values) {
       node.dispose();
     }
@@ -64,7 +64,7 @@ class HistoryTabState extends State<HistoryTab> {
     super.dispose();
   }
 
-  // 获取或创建视频卡片的 FocusNode
+  // 獲取或建立影片卡片的 FocusNode
   FocusNode _getFocusNode(int index) {
     return _videoFocusNodes.putIfAbsent(index, () => FocusNode());
   }
@@ -78,9 +78,9 @@ class HistoryTabState extends State<HistoryTab> {
     }
   }
 
-  /// 公开的刷新方法 - 供外部调用
+  /// 公開的重新整理方法 - 供外部呼叫
   void refresh() {
-    _hasLoaded = true; // 标记已加载，避免切换时重复加载
+    _hasLoaded = true; // 標記已載入，避免切換時重複載入
     _loadHistory(reset: true);
   }
 
@@ -88,7 +88,7 @@ class HistoryTabState extends State<HistoryTab> {
     if (reset) {
       setState(() {
         _isLoading = true;
-        _isRefreshing = true; // 开始刷新
+        _isRefreshing = true; // 開始重新整理
         _videos = [];
         _viewAt = 0;
         _max = 0;
@@ -115,9 +115,9 @@ class HistoryTabState extends State<HistoryTab> {
       if (reset) {
         _videos = newVideos;
         _isLoading = false;
-        _isRefreshing = false; // 刷新完成
+        _isRefreshing = false; // 重新整理完成
       } else {
-        // 去重：过滤掉已存在的视频
+        // 去重：過濾掉已存在的影片
         final existingBvids = _videos.map((v) => v.bvid).toSet();
         final uniqueNewVideos = newVideos
             .where((v) => !existingBvids.contains(v.bvid))
@@ -143,19 +143,19 @@ class HistoryTabState extends State<HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
-    // 未登录提示
+    // 未登入提示
     if (!AuthService.isLoggedIn) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
-              '请先登录',
+              '請先登入',
               style: TextStyle(color: Colors.white70, fontSize: 20),
             ),
             const SizedBox(height: 10),
             const Text(
-              '登录后可查看观看历史',
+              '登入後可檢視觀看歷史',
               style: TextStyle(color: Colors.white38, fontSize: 14),
             ),
           ],
@@ -183,7 +183,7 @@ class HistoryTabState extends State<HistoryTab> {
             ),
             const SizedBox(height: 20),
             const Text(
-              '暂无观看历史',
+              '暫無觀看歷史',
               style: TextStyle(color: Colors.white70, fontSize: 20),
             ),
           ],
@@ -194,7 +194,7 @@ class HistoryTabState extends State<HistoryTab> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        // 视频网格
+        // 影片網格
         Positioned.fill(
           child: SizeCacheWidget(
             child: CustomScrollView(
@@ -213,25 +213,25 @@ class HistoryTabState extends State<HistoryTab> {
                     delegate: SliverChildBuilderDelegate((context, index) {
                       final video = _videos[index];
 
-                      // 构建卡片内容
+                      // 構建卡片內容
                       Widget buildCard(BuildContext ctx) {
                         return HistoryVideoCard(
                           video: video,
                           focusNode: _getFocusNode(index),
                           onTap: () => _onVideoTap(video),
-                          // 最左列按左键跳到侧边栏
+                          // 最左列按左鍵跳到側邊欄
                           onMoveLeft: (index % 4 == 0)
                               ? () => widget.sidebarFocusNode?.requestFocus()
                               : () => _getFocusNode(index - 1).requestFocus(),
-                          // 强制向右导航
+                          // 強制向右導航
                           onMoveRight: (index + 1 < _videos.length)
                               ? () => _getFocusNode(index + 1).requestFocus()
                               : null,
-                          // 严格按列向上移动（4个一行）
+                          // 嚴格按列向上移動（4個一行）
                           onMoveUp: index >= 4
                               ? () => _getFocusNode(index - 4).requestFocus()
-                              : () {}, // 最顶行为无效输入
-                          // 严格按列向下移动
+                              : () {}, // 最頂行為無效輸入
+                          // 嚴格按列向下移動
                           onMoveDown: (index + 4 < _videos.length)
                               ? () => _getFocusNode(index + 4).requestFocus()
                               : null,
@@ -265,7 +265,7 @@ class HistoryTabState extends State<HistoryTab> {
                         );
                       }
 
-                      // 只有在刷新时才使用分帧渲染，否则直接渲染
+                      // 只有在重新整理時才使用分幀渲染，否則直接渲染
                       if (_isRefreshing) {
                         return FrameSeparateWidget(
                           index: index,
@@ -280,7 +280,7 @@ class HistoryTabState extends State<HistoryTab> {
                         );
                       }
 
-                      // 非刷新状态（从播放器返回）直接渲染
+                      // 非重新整理狀態（從播放器返回）直接渲染
                       return Builder(builder: buildCard);
                     }, childCount: _videos.length),
                   ),
@@ -296,7 +296,7 @@ class HistoryTabState extends State<HistoryTab> {
             ),
           ),
         ),
-        // 固定标题
+        // 固定標題
         Positioned(
           top: 0,
           left: 0,
@@ -305,7 +305,7 @@ class HistoryTabState extends State<HistoryTab> {
             color: const Color(0xFF121212),
             padding: const EdgeInsets.fromLTRB(30, 20, 30, 15),
             child: const Text(
-              '观看历史',
+              '觀看歷史',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -314,7 +314,7 @@ class HistoryTabState extends State<HistoryTab> {
             ),
           ),
         ),
-        // 右上角时间
+        // 右上角時間
         const Positioned(top: 20, right: 30, child: TimeDisplay()),
       ],
     );

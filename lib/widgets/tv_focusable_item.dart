@@ -1,13 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/settings_service.dart';
 import '../core/focus/focus_navigation.dart';
 import 'vip_avatar_badge.dart';
 
-/// 侧边栏焦点项组件
+/// 側邊欄焦點項元件
 ///
-/// 使用统一的焦点管理系统
+/// 使用統一的焦點管理系統
 class TvFocusableItem extends StatelessWidget {
   final String? iconPath;
   final String? avatarUrl;
@@ -65,7 +65,7 @@ class TvFocusableItem extends StatelessWidget {
   );
 
   Widget _buildContent(bool focused) {
-    // 如果有头像 URL，显示头像
+    // 如果有頭像 URL，顯示頭像
     if (avatarUrl != null && avatarUrl!.isNotEmpty) {
       return VipAvatarBadge(
         size: 36,
@@ -97,7 +97,7 @@ class TvFocusableItem extends StatelessWidget {
       );
     }
 
-    // 显示 SVG 图标
+    // 顯示 SVG 圖示
     if (iconPath != null) {
       return SvgPicture.asset(
         iconPath!,
@@ -110,7 +110,7 @@ class TvFocusableItem extends StatelessWidget {
       );
     }
 
-    // 默认图标
+    // 預設圖示
     return Icon(
       Icons.circle,
       size: 32,

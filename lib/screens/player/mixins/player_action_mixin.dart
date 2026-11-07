@@ -1,5 +1,7 @@
+import 'package:bili_tv_app/utils/zh_convert.dart';
+import 'package:bili_tv_app/utils/zh_toast.dart';
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -20,7 +22,7 @@ import '../../../core/plugin/plugin_manager.dart';
 import '../../../core/plugin/plugin_types.dart';
 import '../../../services/playback_progress_cache.dart';
 
-/// 播放器逻辑 Mixin
+/// 播放器邏輯 Mixin
 mixin PlayerActionMixin on PlayerStateMixin {
   // 初始化
   Future<void> loadSettings() async {
@@ -33,7 +35,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       danmakuSpeed = prefs.getDouble('danmaku_speed') ?? 10.0;
       hideTopDanmaku = prefs.getBool('hide_top_danmaku') ?? false;
       hideBottomDanmaku = prefs.getBool('hide_bottom_danmaku') ?? false;
-      // 根据设置决定是否显示控制栏
+      // 根據設定決定是否顯示控制欄
       showControls = !SettingsService.hideControlsOnStart;
       updateDanmakuOption();
     });
@@ -54,13 +56,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
     setState(() {
       isLoading = true;
       errorMessage = null;
-      hasHandledVideoComplete = false; // 重置播放完成标志
+      hasHandledVideoComplete = false; // 重置播放完成標誌
     });
 
     try {
       final videoInfo = await BilibiliApi.getVideoInfo(widget.video.bvid);
 
-      // 🔥 预先获取本地缓存（在 setState 外部执行 async 操作）
+      // 🔥 預先獲取本地快取（在 setState 外部執行 async 操作）
       final cachedRecord = await PlaybackProgressCache.getCachedRecord(
         widget.video.bvid,
       );
@@ -68,30 +70,30 @@ mixin PlayerActionMixin on PlayerStateMixin {
       if (videoInfo != null) {
         if (mounted) {
           setState(() {
-            fullVideoInfo = videoInfo; // 保存完整视频信息
+            fullVideoInfo = videoInfo; // 儲存完整影片資訊
             episodes = videoInfo['pages'] ?? [];
 
-            // 优先检查历史记录中的 cid
+            // 優先檢查歷史記錄中的 cid
             if (videoInfo['history'] != null &&
                 videoInfo['history']['cid'] != null) {
               cid = videoInfo['history']['cid'];
               debugPrint('🎬 [Init] Using API history cid: $cid');
             }
 
-            // 🔥 如果 API 没有返回历史记录，检查本地缓存
+            // 🔥 如果 API 沒有返回歷史記錄，檢查本地快取
             if (cid == null && cachedRecord != null) {
               cid = cachedRecord.cid;
               debugPrint('🎬 [Init] Using LOCAL CACHE cid: $cid');
             }
 
             cid ??= videoInfo['cid'];
-            aid = videoInfo['aid']; // 保存 aid 用于操作 API
+            aid = videoInfo['aid']; // 儲存 aid 用於操作 API
           });
           if (cid == null && episodes.isNotEmpty) {
             cid = episodes[0]['cid'];
           }
 
-          // 获取在线人数（首次获取 + 每60秒更新）
+          // 獲取線上人數（首次獲取 + 每60秒更新）
           _fetchOnlineCount();
           onlineCountTimer?.cancel();
           onlineCountTimer = Timer.periodic(
@@ -105,13 +107,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
       if (cid == null) {
         setState(() {
-          errorMessage = '获取视频信息失败';
+          errorMessage = '獲取影片資訊失敗';
           isLoading = false;
         });
         return;
       }
 
-      // 立即启动快照数据预加载 (并行执行)
+      // 立即啟動快照資料預載入 (並行執行)
       loadVideoshot();
 
       // Initialize focus index based on cid
@@ -120,7 +122,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         if (idx != -1) focusedEpisodeIndex = idx;
       }
 
-      // 异步加载相关视频 (用于自动连播)
+      // 非同步載入相關影片 (用於自動連播)
       BilibiliApi.getRelatedVideos(widget.video.bvid).then((videos) {
         if (mounted) {
           relatedVideos = videos
@@ -139,18 +141,18 @@ mixin PlayerActionMixin on PlayerStateMixin {
         }
       });
 
-      // 编码器回退重试列表:
-      // 1. null = 用户设置优先（自动则按硬件最优 AV1>HEVC>AVC）
-      // 2. 失败后按兼容性降级: AVC > HEVC > AV1
+      // 編碼器回退重試列表:
+      // 1. null = 使用者設定優先（自動則按硬體最優 AV1>HEVC>AVC）
+      // 2. 失敗後按相容性降級: AVC > HEVC > AV1
       final userCodec = SettingsService.preferredCodec;
       final codecRetryList = <VideoCodec?>[
-        null, // 首次：用户设置（自动=智能硬解）
-        VideoCodec.avc, // H.264 (兼容性最好)
+        null, // 首次：使用者設定（自動=智慧硬解）
+        VideoCodec.avc, // H.264 (相容性最好)
         VideoCodec.hevc, // HEVC
         VideoCodec.av1, // AV1
       ];
 
-      // 去重（跳过和用户设置相同的，因为首次已经用过）
+      // 去重（跳過和使用者設定相同的，因為首次已經用過）
       final uniqueCodecs = <VideoCodec?>[];
       final seen = <String>{};
       for (final codec in codecRetryList) {
@@ -168,11 +170,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
       String? lastError;
 
-      // 尝试每个编码器
+      // 嘗試每個編碼器
       codecLoop:
       for (final tryCodec in uniqueCodecs) {
-        // 1. 首次请求: 使用默认画质(80)或当前设定画质
-        // 这样可以获取到视频实际支持的 accept_quality 列表，而不是盲猜
+        // 1. 首次請求: 使用預設畫質(80)或當前設定畫質
+        // 這樣可以獲取到影片實際支援的 accept_quality 列表，而不是盲猜
         var playInfo = await BilibiliApi.getVideoPlayUrl(
           bvid: widget.video.bvid,
           cid: cid!,
@@ -180,15 +182,15 @@ mixin PlayerActionMixin on PlayerStateMixin {
           forceCodec: tryCodec,
         );
 
-        // 2. 智能升级 (仅针对 VIP)
-        // 如果是 VIP 且首次请求成功，检查是否有更高画质可用
+        // 2. 智慧升級 (僅針對 VIP)
+        // 如果是 VIP 且首次請求成功，檢查是否有更高畫質可用
         if (AuthService.isVip &&
             playInfo != null &&
             playInfo['qualities'] != null) {
           final qualities = playInfo['qualities'] as List;
           if (qualities.isNotEmpty) {
-            // 获取该视频支持的最高画质
-            // qualities 是 List<Map<String, dynamic>>, 需提取 qn 并排序
+            // 獲取該影片支援的最高畫質
+            // qualities 是 List<Map<String, dynamic>>, 需提取 qn 並排序
             final supportedQns = qualities.map((e) => e['qn'] as int).toList();
             if (supportedQns.isNotEmpty) {
               final maxQn = supportedQns.reduce(
@@ -196,8 +198,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
               );
               final currentQn = playInfo['currentQuality'] as int? ?? 0;
 
-              // 如果最高画质 > 当前画质 (且当前画质只是默认的80，或者我们想强制升级)
-              // 注意: 有时候 maxQn 可能高达 127/126，而 currentQn 只有 80
+              // 如果最高畫質 > 當前畫質 (且當前畫質只是預設的80，或者我們想強制升級)
+              // 注意: 有時候 maxQn 可能高達 127/126，而 currentQn 只有 80
               if (maxQn > currentQn) {
                 debugPrint(
                   '🎬 [SmartQuality] VIP detected. Upgrading from $currentQn to $maxQn',
@@ -206,11 +208,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 final upgradePlayInfo = await BilibiliApi.getVideoPlayUrl(
                   bvid: widget.video.bvid,
                   cid: cid!,
-                  qn: maxQn, // 精确请求最高画质
+                  qn: maxQn, // 精確請求最高畫質
                   forceCodec: tryCodec,
                 );
 
-                // 如果升级请求成功，使用新数据
+                // 如果升級請求成功，使用新資料
                 if (upgradePlayInfo != null) {
                   playInfo = upgradePlayInfo;
                 }
@@ -220,11 +222,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
         }
 
         if (playInfo == null) {
-          lastError = '解析播放地址失败';
+          lastError = '解析播放地址失敗';
           continue codecLoop;
         }
 
-        // 检查是否返回了错误信息
+        // 檢查是否返回了錯誤資訊
         if (playInfo['error'] != null) {
           lastError = playInfo['error'];
           continue codecLoop;
@@ -240,11 +242,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
         String? playUrl;
 
-        // 如果有 DASH 数据，生成 MPD 并使用全局服务器
+        // 如果有 DASH 資料，生成 MPD 並使用全域性伺服器
         if (playInfo['dashData'] != null) {
           final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
 
-          // 使用全局 LocalServer 提供 MPD 内容 (纯内存)
+          // 使用全域性 LocalServer 提供 MPD 內容 (純記憶體)
           LocalServer.instance.setMpdContent(mpdContent);
           playUrl = LocalServer.instance.mpdUrl;
         } else {
@@ -252,7 +254,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
           playUrl = playInfo['url'];
         }
 
-        // 创建 VideoPlayerController (带重试逻辑)
+        // 建立 VideoPlayerController (帶重試邏輯)
         const maxRetries = 3;
         const retryDelay = Duration(milliseconds: 1500);
 
@@ -273,20 +275,20 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
             // 初始化
             await videoController!.initialize();
-            break; // 成功，跳出循环
+            break; // 成功，跳出迴圈
           } catch (e) {
-            // 清理失败的控制器
+            // 清理失敗的控制器
             await videoController?.dispose();
             videoController = null;
 
             if (attempt < maxRetries) {
-              // 还有重试机会，等待后重试
-              debugPrint('视频初始化失败 (尝试 $attempt/$maxRetries): $e');
+              // 還有重試機會，等待後重試
+              debugPrint('影片初始化失敗 (嘗試 $attempt/$maxRetries): $e');
               await Future.delayed(retryDelay);
             } else {
-              // 重试次数用尽，尝试下一个编码器
+              // 重試次數用盡，嘗試下一個編碼器
               debugPrint('Codec execution failed: $e');
-              lastError = '播放器初始化失败: $e';
+              lastError = '播放器初始化失敗: $e';
               continue codecLoop;
             }
           }
@@ -294,10 +296,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
         if (!mounted) return;
 
-        // 监听播放状态变化
+        // 監聽播放狀態變化
         _setupPlayerListeners();
 
-        // 初始化插件
+        // 初始化外掛
         final plugins = PluginManager().getEnabledPlugins<PlayerPlugin>();
         for (var plugin in plugins) {
           plugin.onVideoLoad(widget.video.bvid, cid!);
@@ -307,9 +309,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
           isLoading = false;
         });
 
-        // 自动续播:
-        // 1. 如果 API 返回了历史记录，无条件使用历史记录的进度 (解决多端同步和本地列表过期问题)
-        // 2. 如果没有 API 历史，才使用本地列表传进来的 progress
+        // 自動續播:
+        // 1. 如果 API 返回了歷史記錄，無條件使用歷史記錄的進度 (解決多端同步和本地列表過期問題)
+        // 2. 如果沒有 API 歷史，才使用本地列表傳進來的 progress
         int historyProgress = 0;
         if (videoInfo != null && videoInfo['history'] != null) {
           final historyData = videoInfo['history'];
@@ -317,10 +319,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
             '🎬 [Resume] API History: cid=${historyData['cid']}, progress=${historyData['progress']}',
           );
           historyProgress = historyData['progress'] as int? ?? 0;
-          // 再次确认 CID 匹配 (一般都匹配，因为前面已经强行切换 CID 了)
+          // 再次確認 CID 匹配 (一般都匹配，因為前面已經強行切換 CID 了)
           final historyCid = historyData['cid'] as int?;
           if (historyCid != null && historyCid != cid) {
-            // 如果历史记录的 CID 和当前 CID 不一致（理论上不该发生，防止万一），不自动跳转进度以防错乱
+            // 如果歷史記錄的 CID 和當前 CID 不一致（理論上不該發生，防止萬一），不自動跳轉進度以防錯亂
             debugPrint(
               '🎬 [Resume] CID mismatch: historyCid=$historyCid, cid=$cid - resetting progress',
             );
@@ -330,7 +332,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
           debugPrint('🎬 [Resume] No API history available');
         }
 
-        // 2. 🔥 优先使用本地缓存（比列表数据更新鲜）
+        // 2. 🔥 優先使用本地快取（比列表資料更新鮮）
         if (historyProgress == 0 &&
             cachedRecord != null &&
             cachedRecord.cid == cid) {
@@ -340,7 +342,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
           historyProgress = cachedRecord.progress;
         }
 
-        // 3. 最后兜底：使用列表传入的 progress（可能是旧数据）
+        // 3. 最後兜底：使用列表傳入的 progress（可能是舊資料）
         if (historyProgress == 0 && widget.video.progress > 0) {
           debugPrint(
             '🎬 [Resume] Using list progress (fallback): ${widget.video.progress}',
@@ -349,13 +351,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
         }
 
         if (historyProgress > 0) {
-          // 🔥 如果进度接近视频总时长（最后5秒内），说明视频已播完，从头开始
+          // 🔥 如果進度接近影片總時長（最後5秒內），說明影片已播完，從頭開始
           final videoDuration = videoController!.value.duration.inSeconds;
           if (videoDuration > 0 && historyProgress >= videoDuration - 5) {
             debugPrint(
               '🎬 [Resume] Video was completed (progress $historyProgress >= duration $videoDuration - 5), starting from beginning',
             );
-            // 不 seek，直接从头开始播放
+            // 不 seek，直接從頭開始播放
           } else {
             initialProgress = historyProgress;
 
@@ -365,9 +367,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
             final min = historyProgress ~/ 60;
             final sec = historyProgress % 60;
-            Fluttertoast.showToast(
+            showZhToast(
               msg:
-                  '从${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}继续播放',
+                  '從${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}繼續播放',
               toastLength: Toast.LENGTH_SHORT,
             );
           }
@@ -378,10 +380,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
         await loadDanmaku();
         return; // 成功，退出
-      } // codecLoop 结束
+      } // codecLoop 結束
 
-      // 所有编码器都失败了
-      throw Exception(lastError ?? '视频加载失败');
+      // 所有編碼器都失敗了
+      throw Exception(lastError ?? '影片載入失敗');
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -409,7 +411,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
-  /// 设置播放器监听器
+  /// 設定播放器監聽器
   void _setupPlayerListeners() {
     if (videoController == null) return;
 
@@ -421,26 +423,26 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     final value = videoController!.value;
 
-    // 同步弹幕
+    // 同步彈幕
     if (danmakuEnabled && danmakuController != null) {
       syncDanmaku(value.position.inSeconds.toDouble());
     }
 
-    // 检查是否需要预加载下一张雪碧图
+    // 檢查是否需要預載入下一張雪碧圖
     _checkSpritePreload(value.position);
 
-    // 检查播放完成
+    // 檢查播放完成
     if (value.position >= value.duration &&
         value.duration > Duration.zero &&
         !value.isPlaying) {
-      // 通过位置判断播放结束
+      // 通過位置判斷播放結束
       onVideoComplete();
     }
 
-    // 触发重绘以更新 UI (进度条等)
+    // 觸發重繪以更新 UI (進度條等)
     setState(() {});
 
-    // 插件处理 (Debounce logic internal to plugin, but we update UI here)
+    // 外掛處理 (Debounce logic internal to plugin, but we update UI here)
     _handlePlugins(value.position);
   }
 
@@ -457,18 +459,18 @@ mixin PlayerActionMixin on PlayerStateMixin {
         if (!mounted) return;
         videoController?.seekTo(Duration(milliseconds: action.positionMs));
         resetDanmakuIndex(Duration(milliseconds: action.positionMs));
-        Fluttertoast.showToast(msg: action.reason);
-        // 跳过也可能需要清除之前的按钮
+        showZhToast(msg: action.reason);
+        // 跳過也可能需要清除之前的按鈕
         newAction = null;
-        break; // 优先处理跳过
+        break; // 優先處理跳過
       } else if (action is SkipActionShowButton) {
         newAction = action;
       }
     }
 
-    // 更新 UI 状态
+    // 更新 UI 狀態
     if (mounted && currentSkipAction != newAction) {
-      // 简单的去重，如果是同一个片段ID则不更新
+      // 簡單的去重，如果是同一個片段ID則不更新
       if (currentSkipAction is SkipActionShowButton &&
           newAction is SkipActionShowButton) {
         if (currentSkipAction.segmentId == newAction.segmentId) {
@@ -485,20 +487,20 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
-  /// 清理播放器监听器
+  /// 清理播放器監聽器
   void cancelPlayerListeners() {
     videoController?.removeListener(_onPlayerStateChange);
   }
 
   Future<void> disposePlayer() async {
-    // 退出前上报进度并保存到本地缓存
+    // 退出前上報進度並儲存到本地快取
     await reportPlaybackProgress();
 
-    // 🔥 保存进度到本地缓存（解决 B站 API history 字段不可靠的问题）
+    // 🔥 儲存進度到本地快取（解決 B站 API history 欄位不可靠的問題）
     if (cid != null && videoController != null) {
       final currentPos = videoController!.value.position.inSeconds;
       if (currentPos > 5) {
-        // 只有播放超过 5 秒才缓存
+        // 只有播放超過 5 秒才快取
         await PlaybackProgressCache.saveProgress(
           widget.video.bvid,
           cid!,
@@ -512,10 +514,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     cancelPlayerListeners();
     seekIndicatorTimer?.cancel();
-    onlineCountTimer?.cancel(); // 取消在线人数定时器
-    _clearSpritesFromMemory(); // 清理雪碧图内存缓存
+    onlineCountTimer?.cancel(); // 取消線上人數定時器
+    _clearSpritesFromMemory(); // 清理雪碧圖記憶體快取
 
-    // 通知插件视频结束
+    // 通知外掛影片結束
     final plugins = PluginManager().getEnabledPlugins<PlayerPlugin>();
     for (var plugin in plugins) {
       plugin.onVideoEnd();
@@ -526,7 +528,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     LocalServer.instance.clearMpdContent();
   }
 
-  /// 获取在线观看人数
+  /// 獲取線上觀看人數
   Future<void> _fetchOnlineCount() async {
     if (aid == null || cid == null) return;
 
@@ -538,7 +540,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
-  /// 获取用于显示的视频信息（优先使用 API 获取的完整信息）
+  /// 獲取用於顯示的影片資訊（優先使用 API 獲取的完整資訊）
   models.Video getDisplayVideo() {
     if (fullVideoInfo == null) {
       return widget.video;
@@ -550,7 +552,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     var displayTitle = info['title'] ?? widget.video.title;
 
-    // 多P视频，在标题后追加分P名称
+    // 多P影片，在標題後追加分P名稱
     if (episodes.length > 1 && cid != null) {
       final currentEp = episodes.firstWhere(
         (e) => e['cid'] == cid,
@@ -576,39 +578,39 @@ mixin PlayerActionMixin on PlayerStateMixin {
       danmaku: stat['danmaku'] ?? widget.video.danmaku,
       pubdate: info['pubdate'] ?? widget.video.pubdate,
       duration: info['duration'] ?? widget.video.duration,
-      // 关键：保留从列表传入的播放进度和观看时间，否则会丢失进度导致从头播放
+      // 關鍵：保留從列表傳入的播放進度和觀看時間，否則會丟失進度導致從頭播放
       progress: widget.video.progress,
       viewAt: widget.video.viewAt,
     );
   }
 
-  /// 视频播放完成回调
+  /// 影片播放完成回撥
   void onVideoComplete() {
-    // 防止重复触发
+    // 防止重複觸發
     if (hasHandledVideoComplete) return;
     hasHandledVideoComplete = true;
 
     hideTimer?.cancel();
     setState(() => showControls = true);
 
-    // 检查是否开启自动连播
+    // 檢查是否開啟自動連播
     if (!SettingsService.autoPlay) return;
 
-    // 暂停当前视频
+    // 暫停當前影片
     if (videoController != null && videoController!.value.isPlaying) {
       videoController!.pause();
     }
 
-    // 1. 检查是否有下一集
+    // 1. 檢查是否有下一集
     if (episodes.length > 1 && cid != null) {
       final currentIndex = episodes.indexWhere((ep) => ep['cid'] == cid);
       if (currentIndex >= 0 && currentIndex < episodes.length - 1) {
-        // 有下一集，自动播放
+        // 有下一集，自動播放
         final nextEp = episodes[currentIndex + 1];
         final nextCid = nextEp['cid'] as int;
-        Fluttertoast.showToast(
+        showZhToast(
           msg:
-              '自动播放下一集: ${nextEp['title'] ?? nextEp['part'] ?? 'P${currentIndex + 2}'}',
+              '自動播放下一集: ${nextEp['title'] ?? nextEp['part'] ?? 'P${currentIndex + 2}'}',
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.TOP,
         );
@@ -617,15 +619,15 @@ mixin PlayerActionMixin on PlayerStateMixin {
       }
     }
 
-    // 2. 所有集数播完，检查相关视频
+    // 2. 所有集數播完，檢查相關影片
     if (relatedVideos.isNotEmpty) {
       final nextVideo = relatedVideos.first;
-      Fluttertoast.showToast(
-        msg: '自动播放推荐视频',
+      showZhToast(
+        msg: '自動播放推薦影片',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.TOP,
       );
-      // 导航到新视频
+      // 導航到新影片
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => PlayerScreen(
@@ -644,11 +646,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
       );
     }
 
-    // 🔥 3. 无论是否有后续动作，都强制上报一次"已看完"
+    // 🔥 3. 無論是否有後續動作，都強制上報一次"已看完"
     reportPlaybackProgress(overrideProgress: -1);
   }
 
-  /// 上报播放进度 (暂停/退出时调用)
+  /// 上報播放進度 (暫停/退出時呼叫)
   Future<void> reportPlaybackProgress({int? overrideProgress}) async {
     if (videoController == null ||
         cid == null ||
@@ -659,7 +661,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     final progress =
         overrideProgress ?? videoController!.value.position.inSeconds;
 
-    // 上报到B站
+    // 上報到B站
     await BilibiliApi.reportProgress(
       bvid: widget.video.bvid,
       cid: cid!,
@@ -672,14 +674,14 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     if (lastDanmakuIndex < danmakuList.length) {
       final nextDmTime = danmakuList[lastDanmakuIndex]['time'] as double;
-      // 检测跳转 (Seek)
+      // 檢測跳轉 (Seek)
       if (currentTime - nextDmTime > 5.0) {
         resetDanmakuIndex(Duration(seconds: currentTime.toInt()));
         return;
       }
     }
 
-    // 获取已启用的弹幕插件
+    // 獲取已啟用的彈幕外掛
     final plugins = PluginManager().getEnabledPlugins<DanmakuPlugin>();
 
     while (lastDanmakuIndex < danmakuList.length) {
@@ -688,8 +690,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
       if (time <= currentTime) {
         if (currentTime - time < 1.0) {
-          // 构造插件传递对象 (目前简单用 Map 传递)
-          // 真实项目中建议定义 DanmakuItem 模型
+          // 構造外掛傳遞物件 (目前簡單用 Map 傳遞)
+          // 真實專案中建議定義 DanmakuItem 模型
           Map<String, dynamic>? dmItem = {
             'content': dm['content'],
             'color': dm['color'],
@@ -697,7 +699,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
           DanmakuStyle? style;
 
-          // 插件过滤管道
+          // 外掛過濾管道
           for (var plugin in plugins) {
             if (dmItem == null) break;
             dmItem = plugin.filterDanmaku(dmItem);
@@ -710,13 +712,16 @@ mixin PlayerActionMixin on PlayerStateMixin {
           if (dmItem != null) {
             Color color = Color(dmItem['color'] as int).withValues(alpha: 255);
             if (style != null && style.borderColor != null) {
-              // 高亮样式暂时用颜色替代，或如果库支持边框则设置
-              // 这里简单将文字变色，并加粗（如果库支持）
+              // 高亮樣式暫時用顏色替代，或如果庫支援邊框則設定
+              // 這裡簡單將文字變色，並加粗（如果庫支援）
               color = style.borderColor!;
             }
 
             danmakuController!.addDanmaku(
-              DanmakuContentItem(dmItem['content'] as String, color: color),
+              DanmakuContentItem(
+                ZhConvert.convert(dmItem['content'] as String),
+                color: color,
+              ),
             );
           }
         }
@@ -768,9 +773,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
     if (videoController!.value.isPlaying) {
       videoController!.pause();
       hideTimer?.cancel();
-      // 暂停时上报进度
+      // 暫停時上報進度
       reportPlaybackProgress();
-      // 暂停时只显示暂停符号，不显示控制栏
+      // 暫停時只顯示暫停符號，不顯示控制欄
     } else {
       videoController!.play();
       startHideTimer();
@@ -785,12 +790,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
     final newPos = current + const Duration(seconds: 10);
     final target = newPos < total ? newPos : total;
 
-    // 检查是否开启预览模式且有快照数据
+    // 檢查是否開啟預覽模式且有快照資料
     if (SettingsService.seekPreviewMode && videoshotData != null) {
-      // 预览模式: 暂停视频，只更新预览位置
+      // 預覽模式: 暫停影片，只更新預覽位置
       videoController?.pause();
 
-      // 时间吸附
+      // 時間吸附
       final alignedTarget = videoshotData!.getClosestTimestamp(target);
 
       setState(() {
@@ -799,12 +804,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
       });
       _showSeekIndicator();
     } else {
-      // 直接跳转模式 (默认)
-      // 如果用户开启了预览模式但雪碧图加载失败，显示提示
+      // 直接跳轉模式 (預設)
+      // 如果使用者開啟了預覽模式但雪碧圖載入失敗，顯示提示
       if (SettingsService.seekPreviewMode && !hasShownVideoshotFailToast) {
         hasShownVideoshotFailToast = true;
-        Fluttertoast.showToast(
-          msg: '预览图加载失败，已切换到默认快进模式',
+        showZhToast(
+          msg: '預覽圖載入失敗，已切換到預設快進模式',
           toastLength: Toast.LENGTH_SHORT,
         );
       }
@@ -820,12 +825,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
     final newPos = current - const Duration(seconds: 10);
     final target = newPos > Duration.zero ? newPos : Duration.zero;
 
-    // 检查是否开启预览模式且有快照数据
+    // 檢查是否開啟預覽模式且有快照資料
     if (SettingsService.seekPreviewMode && videoshotData != null) {
-      // 预览模式: 暂停视频，只更新预览位置
+      // 預覽模式: 暫停影片，只更新預覽位置
       videoController?.pause();
 
-      // 时间吸附
+      // 時間吸附
       final alignedTarget = videoshotData!.getClosestTimestamp(target);
 
       setState(() {
@@ -834,12 +839,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
       });
       _showSeekIndicator();
     } else {
-      // 直接跳转模式 (默认)
-      // 如果用户开启了预览模式但雪碧图加载失败，显示提示
+      // 直接跳轉模式 (預設)
+      // 如果使用者開啟了預覽模式但雪碧圖載入失敗，顯示提示
       if (SettingsService.seekPreviewMode && !hasShownVideoshotFailToast) {
         hasShownVideoshotFailToast = true;
-        Fluttertoast.showToast(
-          msg: '预览图加载失败，已切换到默认快进模式',
+        showZhToast(
+          msg: '預覽圖載入失敗，已切換到預設快進模式',
           toastLength: Toast.LENGTH_SHORT,
         );
       }
@@ -849,25 +854,25 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
-  /// 预览模式下继续快进/快退
+  /// 預覽模式下繼續快進/快退
   void seekPreviewForward() {
     if (videoController == null || previewPosition == null) return;
     final total = videoController!.value.duration;
 
-    // 基于当前预览位置增加
+    // 基於當前預覽位置增加
     final nextPos = previewPosition! + const Duration(seconds: 10);
     var target = nextPos < total ? nextPos : total;
 
-    // 时间吸附
+    // 時間吸附
     if (videoshotData != null) {
-      // 如果有时间戳，确保每次切换到下一个关键帧
-      // 这里简单地对新位置进行吸附
+      // 如果有時間戳，確保每次切換到下一個關鍵幀
+      // 這裡簡單地對新位置進行吸附
       target = videoshotData!.getClosestTimestamp(target);
 
-      // 如果吸附后时间没变（因为间隔大），强制移动到下一帧
+      // 如果吸附後時間沒變（因為間隔大），強制移動到下一幀
       if (target <= previewPosition! && target < total) {
         target =
-            previewPosition! + const Duration(seconds: 1); // 增加一点再吸附，尝试找到下一帧
+            previewPosition! + const Duration(seconds: 1); // 增加一點再吸附，嘗試找到下一幀
         target = videoshotData!.getClosestTimestamp(target);
       }
     }
@@ -884,11 +889,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
     final nextPos = previewPosition! - const Duration(seconds: 10);
     var target = nextPos > Duration.zero ? nextPos : Duration.zero;
 
-    // 时间吸附
+    // 時間吸附
     if (videoshotData != null) {
       target = videoshotData!.getClosestTimestamp(target);
 
-      // 如果吸附后时间没变，强制移动到上一帧
+      // 如果吸附後時間沒變，強制移動到上一幀
       if (target >= previewPosition! && target > Duration.zero) {
         target = previewPosition! - const Duration(seconds: 1);
         target = videoshotData!.getClosestTimestamp(target);
@@ -901,19 +906,19 @@ mixin PlayerActionMixin on PlayerStateMixin {
     _showSeekIndicator();
   }
 
-  /// 确认预览跳转
+  /// 確認預覽跳轉
   void confirmPreviewSeek() {
     if (previewPosition != null && videoController != null) {
       videoController!.seekTo(previewPosition!);
-      videoController!.play(); // 确认后恢复播放
+      videoController!.play(); // 確認後恢復播放
       resetDanmakuIndex(previewPosition!);
     }
     _endPreviewMode();
   }
 
-  /// 取消预览跳转
+  /// 取消預覽跳轉
   void cancelPreviewSeek() {
-    // 取消预览，恢复播放 (根据用户习惯，通常取消预览意味着继续观看)
+    // 取消預覽，恢復播放 (根據使用者習慣，通常取消預覽意味著繼續觀看)
     if (videoController != null && !videoController!.value.isPlaying) {
       videoController!.play();
     }
@@ -932,7 +937,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
   void _showSeekIndicator() {
     seekIndicatorTimer?.cancel();
     setState(() => showSeekIndicator = true);
-    // 预览模式下不自动隐藏
+    // 預覽模式下不自動隱藏
     if (!isSeekPreviewMode) {
       seekIndicatorTimer = Timer(const Duration(seconds: 2), () {
         if (mounted) {
@@ -942,9 +947,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
-  /// 加载视频快照(雪碧图)数据
+  /// 載入影片快照(雪碧圖)資料
   Future<void> loadVideoshot() async {
-    // 始终尝试加载数据，以便在用户启用设置时能够立即使用
+    // 始終嘗試載入資料，以便在使用者啟用設定時能夠立即使用
     try {
       final data = await BilibiliApi.getVideoshot(
         bvid: widget.video.bvid,
@@ -953,7 +958,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       if (mounted && data != null) {
         setState(() => videoshotData = data);
         precachedSpriteIndex = -1;
-        // 预缓存第一张雪碧图到 GPU
+        // 預快取第一張雪碧圖到 GPU
         _precacheNextSprite(0);
       }
     } catch (e) {
@@ -961,22 +966,22 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
-  /// 预缓存指定索引的雪碧图 (滑动窗口: 只保留当前 + 下一张)
+  /// 預快取指定索引的雪碧圖 (滑動視窗: 只保留當前 + 下一張)
   void _precacheNextSprite(int index) {
     if (videoshotData == null || index >= videoshotData!.images.length) return;
-    if (index <= precachedSpriteIndex) return; // 已缓存
+    if (index <= precachedSpriteIndex) return; // 已快取
 
-    // 清理更早的雪碧图 (保留 index-1 和 index)
+    // 清理更早的雪碧圖 (保留 index-1 和 index)
     if (index > 1) {
       VideoshotApi.evictSprite(videoshotData!.images[index - 2]);
     }
 
-    // 预缓存新的雪碧图
+    // 預快取新的雪碧圖
     VideoshotApi.precacheSprite(context, videoshotData!.images[index]);
     precachedSpriteIndex = index;
   }
 
-  /// 检查是否需要预加载下一张雪碧图 (播放过程中调用)
+  /// 檢查是否需要預載入下一張雪碧圖 (播放過程中呼叫)
   void _checkSpritePreload(Duration position) {
     if (videoshotData == null) return;
 
@@ -984,13 +989,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
     final frame = videoshotData!.getIndex(position);
     final spriteIdx = frame ~/ l;
 
-    // 如果当前帧已超过该雪碧图的 80%，预加载下一张
+    // 如果當前幀已超過該雪碧圖的 80%，預載入下一張
     if (frame % l > l * 0.8 && spriteIdx + 1 < videoshotData!.images.length) {
       _precacheNextSprite(spriteIdx + 1);
     }
   }
 
-  /// 清理所有雪碧图的内存缓存
+  /// 清理所有雪碧圖的記憶體快取
   void _clearSpritesFromMemory() {
     if (videoshotData == null) return;
     for (final url in videoshotData!.images) {
@@ -1000,13 +1005,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
     precachedSpriteIndex = -1;
   }
 
-  // ========== 进度条拖动控制 (Feature 4) ==========
+  // ========== 進度條拖動控制 (Feature 4) ==========
 
   void enterProgressBarMode() {
     if (videoController == null) return;
     setState(() {
       isProgressBarFocused = true;
-      previewPosition = null; // 初始无预览，显示当前位置
+      previewPosition = null; // 初始無預覽，顯示當前位置
     });
     hideTimer?.cancel();
   }
@@ -1023,14 +1028,14 @@ mixin PlayerActionMixin on PlayerStateMixin {
     startHideTimer();
   }
 
-  /// 开始调整进度 - 设置初始预览位置
+  /// 開始調整進度 - 設定初始預覽位置
   void startAdjustProgress(int seconds) {
     if (videoController == null) return;
     previewPosition ??= videoController!.value.position;
     adjustProgress(seconds);
   }
 
-  /// 结束调整进度 - 跳转到预览位置
+  /// 結束調整進度 - 跳轉到預覽位置
   void commitProgress() {
     if (previewPosition != null && videoController != null) {
       videoController!.seekTo(previewPosition!);
@@ -1058,7 +1063,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     setState(() {
       danmakuEnabled = !danmakuEnabled;
     });
-    Fluttertoast.showToast(msg: danmakuEnabled ? '弹幕已开启' : '弹幕已关闭');
+    showZhToast(msg: danmakuEnabled ? '彈幕已開啟' : '彈幕已關閉');
     toggleControls();
   }
 
@@ -1067,7 +1072,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       DanmakuOption(
         opacity: danmakuOpacity,
         fontSize: danmakuFontSize,
-        // 弹幕飞行速度随播放倍速同步调整
+        // 彈幕飛行速度隨播放倍速同步調整
         duration: danmakuSpeed / playbackSpeed,
         area: danmakuArea,
         hideTop: hideTopDanmaku,
@@ -1123,10 +1128,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
       showEpisodePanel = false;
       lastDanmakuIndex = 0;
       danmakuList = [];
-      hasHandledVideoComplete = false; // 重置播放完成标志，确保下一集播完后能继续触发自动播放
+      hasHandledVideoComplete = false; // 重置播放完成標誌，確保下一集播完後能繼續觸發自動播放
     });
 
-    // 清理旧播放器
+    // 清理舊播放器
     cancelPlayerListeners();
     await videoController?.dispose();
     videoController = null;
@@ -1159,7 +1164,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
           playUrl = playInfo['url'];
         }
 
-        // 创建新播放器
+        // 建立新播放器
         videoController = VideoPlayerController.networkUrl(
           Uri.parse(playUrl!),
           httpHeaders: {
@@ -1183,22 +1188,22 @@ mixin PlayerActionMixin on PlayerStateMixin {
         startHideTimer();
         await loadDanmaku();
 
-        // 🔥 重新加载当前 P 的雪碧图数据
+        // 🔥 重新載入當前 P 的雪碧圖資料
         _clearSpritesFromMemory();
         loadVideoshot();
 
         final idx = episodes.indexWhere((e) => e['cid'] == cid);
         if (idx != -1) setState(() => focusedEpisodeIndex = idx);
 
-        // 恢复倍速
+        // 恢復倍速
         videoController?.setPlaybackSpeed(playbackSpeed);
       } else {
-        throw Exception('获取播放地址失败');
+        throw Exception('獲取播放地址失敗');
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          errorMessage = '切换失败: $e';
+          errorMessage = '切換失敗: $e';
           isLoading = false;
         });
       }
@@ -1240,7 +1245,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       final speed = availableSpeeds[focusedSettingIndex];
       setState(() => playbackSpeed = speed);
       videoController?.setPlaybackSpeed(speed);
-      Fluttertoast.showToast(msg: '倍速已设置为 ${speed}x');
+      showZhToast(msg: '倍速已設定為 ${speed}x');
     }
   }
 
@@ -1257,12 +1262,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
       );
 
       if (playInfo == null) {
-        Fluttertoast.showToast(msg: '切换画质失败');
+        showZhToast(msg: '切換畫質失敗');
         setState(() => isLoading = false);
         return;
       }
 
-      // 清理旧播放器
+      // 清理舊播放器
       cancelPlayerListeners();
       await videoController?.dispose();
       LocalServer.instance.clearMpdContent();
@@ -1281,7 +1286,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         playUrl = playInfo['url'];
       }
 
-      // 创建新播放器
+      // 建立新播放器
       videoController = VideoPlayerController.networkUrl(
         Uri.parse(playUrl!),
         httpHeaders: {
@@ -1302,15 +1307,15 @@ mixin PlayerActionMixin on PlayerStateMixin {
       _setupPlayerListeners();
       await videoController!.play();
 
-      // 恢复倍速
+      // 恢復倍速
       videoController?.setPlaybackSpeed(playbackSpeed);
 
       setState(() => isLoading = false);
 
-      Fluttertoast.showToast(msg: '已切换到 $currentQualityDesc');
+      showZhToast(msg: '已切換到 $currentQualityDesc');
     } catch (e) {
       setState(() {
-        errorMessage = '切换失败: $e';
+        errorMessage = '切換失敗: $e';
         isLoading = false;
       });
     }

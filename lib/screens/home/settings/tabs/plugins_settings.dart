@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:bili_tv_app/core/plugin/plugin.dart';
 import 'package:bili_tv_app/core/plugin/plugin_manager.dart';
 import 'package:bili_tv_app/core/plugin/plugin_store.dart';
 import 'package:bili_tv_app/core/focus/focus_navigation.dart';
 import 'package:bili_tv_app/services/local_server.dart';
 
-/// 插件设置页
+/// 外掛設定頁
 class PluginsSettingsTab extends StatefulWidget {
   final VoidCallback? onMoveUp;
   final FocusNode? sidebarFocusNode;
@@ -23,7 +23,7 @@ class _PluginsSettingsTabState extends State<PluginsSettingsTab> {
   Widget build(BuildContext context) {
     if (_pluginManager.plugins.isEmpty) {
       return const Center(
-        child: Text('暂无插件', style: TextStyle(color: Colors.white70)),
+        child: Text('暫無外掛', style: TextStyle(color: Colors.white70)),
       );
     }
 
@@ -34,7 +34,7 @@ class _PluginsSettingsTabState extends State<PluginsSettingsTab> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        // 提示信息
+        // 提示資訊
         Container(
           padding: const EdgeInsets.all(12),
           margin: const EdgeInsets.only(bottom: 16),
@@ -49,14 +49,14 @@ class _PluginsSettingsTabState extends State<PluginsSettingsTab> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  '使用手机或电脑访问 $serverAddress 设置去广告增强和弹幕屏蔽功能',
+                  '使用手機或電腦訪問 $serverAddress 設定去廣告增強和彈幕遮蔽功能',
                   style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ),
             ],
           ),
         ),
-        // 插件列表
+        // 外掛列表
         ..._pluginManager.plugins.asMap().entries.map((entry) {
           final index = entry.key;
           final plugin = entry.value;

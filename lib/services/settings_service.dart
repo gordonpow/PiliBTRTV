@@ -4,21 +4,22 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/utils/zh_convert.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 
-/// 视频编解码器枚举
+/// 影片編解碼器列舉
 enum VideoCodec {
-  auto('自动', ''),
+  auto('自動', ''),
   avc('H.264', 'avc'),
   hevc('H.265', 'hev'),
   av1('AV1', 'av01');
 
   final String label;
-  final String prefix; // codecs 字段前缀
+  final String prefix; // codecs 欄位字首
   const VideoCodec(this.label, this.prefix);
 }
 
-/// 自定义缓存管理器 - 限制 200MB
+/// 自定義快取管理器 - 限制 200MB
 class BiliCacheManager {
   static const key = 'biliTvCache';
   static CacheManager? _instance;
@@ -27,20 +28,20 @@ class BiliCacheManager {
     _instance ??= CacheManager(
       Config(
         key,
-        stalePeriod: const Duration(days: 7), // 7天过期
-        maxNrOfCacheObjects: 350, // 最多350个缓存对象 (约200MB)
+        stalePeriod: const Duration(days: 7), // 7天過期
+        maxNrOfCacheObjects: 350, // 最多350個快取物件 (約200MB)
       ),
     );
     return _instance!;
   }
 }
 
-/// 设置服务
+/// 設定服務
 class SettingsService {
   static const String _useHardwareDecodeKey = 'use_hardware_decode';
   static SharedPreferences? _prefs;
 
-  /// 取得 SharedPreferences（尚未 init 時拋出 StateError）
+  /// 取得 SharedPreferences（尚未 init 時丟擲 StateError）
   static SharedPreferences get prefs {
     final p = _prefs;
     if (p == null) {
@@ -54,10 +55,10 @@ class SettingsService {
     _prefs ??= await SharedPreferences.getInstance();
   }
 
-  /// 显示 Toast 提示
+  /// 顯示 Toast 提示
   static void toast(BuildContext? context, String msg) {
     Fluttertoast.showToast(
-      msg: msg,
+      msg: ZhConvert.convert(msg),
       toastLength: Toast.LENGTH_SHORT,
       gravity: ToastGravity.CENTER,
       timeInSecForIosWeb: 2,
@@ -67,29 +68,29 @@ class SettingsService {
     );
   }
 
-  /// 获取图片缓存大小 (MB)
+  /// 獲取圖片快取大小 (MB)
   static Future<double> getImageCacheSizeMB() async {
     double totalSize = 0;
 
     try {
-      // 获取临时目录
+      // 獲取臨時目錄
       final tempDir = await getTemporaryDirectory();
       totalSize += await _getDirectorySize(tempDir);
 
-      // 获取应用缓存目录
+      // 獲取應用快取目錄
       final cacheDir = await getApplicationCacheDirectory();
       if (cacheDir.path != tempDir.path) {
         totalSize += await _getDirectorySize(cacheDir);
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
 
-    // 转换为 MB
+    // 轉換為 MB
     return totalSize / (1024 * 1024);
   }
 
-  /// 计算目录大小
+  /// 計算目錄大小
   static Future<double> _getDirectorySize(Directory dir) async {
     double size = 0;
     try {
@@ -104,19 +105,19 @@ class SettingsService {
         }
       }
     } catch (e) {
-      // 忽略权限错误等
+      // 忽略許可權錯誤等
     }
     return size;
   }
 
-  /// 清除图片缓存 (不包含播放进度)
+  /// 清除圖片快取 (不包含播放進度)
   static Future<void> clearImageCache() async {
-    // 清除图片缓存
+    // 清除圖片快取
     await CachedNetworkImage.evictFromCache('');
     await BiliCacheManager.instance.emptyCache();
     await DefaultCacheManager().emptyCache();
 
-    // 清除临时文件
+    // 清除臨時檔案
     try {
       final tempDir = await getTemporaryDirectory();
       if (await tempDir.exists()) {
@@ -128,93 +129,107 @@ class SettingsService {
               await entity.delete(recursive: true);
             }
           } catch (e) {
-            // 忽略单个文件删除失败
+            // 忽略單個檔案刪除失敗
           }
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
   }
 
-  /// 是否使用硬件解码
+  /// 是否使用硬體解碼
   static bool get useHardwareDecode {
-    return _prefs?.getBool(_useHardwareDecodeKey) ?? true; // 默认硬解
+    return _prefs?.getBool(_useHardwareDecodeKey) ?? true; // 預設硬解
   }
 
-  /// 设置硬件解码
+  /// 設定硬體解碼
   static Future<void> setUseHardwareDecode(bool value) async {
     await init();
     await _prefs!.setBool(_useHardwareDecodeKey, value);
   }
 
-  // 自动连播设置
+  // 自動連播設定
   static const String _autoPlayKey = 'auto_play';
 
-  /// 是否自动连播
+  /// 是否自動連播
   static bool get autoPlay {
-    return _prefs?.getBool(_autoPlayKey) ?? true; // 默认开启
+    return _prefs?.getBool(_autoPlayKey) ?? true; // 預設開啟
   }
 
-  /// 设置自动连播
+  /// 設定自動連播
   static Future<void> setAutoPlay(bool value) async {
     await init();
     await _prefs!.setBool(_autoPlayKey, value);
   }
 
-  // 启动动画设置
-  static const String _splashAnimationKey = 'splash_animation';
+  // 介面語言設定（0 跟隨系統、1 繁體中文、2 簡體中文）
+  static const String _appLanguageKey = 'app_language';
 
-  /// 是否显示启动动画
-  static bool get splashAnimationEnabled {
-    return _prefs?.getBool(_splashAnimationKey) ?? true; // 默认开启
+  /// 介面語言：0 跟隨系統、1 繁體中文、2 簡體中文
+  static int get appLanguage {
+    return _prefs?.getInt(_appLanguageKey) ?? 0;
   }
 
-  /// 设置启动动画
+  /// 設定介面語言（重新啟動前必須 await，確保已寫入）
+  static Future<void> setAppLanguage(int value) async {
+    await init();
+    await _prefs!.setInt(_appLanguageKey, value);
+  }
+
+  // 啟動動畫設定
+  static const String _splashAnimationKey = 'splash_animation';
+
+  /// 是否顯示啟動動畫
+  static bool get splashAnimationEnabled {
+    return _prefs?.getBool(_splashAnimationKey) ?? true; // 預設開啟
+  }
+
+  /// 設定啟動動畫
   static Future<void> setSplashAnimationEnabled(bool value) async {
     await init();
     await _prefs!.setBool(_splashAnimationKey, value);
   }
 
-  // 首选编解码器设置
+  // 首選編解碼器設定
   static const String _preferredCodecKey = 'preferred_codec';
 
-  /// 获取首选编解码器
+  /// 獲取首選編解碼器
   static VideoCodec get preferredCodec {
-    final index = _prefs?.getInt(_preferredCodecKey) ?? 0; // 默认自动 (index 0)
+    final index = _prefs?.getInt(_preferredCodecKey) ?? 0; // 預設自動 (index 0)
     return VideoCodec.values[index.clamp(0, VideoCodec.values.length - 1)];
   }
 
-  /// 设置首选编解码器
+  /// 設定首選編解碼器
   static Future<void> setPreferredCodec(VideoCodec codec) async {
     await init();
     await _prefs!.setInt(_preferredCodecKey, codec.index);
   }
 
-  // 迷你进度条设置
+  // 迷你進度條設定
   static const String _showMiniProgressKey = 'show_mini_progress';
 
-  /// 是否显示迷你进度条
+  /// 是否顯示迷你進度條
   static bool get showMiniProgress {
-    return _prefs?.getBool(_showMiniProgressKey) ?? false; // 默认关闭
+    return _prefs?.getBool(_showMiniProgressKey) ?? false; // 預設關閉
   }
 
-  /// 设置迷你进度条
+  /// 設定迷你進度條
   static Future<void> setShowMiniProgress(bool value) async {
     await init();
     await _prefs!.setBool(_showMiniProgressKey, value);
   }
 
-  // 默认隐藏控制栏设置
+  // 預設隱藏控制欄設定
   static const String _hideControlsOnStartKey = 'hide_controls_on_start';
 
-  /// 是否默认隐藏控制栏
+  /// 是否預設隱藏控制欄
   static bool get hideControlsOnStart {
-    // 兼容直播 (User request: hide live controls by default setting)
+    // 相容直播 (User request: hide live controls by default setting)
     return _prefs?.getBool(_hideControlsOnStartKey) ?? false;
   }
 
-  // 直播: 默认隐藏控制栏设置
+  // 直播: 預設隱藏控制欄設定
   static const String _hideLiveControlsOnStartKey =
       'hide_live_controls_on_start';
   static bool get hideLiveControlsOnStart {
@@ -226,7 +241,7 @@ class SettingsService {
     await _prefs!.setBool(_hideLiveControlsOnStartKey, value);
   }
 
-  // 直播: 播放器右上角时间显示设置
+  // 直播: 播放器右上角時間顯示設定
   static const String _showLiveTimeDisplayKey = 'show_live_time_display';
   static bool get showLiveTimeDisplay {
     return _prefs?.getBool(_showLiveTimeDisplayKey) ?? false;
@@ -237,30 +252,30 @@ class SettingsService {
     await _prefs!.setBool(_showLiveTimeDisplayKey, value);
   }
 
-  /// 设置默认隐藏控制栏
+  /// 設定預設隱藏控制欄
   static Future<void> setHideControlsOnStart(bool value) async {
     await init();
     await _prefs!.setBool(_hideControlsOnStartKey, value);
   }
 
-  // 播放器右上角时间显示设置
+  // 播放器右上角時間顯示設定
   static const String _alwaysShowPlayerTimeKey = 'always_show_player_time';
 
-  /// 是否在播放器右上角常驻显示时间
+  /// 是否在播放器右上角常駐顯示時間
   static bool get alwaysShowPlayerTime {
-    return _prefs?.getBool(_alwaysShowPlayerTimeKey) ?? false; // 默认关闭
+    return _prefs?.getBool(_alwaysShowPlayerTimeKey) ?? false; // 預設關閉
   }
 
-  /// 设置是否在播放器右上角常驻显示时间
+  /// 設定是否在播放器右上角常駐顯示時間
   static Future<void> setAlwaysShowPlayerTime(bool value) async {
     await init();
     await _prefs!.setBool(_alwaysShowPlayerTimeKey, value);
   }
 
-  // 分区顺序设置
+  // 分區順序設定
   static const String _categoryOrderKey = 'home_category_order';
 
-  // 默认分区顺序 (使用枚举名称字符串)
+  // 預設分區順序 (使用列舉名稱字串)
   static const List<String> _defaultCategoryOrder = [
     'recommend',
     'popular',
@@ -276,11 +291,11 @@ class SettingsService {
     'douga',
   ];
 
-  /// 获取分区顺序
+  /// 獲取分區順序
   static List<String> get categoryOrder {
     final saved = _prefs?.getStringList(_categoryOrderKey);
     if (saved != null && saved.isNotEmpty) {
-      // 确保所有分区都在列表中 (防止新增分区丢失)
+      // 確保所有分區都在列表中 (防止新增分區丟失)
       final result = List<String>.from(saved);
       for (final cat in _defaultCategoryOrder) {
         if (!result.contains(cat)) {
@@ -292,37 +307,37 @@ class SettingsService {
     return List<String>.from(_defaultCategoryOrder);
   }
 
-  /// 设置分区顺序
+  /// 設定分區順序
   static Future<void> setCategoryOrder(List<String> order) async {
     await init();
     await _prefs!.setStringList(_categoryOrderKey, order);
   }
 
-  // 分区启用设置
+  // 分區啟用設定
   static const String _enabledCategoriesKey = 'enabled_categories';
 
-  /// 获取启用的分区 (默认全部启用)
+  /// 獲取啟用的分區 (預設全部啟用)
   static Set<String> get enabledCategories {
     final saved = _prefs?.getStringList(_enabledCategoriesKey);
     if (saved != null) {
       return saved.toSet();
     }
-    // 默认全部启用
+    // 預設全部啟用
     return _defaultCategoryOrder.toSet();
   }
 
-  /// 设置启用的分区
+  /// 設定啟用的分區
   static Future<void> setEnabledCategories(Set<String> categories) async {
     await init();
     await _prefs!.setStringList(_enabledCategoriesKey, categories.toList());
   }
 
-  /// 检查分区是否启用
+  /// 檢查分區是否啟用
   static bool isCategoryEnabled(String name) {
     return enabledCategories.contains(name);
   }
 
-  /// 切换分区启用状态
+  /// 切換分區啟用狀態
   static Future<void> toggleCategory(String name, bool enabled) async {
     final current = enabledCategories;
     if (enabled) {
@@ -333,34 +348,34 @@ class SettingsService {
     await setEnabledCategories(current);
   }
 
-  // 快进预览模式设置
+  // 快進預覽模式設定
   static const String _seekPreviewModeKey = 'seek_preview_mode';
 
-  /// 是否开启快进预览模式 (显示缩略图)
+  /// 是否開啟快進預覽模式 (顯示縮圖)
   static bool get seekPreviewMode {
-    return _prefs?.getBool(_seekPreviewModeKey) ?? false; // 默认关闭
+    return _prefs?.getBool(_seekPreviewModeKey) ?? false; // 預設關閉
   }
 
-  /// 设置快进预览模式
+  /// 設定快進預覽模式
   static Future<void> setSeekPreviewMode(bool value) async {
     await init();
     await _prefs!.setBool(_seekPreviewModeKey, value);
   }
 
-  // ==================== 直播分区设置 ====================
+  // ==================== 直播分區設定 ====================
 
   static const Map<String, String> liveCategoryLabels = {
-    'online_games': '网游',
-    'mobile_games': '手游',
-    'console_games': '单机',
-    'virtual': '虚拟主播',
-    'entertainment': '娱乐',
-    'radio': '电台',
-    'match': '赛事',
+    'online_games': '網遊',
+    'mobile_games': '手遊',
+    'console_games': '單機',
+    'virtual': '虛擬主播',
+    'entertainment': '娛樂',
+    'radio': '電臺',
+    'match': '賽事',
     'chat': '聊天室',
     'lifestyle': '生活',
-    'knowledge': '知识',
-    'interactive': '互动玩法',
+    'knowledge': '知識',
+    'interactive': '互動玩法',
   };
 
   static const Map<String, int> liveCategoryIds = {
@@ -394,7 +409,7 @@ class SettingsService {
   static const String _liveCategoryOrderKey = 'live_category_order';
   static const String _enabledLiveCategoriesKey = 'enabled_live_categories';
 
-  /// 获取直播分区顺序
+  /// 獲取直播分區順序
   static List<String> get liveCategoryOrder {
     final saved = _prefs?.getStringList(_liveCategoryOrderKey);
     if (saved != null && saved.isNotEmpty) {
@@ -409,13 +424,13 @@ class SettingsService {
     return List<String>.from(_defaultLiveCategoryOrder);
   }
 
-  /// 设置直播分区顺序
+  /// 設定直播分區順序
   static Future<void> setLiveCategoryOrder(List<String> order) async {
     await init();
     await _prefs!.setStringList(_liveCategoryOrderKey, order);
   }
 
-  /// 获取启用的直播分区
+  /// 獲取啟用的直播分區
   static Set<String> get enabledLiveCategories {
     final saved = _prefs?.getStringList(_enabledLiveCategoriesKey);
     if (saved != null) {
@@ -424,18 +439,18 @@ class SettingsService {
     return _defaultLiveCategoryOrder.toSet();
   }
 
-  /// 设置启用的直播分区
+  /// 設定啟用的直播分區
   static Future<void> setEnabledLiveCategories(Set<String> categories) async {
     await init();
     await _prefs!.setStringList(_enabledLiveCategoriesKey, categories.toList());
   }
 
-  /// 检查直播分区是否启用
+  /// 檢查直播分區是否啟用
   static bool isLiveCategoryEnabled(String name) {
     return enabledLiveCategories.contains(name);
   }
 
-  /// 切换直播分区启用状态
+  /// 切換直播分區啟用狀態
   static Future<void> toggleLiveCategory(String name, bool enabled) async {
     final current = enabledLiveCategories;
     if (enabled) {

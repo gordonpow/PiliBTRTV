@@ -4,9 +4,9 @@ import 'base_api.dart';
 import 'sign_utils.dart';
 import '../auth_service.dart';
 
-/// 用户互动相关 API (点赞/投币/收藏/关注)
+/// 使用者互動相關 API (點贊/投幣/收藏/關注)
 class InteractionApi {
-  /// 点赞/取消点赞
+  /// 點贊/取消點贊
   static Future<bool> likeVideo({required int aid, required bool like}) async {
     if (!AuthService.isLoggedIn) return false;
     try {
@@ -27,12 +27,12 @@ class InteractionApi {
         return json['code'] == 0;
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return false;
   }
 
-  /// 检查是否已点赞
+  /// 檢查是否已點贊
   static Future<bool> checkLikeStatus(int aid) async {
     if (!AuthService.isLoggedIn) return false;
     try {
@@ -49,18 +49,18 @@ class InteractionApi {
         return json['code'] == 0 && json['data'] == 1;
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return false;
   }
 
-  /// 投币 (APP接口，需签名)
+  /// 投幣 (APP介面，需簽名)
   static Future<String?> coinVideo({required int aid, int count = 1}) async {
-    if (!AuthService.isLoggedIn) return '请先登录';
+    if (!AuthService.isLoggedIn) return '請先登入';
     try {
       final accessKey = AuthService.accessToken;
       if (accessKey == null || accessKey.isEmpty) {
-        return 'Access Token 为空';
+        return 'Access Token 為空';
       }
 
       final params = {
@@ -93,16 +93,16 @@ class InteractionApi {
         if (json['code'] == 0) {
           return null; // 成功
         } else {
-          return json['message'] ?? '投币失败 (${json['code']})';
+          return json['message'] ?? '投幣失敗 (${json['code']})';
         }
       }
       return 'HTTP ${response.statusCode}';
     } catch (e) {
-      return '网络错误: $e';
+      return '網路錯誤: $e';
     }
   }
 
-  /// 检查已投币数
+  /// 檢查已投幣數
   static Future<int> checkCoinStatus(int aid) async {
     if (!AuthService.isLoggedIn) return 0;
     try {
@@ -121,7 +121,7 @@ class InteractionApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return 0;
   }
@@ -157,12 +157,12 @@ class InteractionApi {
         return json['code'] == 0;
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return false;
   }
 
-  /// 获取默认收藏夹 ID
+  /// 獲取預設收藏夾 ID
   static Future<int?> _getDefaultFolderId() async {
     try {
       final mid = AuthService.mid;
@@ -186,12 +186,12 @@ class InteractionApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return null;
   }
 
-  /// 检查是否已收藏
+  /// 檢查是否已收藏
   static Future<bool> checkFavoriteStatus(int aid) async {
     if (!AuthService.isLoggedIn) return false;
     try {
@@ -210,12 +210,12 @@ class InteractionApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return false;
   }
 
-  /// 关注/取消关注 UP主
+  /// 關注/取消關注 UP主
   static Future<bool> followUser({
     required int mid,
     required bool follow,
@@ -239,12 +239,12 @@ class InteractionApi {
         return json['code'] == 0;
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return false;
   }
 
-  /// 检查是否已关注
+  /// 檢查是否已關注
   static Future<bool> checkFollowStatus(int mid) async {
     if (!AuthService.isLoggedIn) return false;
     try {
@@ -264,7 +264,7 @@ class InteractionApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return false;
   }

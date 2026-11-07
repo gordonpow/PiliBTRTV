@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/utils/zh_convert.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:marquee/marquee.dart';
 import '../models/video.dart';
@@ -7,11 +8,11 @@ import 'base_tv_card.dart';
 import '../utils/image_url_utils.dart';
 import '../screens/live/live_player_screen.dart';
 
-/// 历史记录专用视频卡片
-/// 特点：
-/// 1. 不显示播放数（接口返回0）
-/// 2. 显示进度条和 xx:xx/yy:yy 格式的进度
-/// 3. 播放完成显示"已播完"
+/// 歷史記錄專用影片卡片
+/// 特點：
+/// 1. 不顯示播放數（介面返回0）
+/// 2. 顯示進度條和 xx:xx/yy:yy 格式的進度
+/// 3. 播放完成顯示"已播完"
 class HistoryVideoCard extends StatelessWidget {
   final Video video;
   final VoidCallback onTap;
@@ -39,21 +40,21 @@ class HistoryVideoCard extends StatelessWidget {
   });
 
   /// 是否已播完（B站API返回 progress == -1 表示已看完）
-  /// 或者进度非常接近总时长（允许1秒误差，解决 19:33/19:33 显示问题且不影响短视频）
+  /// 或者進度非常接近總時長（允許1秒誤差，解決 19:33/19:33 顯示問題且不影響短影片）
   bool get _isCompleted {
     if (video.progress == -1) return true;
     if (video.duration > 0 && video.progress >= video.duration - 1) return true;
     return false;
   }
 
-  /// 观看进度比例 (0.0 ~ 1.0)
+  /// 觀看進度比例 (0.0 ~ 1.0)
   double get _progressRatio {
     if (_isCompleted) return 1.0;
     if (video.duration <= 0 || video.progress <= 0) return 0.0;
     return (video.progress / video.duration).clamp(0.0, 1.0);
   }
 
-  /// 格式化进度时间
+  /// 格式化進度時間
   String _formatTime(int seconds) {
     final h = seconds ~/ 3600;
     final m = (seconds % 3600) ~/ 60;
@@ -70,11 +71,12 @@ class HistoryVideoCard extends StatelessWidget {
       focusNode: focusNode,
       autofocus: autofocus,
       onTap: () {
-        // 只有当是直播且没有 BVID 时（表示是直播间而非回放视频）才跳转直播播放器
-        // "直播回放"通常有 BVID，应作为普通视频播放
+        // 只有當是直播且沒有 BVID 時（表示是直播間而非回放影片）才跳轉直播播放器
+        // "直播回放"通常有 BVID，應作為普通影片播放
         if (video.isLive && video.bvid.isEmpty) {
+          // 與伺服器回傳的簡體文字比對，保留原文
           if (video.badge == '未开播') {
-            SettingsService.toast(context, '当前未开播');
+            SettingsService.toast(context, '當前未開播');
             return;
           }
 
@@ -107,7 +109,7 @@ class HistoryVideoCard extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           _buildImage(),
-          // 角标 (付费/充电专属)
+          // 角標 (付費/充電專屬)
           if (video.badge.isNotEmpty)
             Positioned(
               right: 4,
@@ -128,7 +130,7 @@ class HistoryVideoCard extends StatelessWidget {
                 ),
               ),
             ),
-          // 渐变遮罩
+          // 漸變遮罩
           Positioned(
             left: 0,
             right: 0,
@@ -147,7 +149,7 @@ class HistoryVideoCard extends StatelessWidget {
               ),
             ),
           ),
-          // 底部信息 - 历史记录显示进度
+          // 底部資訊 - 歷史記錄顯示進度
           Positioned(
             left: 0,
             right: 0,
@@ -155,14 +157,14 @@ class HistoryVideoCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 时间信息
+                // 時間資訊
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // 左侧：分P信息（多P视频显示，单P视频隐藏）
-                      // historyVideos > 1 表示多P视频，显示"已看至 Px"
+                      // 左側：分P資訊（多P影片顯示，單P影片隱藏）
+                      // historyVideos > 1 表示多P影片，顯示"已看至 Px"
                       if (video.historyVideos > 1)
                         Text(
                           '已看至 P${video.historyPage}',
@@ -172,8 +174,8 @@ class HistoryVideoCard extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      if (video.historyVideos <= 1) const SizedBox(), // 占位
-                      // 右侧：时间/进度 (直播/未开播不显示)
+                      if (video.historyVideos <= 1) const SizedBox(), // 佔位
+                      // 右側：時間/進度 (直播/未開播不顯示)
                       if (!video.isLive)
                         Text(
                           _isCompleted
@@ -191,14 +193,14 @@ class HistoryVideoCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                // 进度条 - 贴底，全宽，无圆角
+                // 進度條 - 貼底，全寬，無圓角
                 SizedBox(
                   height: 3,
                   child: Stack(
                     children: [
-                      // 背景条
+                      // 背景條
                       Container(color: Colors.white.withValues(alpha: 0.3)),
-                      // 进度条
+                      // 進度條
                       FractionallySizedBox(
                         alignment: Alignment.centerLeft,
                         widthFactor: _progressRatio,
@@ -216,12 +218,12 @@ class HistoryVideoCard extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 标题区域
+            // 標題區域
             SizedBox(
               height: 20,
               child: isFocused
                   ? Marquee(
-                      text: video.title,
+                      text: ZhConvert.convert(video.title),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -249,7 +251,7 @@ class HistoryVideoCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
             ),
-            // UP主信息 + 观看时间
+            // UP主資訊 + 觀看時間
             const SizedBox(height: 4),
             Row(
               children: [
@@ -268,7 +270,7 @@ class HistoryVideoCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // 最后观看时间 - 固定位置，不省略
+                // 最後觀看時間 - 固定位置，不省略
                 if (video.viewAtFormatted.isNotEmpty)
                   Text(
                     video.viewAtFormatted,

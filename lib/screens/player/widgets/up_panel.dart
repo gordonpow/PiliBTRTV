@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/utils/zh_toast.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../models/video.dart';
 
@@ -98,9 +98,9 @@ class _UpPanelState extends State<UpPanel> {
 
     if (success) {
       setState(() => _isFollowing = !_isFollowing);
-      Fluttertoast.showToast(msg: _isFollowing ? '已关注' : '已取消关注');
+      showZhToast(msg: _isFollowing ? '已關注' : '已取消關注');
     } else {
-      Fluttertoast.showToast(msg: '操作失败');
+      showZhToast(msg: '操作失敗');
     }
   }
 
@@ -185,7 +185,7 @@ class _UpPanelState extends State<UpPanel> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    // 头像
+                    // 頭像
                     CircleAvatar(
                       radius: 24,
                       backgroundImage: widget.upFace.isNotEmpty
@@ -196,7 +196,7 @@ class _UpPanelState extends State<UpPanel> {
                           : null,
                     ),
                     const SizedBox(width: 12),
-                    // 名称
+                    // 名稱
                     Expanded(
                       child: Text(
                         widget.upName,
@@ -208,7 +208,7 @@ class _UpPanelState extends State<UpPanel> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    // 排序按钮 - 可聚焦
+                    // 排序按鈕 - 可聚焦
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
                       padding: EdgeInsets.all(isSortButtonFocused ? 4 : 0),
@@ -239,7 +239,7 @@ class _UpPanelState extends State<UpPanel> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              _order == 'pubdate' ? '最新' : '最热',
+                              _order == 'pubdate' ? '最新' : '最熱',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
@@ -250,7 +250,7 @@ class _UpPanelState extends State<UpPanel> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // 关注按钮 - 可聚焦
+                    // 關注按鈕 - 可聚焦
                     AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
                       padding: EdgeInsets.all(isFollowButtonFocused ? 4 : 0),
@@ -281,7 +281,7 @@ class _UpPanelState extends State<UpPanel> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              _isFollowing ? '已关注' : '关注',
+                              _isFollowing ? '已關注' : '關注',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
@@ -295,14 +295,14 @@ class _UpPanelState extends State<UpPanel> {
                 ),
               ),
               const Divider(color: Colors.grey, height: 1),
-              // 视频列表
+              // 影片列表
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _videos.isEmpty
                     ? const Center(
                         child: Text(
-                          '暂无视频',
+                          '暫無影片',
                           style: TextStyle(color: Colors.grey),
                         ),
                       )
@@ -352,7 +352,7 @@ class _UpPanelState extends State<UpPanel> {
             ),
           ),
           const SizedBox(width: 12),
-          // 信息
+          // 資訊
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

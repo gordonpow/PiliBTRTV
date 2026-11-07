@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../../services/settings_service.dart';
 import '../../../../core/focus/focus_navigation.dart';
 import '../widgets/setting_toggle_row.dart';
+import '../widgets/setting_dropdown_row.dart';
+import '../../../../utils/app_restart.dart';
 
 class InterfaceSettings extends StatefulWidget {
   final VoidCallback onMoveUp;
@@ -19,14 +21,14 @@ class InterfaceSettings extends StatefulWidget {
 }
 
 class _InterfaceSettingsState extends State<InterfaceSettings> {
-  // 分区排序相关
+  // 分區排序相關
   List<String> _categoryOrder = [];
   int _selectedCategoryOrderIndex = 0;
   bool _isDragging = false;
   late List<FocusNode> _categoryOrderFocusNodes;
-  late List<FocusNode> _categoryToggleFocusNodes; // 分区开关焦点
+  late List<FocusNode> _categoryToggleFocusNodes; // 分區開關焦點
 
-  // 直播分区排序相关
+  // 直播分區排序相關
   List<String> _liveCategoryOrder = [];
   int _selectedLiveCategoryOrderIndex = 0;
   bool _isLiveDragging = false;
@@ -34,18 +36,18 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
   late List<FocusNode> _liveCategoryToggleFocusNodes;
 
   static const categoryLabels = {
-    'recommend': '推荐',
-    'popular': '热门',
-    'anime': '番剧',
-    'movie': '影视',
-    'game': '游戏',
-    'knowledge': '知识',
+    'recommend': '推薦',
+    'popular': '熱門',
+    'anime': '番劇',
+    'movie': '影視',
+    'game': '遊戲',
+    'knowledge': '知識',
     'tech': '科技',
-    'music': '音乐',
+    'music': '音樂',
     'dance': '舞蹈',
     'life': '生活',
     'food': '美食',
-    'douga': '动画',
+    'douga': '動畫',
   };
 
   @override
@@ -95,7 +97,7 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
 
   @override
   Widget build(BuildContext context) {
-    // 获取启用的分区 (用于排序)
+    // 獲取啟用的分區 (用於排序)
     final enabledOrder = _categoryOrder
         .where((name) => SettingsService.isCategoryEnabled(name))
         .toList();
@@ -103,13 +105,13 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 启动动画开关
+        // 啟動動畫開關
         SettingToggleRow(
-          label: '启动动画',
-          subtitle: '启动应用时显示动画，关闭则直接进入主页',
+          label: '啟動動畫',
+          subtitle: '啟動應用時顯示動畫，關閉則直接進入主頁',
           value: SettingsService.splashAnimationEnabled,
           autofocus: true,
-          isFirst: true, // 第一项，向上返回分类标签
+          isFirst: true, // 第一項，向上返回分類標籤
           onMoveUp: widget.onMoveUp,
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (value) async {
@@ -118,13 +120,13 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           },
         ),
         const SizedBox(height: 16),
-        // 播放器时间显示开关
+        // 播放器時間顯示開關
         SettingToggleRow(
-          label: '总是显示时间',
-          subtitle: '播放界面右上角总是显示当前时间',
+          label: '總是顯示時間',
+          subtitle: '播放介面右上角總是顯示當前時間',
           value: SettingsService.alwaysShowPlayerTime,
           autofocus: false,
-          onMoveUp: null, // 允许自然向上导航到上一项
+          onMoveUp: null, // 允許自然向上導航到上一項
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (value) async {
             await SettingsService.setAlwaysShowPlayerTime(value);
@@ -132,14 +134,36 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           },
         ),
         const SizedBox(height: 16),
+        // 語言（0 跟隨系統、1 繁體中文、2 簡體中文）
+        SettingDropdownRow<int>(
+          label: '語言',
+          subtitle: '切換繁體或簡體中文，重新啟動後生效',
+          value: SettingsService.appLanguage,
+          items: const [0, 1, 2],
+          itemLabel: (v) => switch (v) {
+            1 => '繁體中文',
+            2 => '簡體中文',
+            _ => '跟隨系統',
+          },
+          onMoveUp: null,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (value) async {
+            if (value == null || value == SettingsService.appLanguage) return;
+            await SettingsService.setAppLanguage(value);
+            if (!context.mounted) return;
+            setState(() {});
+            await AppRestart.ask(context);
+          },
+        ),
+        const SizedBox(height: 16),
 
-        // 分区开关
+        // 分區開關
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
               Text(
-                '分区开关 (确认键切换)',
+                '分區開關 (確認鍵切換)',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 14,
@@ -211,13 +235,13 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           ),
         ),
         const SizedBox(height: 20),
-        // 分区排序标题
+        // 分區排序標題
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
               Text(
-                '分区排序 (仅显示已启用)',
+                '分區排序 (僅顯示已啟用)',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 14,
@@ -231,7 +255,7 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            _isDragging ? '← → 移动位置，确认键固定' : '确认键选中，← → 移动',
+            _isDragging ? '← → 移動位置，確認鍵固定' : '確認鍵選中，← → 移動',
             style: TextStyle(
               color: _isDragging
                   ? const Color(0xFFfb7299)
@@ -245,7 +269,7 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           child: enabledOrder.isEmpty
               ? Center(
                   child: Text(
-                    '请至少启用一个分区',
+                    '請至少啟用一個分區',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.5),
                     ),
@@ -260,7 +284,7 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
                     final label = categoryLabels[catName] ?? catName;
                     final isSelected = index == _selectedCategoryOrderIndex;
 
-                    // 确保 focusNode 索引有效
+                    // 確保 focusNode 索引有效
                     final focusNodeIndex = _categoryOrder.indexOf(catName);
                     if (focusNodeIndex < 0 ||
                         focusNodeIndex >= _categoryOrderFocusNodes.length) {
@@ -286,32 +310,32 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
                           return KeyEventResult.handled;
                         }
 
-                        // 阻止向下导航
+                        // 阻止向下導航
                         if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
                           return KeyEventResult.handled;
                         }
 
                         if (_isDragging) {
-                          // 在完整的 _categoryOrder 中找到当前位置
+                          // 在完整的 _categoryOrder 中找到當前位置
                           final fullIndex = _categoryOrder.indexOf(catName);
 
                           if (event.logicalKey ==
                                   LogicalKeyboardKey.arrowLeft &&
                               index > 0) {
-                            // 找到前一个启用的分区
+                            // 找到前一個啟用的分區
                             final prevCat = enabledOrder[index - 1];
                             final prevFullIndex = _categoryOrder.indexOf(
                               prevCat,
                             );
 
-                            // 交换
+                            // 交換
                             setState(() {
                               _categoryOrder[fullIndex] = prevCat;
                               _categoryOrder[prevFullIndex] = catName;
                               _selectedCategoryOrderIndex = index - 1;
                             });
                             SettingsService.setCategoryOrder(_categoryOrder);
-                            // 焦点跟随到新位置
+                            // 焦點跟隨到新位置
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               _categoryOrderFocusNodes[prevFullIndex]
                                   .requestFocus();
@@ -321,20 +345,20 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
                           if (event.logicalKey ==
                                   LogicalKeyboardKey.arrowRight &&
                               index < enabledOrder.length - 1) {
-                            // 找到后一个启用的分区
+                            // 找到後一個啟用的分區
                             final nextCat = enabledOrder[index + 1];
                             final nextFullIndex = _categoryOrder.indexOf(
                               nextCat,
                             );
 
-                            // 交换
+                            // 交換
                             setState(() {
                               _categoryOrder[fullIndex] = nextCat;
                               _categoryOrder[nextFullIndex] = catName;
                               _selectedCategoryOrderIndex = index + 1;
                             });
                             SettingsService.setCategoryOrder(_categoryOrder);
-                            // 焦点跟随到新位置
+                            // 焦點跟隨到新位置
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               _categoryOrderFocusNodes[nextFullIndex]
                                   .requestFocus();
@@ -343,9 +367,9 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
                           }
                         }
 
-                        // 上键跳转到分区开关区域
+                        // 上鍵跳轉到分區開關區域
                         if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                          // 跳到分区开关的对应位置
+                          // 跳到分區開關的對應位置
                           if (index < _categoryToggleFocusNodes.length) {
                             _categoryToggleFocusNodes[index].requestFocus();
                           } else if (_categoryToggleFocusNodes.isNotEmpty) {
@@ -397,14 +421,14 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
                 ),
         ), // End of existing ListView
         const SizedBox(height: 32),
-        // ==================== 直播分区设置 ====================
-        // 直播分区开关
+        // ==================== 直播分區設定 ====================
+        // 直播分區開關
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
               Text(
-                '直播分区开关 (确认键切换)',
+                '直播分區開關 (確認鍵切換)',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 14,
@@ -474,13 +498,13 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           ),
         ),
         const SizedBox(height: 20),
-        // 直播分区排序标题
+        // 直播分區排序標題
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
               Text(
-                '直播分区排序 (仅显示已启用)',
+                '直播分區排序 (僅顯示已啟用)',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 14,
@@ -494,7 +518,7 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            _isLiveDragging ? '← → 移动位置，确认键固定' : '确认键选中，← → 移动',
+            _isLiveDragging ? '← → 移動位置，確認鍵固定' : '確認鍵選中，← → 移動',
             style: TextStyle(
               color: _isLiveDragging
                   ? const Color(0xFFfb7299)
@@ -511,7 +535,7 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
                   .isEmpty
               ? Center(
                   child: Text(
-                    '请至少启用一个分区',
+                    '請至少啟用一個分區',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.5),
                     ),
@@ -536,7 +560,7 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
                         final isSelected =
                             index == _selectedLiveCategoryOrderIndex;
 
-                        // 确保 focusNode 索引有效
+                        // 確保 focusNode 索引有效
                         final focusNodeIndex = _liveCategoryOrder.indexOf(
                           catKey,
                         );
@@ -630,10 +654,10 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
                               }
                             }
 
-                            // 上键跳转到直播分区开关区域
+                            // 上鍵跳轉到直播分區開關區域
                             if (event.logicalKey ==
                                 LogicalKeyboardKey.arrowUp) {
-                              // 跳到分区开关的对应位置
+                              // 跳到分區開關的對應位置
                               if (index <
                                   _liveCategoryToggleFocusNodes.length) {
                                 _liveCategoryToggleFocusNodes[index]
@@ -706,7 +730,7 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           const Icon(Icons.info_outline, color: Color(0xFFfb7299), size: 16),
           const SizedBox(width: 4),
           Text(
-            '修改后需重启APP生效',
+            '修改後需重啟APP生效',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.9),
               fontSize: 14,

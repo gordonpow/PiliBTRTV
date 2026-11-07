@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/settings_service.dart'; // BiliCacheManager
 
-/// 交错加载图片组件
-/// 用于在低端硬件上避免同时解码多张图片导致的卡顿
+/// 交錯載入圖片元件
+/// 用於在低端硬體上避免同時解碼多張圖片導致的卡頓
 class StaggeredImage extends StatefulWidget {
   final String imageUrl;
   final int delayMs;
@@ -48,7 +48,7 @@ class _StaggeredImageState extends State<StaggeredImage> {
   @override
   Widget build(BuildContext context) {
     if (!_shouldLoad) {
-      // 占位：显示灰色背景，避免布局跳动
+      // 佔位：顯示灰色背景，避免佈局跳動
       return Container(
         width: widget.width,
         height: widget.height,
@@ -66,7 +66,7 @@ class _StaggeredImageState extends State<StaggeredImage> {
         fit: widget.fit,
         memCacheWidth: widget.cacheWidth,
         memCacheHeight: widget.cacheHeight,
-        cacheManager: BiliCacheManager.instance, // 使用有限制的缓存管理器
+        cacheManager: BiliCacheManager.instance, // 使用有限制的快取管理器
         fadeInDuration: const Duration(milliseconds: 100),
         fadeOutDuration: Duration.zero,
         placeholder: (context, url) => Container(color: Colors.grey[900]),

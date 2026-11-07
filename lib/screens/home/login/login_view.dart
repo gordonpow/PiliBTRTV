@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../services/bilibili_api.dart';
@@ -68,14 +68,14 @@ class _LoginViewState extends State<LoginView> {
       switch (status) {
         case 'success':
           timer.cancel();
-          // 保存登录凭证
+          // 儲存登入憑證
           await AuthService.saveLoginCredentials(
             accessToken: result['access_token'] ?? '',
             refreshToken: result['refresh_token'] ?? '',
             mid: result['mid'] ?? 0,
             cookieInfo: result['cookie_info'],
           );
-          // 获取用户信息
+          // 獲取使用者資訊
           await BilibiliApi.fetchAndSaveUserInfo();
           if (!mounted) return;
           setState(() => _status = 'success');
@@ -142,28 +142,28 @@ class _LoginViewState extends State<LoginView> {
 
     switch (_status) {
       case 'loading':
-        text = '正在加载...';
+        text = '正在載入...';
         color = Colors.white54;
         break;
       case 'waiting':
-        text = '请使用 Bilibili 手机客户端扫描二维码';
+        text = '請使用 Bilibili 手機客戶端掃描二維碼';
         color = Colors.white54;
         break;
       case 'scanned':
-        text = '已扫描，请在手机上确认登录';
+        text = '已掃描，請在手機上確認登入';
         color = const Color(0xFF4CAF50);
         break;
       case 'success':
-        text = '登录成功！';
+        text = '登入成功！';
         color = const Color(0xFF4CAF50);
         break;
       case 'expired':
-        text = '二维码已过期，请刷新';
+        text = '二維碼已過期，請重新整理';
         color = Colors.orange;
         break;
       case 'error':
       default:
-        text = '加载失败，请重试';
+        text = '載入失敗，請重試';
         color = Colors.red;
         break;
     }
@@ -182,7 +182,7 @@ class _LoginViewState extends State<LoginView> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Text(
-            'TV 扫码登录',
+            'TV 掃碼登入',
             style: TextStyle(
               color: Colors.white,
               fontSize: 24,
@@ -231,7 +231,7 @@ class _LoginViewState extends State<LoginView> {
                             : null,
                       ),
                       child: const Text(
-                        '刷新二维码',
+                        '重新整理二維碼',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,

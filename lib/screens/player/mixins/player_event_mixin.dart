@@ -1,16 +1,17 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/utils/zh_toast.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../widgets/settings_panel.dart';
 import '../focus/player_focus_handler.dart';
 import 'player_action_mixin.dart';
 
-/// 播放器按键事件 Mixin
+/// 播放器按鍵事件 Mixin
 mixin PlayerEventMixin on PlayerActionMixin {
   void onPopInvoked(bool didPop, dynamic result) {
     if (didPop) return;
 
-    // 检查是否返回键已经被 handleGlobalKeyEvent 处理过
+    // 檢查是否返回鍵已經被 handleGlobalKeyEvent 處理過
     if (backKeyJustHandled) {
       backKeyJustHandled = false;
       return;
@@ -43,7 +44,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return;
     }
 
-    // 关闭 UP主面板
+    // 關閉 UP主面板
     if (showUpPanel) {
       setState(() {
         showUpPanel = false;
@@ -53,7 +54,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return;
     }
 
-    // 关闭更多视频面板
+    // 關閉更多影片面板
     if (showRelatedPanel) {
       setState(() {
         showRelatedPanel = false;
@@ -69,13 +70,13 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return;
     }
 
-    // 预览模式下按返回键取消预览
+    // 預覽模式下按返回鍵取消預覽
     if (isSeekPreviewMode) {
       cancelPreviewSeek();
       return;
     }
 
-    // 控制栏显示时按返回键隐藏控制栏
+    // 控制欄顯示時按返回鍵隱藏控制欄
     if (showControls) {
       setState(() => showControls = false);
       return;
@@ -85,8 +86,8 @@ mixin PlayerEventMixin on PlayerActionMixin {
     if (lastBackPressed == null ||
         now.difference(lastBackPressed!) > const Duration(seconds: 2)) {
       lastBackPressed = now;
-      Fluttertoast.showToast(
-        msg: '再按一次返回键退出播放',
+      showZhToast(
+        msg: '再按一次返回鍵退出播放',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.CENTER,
         backgroundColor: Colors.black.withValues(alpha: 0.7),
@@ -98,7 +99,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
   }
 
   KeyEventResult handleGlobalKeyEvent(FocusNode node, KeyEvent event) {
-    // 处理 KeyUpEvent - 松开左右键时提交进度
+    // 處理 KeyUpEvent - 鬆開左右鍵時提交進度
     if (event is KeyUpEvent) {
       if (isProgressBarFocused && previewPosition != null) {
         if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
@@ -110,12 +111,12 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.ignored;
     }
 
-    // 只处理 KeyDownEvent 和 KeyRepeatEvent
+    // 只處理 KeyDownEvent 和 KeyRepeatEvent
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
 
-    // 设置面板
+    // 設定面板
     if (showSettingsPanel) {
       if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
         backKeyJustHandled = true;
@@ -142,7 +143,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
       }
     }
 
-    // 选集面板 - 使用 PlayerFocusHandler
+    // 選集面板 - 使用 PlayerFocusHandler
     if (showEpisodePanel) {
       if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
         backKeyJustHandled = true;
@@ -156,7 +157,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
       }
     }
 
-    // UP主面板返回处理
+    // UP主面板返回處理
     if (showUpPanel) {
       if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
         backKeyJustHandled = true;
@@ -170,7 +171,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.ignored;
     }
 
-    // 相关视频面板返回处理
+    // 相關影片面板返回處理
     if (showRelatedPanel) {
       if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
         backKeyJustHandled = true;
@@ -184,7 +185,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.ignored;
     }
 
-    // 点赞/投币/收藏按钮返回处理
+    // 點贊/投幣/收藏按鈕返回處理
     if (showActionButtons) {
       if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
         backKeyJustHandled = true;
@@ -195,20 +196,20 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.ignored;
     }
 
-    // 控制栏显示时
+    // 控制欄顯示時
     if (showControls) {
       return _handleControlsVisibleKeyEvent(event);
     } else {
-      // 控制栏隐藏时
+      // 控制欄隱藏時
       return _handleControlsHiddenKeyEvent(event);
     }
   }
 
-  /// 控制栏显示时的按键处理
+  /// 控制欄顯示時的按鍵處理
   KeyEventResult _handleControlsVisibleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
-    // 使用 PlayerFocusHandler 处理控制栏导航
+    // 使用 PlayerFocusHandler 處理控制欄導航
     final nav = PlayerFocusHandler.handleControlsNavigation(
       event,
       currentIndex: focusedButtonIndex,
@@ -225,7 +226,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.handled;
     }
 
-    // 返回键隐藏控制栏
+    // 返回鍵隱藏控制欄
     if (PlayerFocusHandler.isBackKey(event)) {
       if (event.logicalKey != LogicalKeyboardKey.escape) {
         backKeyJustHandled = true;
@@ -237,10 +238,10 @@ mixin PlayerEventMixin on PlayerActionMixin {
     return KeyEventResult.ignored;
   }
 
-  /// 激活控制栏按钮
+  /// 啟用控制欄按鈕
   void _activateControlButton(int index) {
     switch (index) {
-      case 0: // 选集
+      case 0: // 選集
         setState(() {
           showEpisodePanel = true;
           hideTimer?.cancel();
@@ -252,19 +253,19 @@ mixin PlayerEventMixin on PlayerActionMixin {
           hideTimer?.cancel();
         });
         break;
-      case 2: // 更多视频
+      case 2: // 更多影片
         setState(() {
           showRelatedPanel = true;
           hideTimer?.cancel();
         });
         break;
-      case 3: // 设置
+      case 3: // 設定
         setState(() {
           showSettingsPanel = true;
           hideTimer?.cancel();
         });
         break;
-      case 4: // 点赞/投币/收藏
+      case 4: // 點贊/投幣/收藏
         setState(() {
           showActionButtons = !showActionButtons;
         });
@@ -272,9 +273,9 @@ mixin PlayerEventMixin on PlayerActionMixin {
     }
   }
 
-  /// 控制栏隐藏时的按键处理
+  /// 控制欄隱藏時的按鍵處理
   KeyEventResult _handleControlsHiddenKeyEvent(KeyEvent event) {
-    // 如果处于预览模式，使用 PlayerFocusHandler 处理
+    // 如果處於預覽模式，使用 PlayerFocusHandler 處理
     if (isSeekPreviewMode && previewPosition != null) {
       final result = PlayerFocusHandler.handleSeekPreviewNavigation(
         event,
@@ -298,20 +299,20 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.ignored;
     }
 
-    // 上下键显示控制栏
+    // 上下鍵顯示控制欄
     if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
         event.logicalKey == LogicalKeyboardKey.arrowDown) {
       toggleControls();
       return KeyEventResult.handled;
     }
 
-    // 确认键播放/暂停
+    // 確認鍵播放/暫停
     if (PlayerFocusHandler.isSelectKey(event) && event is KeyDownEvent) {
       togglePlayPause();
       return KeyEventResult.handled;
     }
 
-    // 左右键快退/快进 (支持按住重复触发)
+    // 左右鍵快退/快進 (支援按住重複觸發)
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
       seekBackward();
       return KeyEventResult.handled;
@@ -324,7 +325,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
     return KeyEventResult.ignored;
   }
 
-  /// 关闭选集面板
+  /// 關閉選集面板
   void _closeEpisodePanel() {
     setState(() {
       showEpisodePanel = false;
@@ -333,9 +334,9 @@ mixin PlayerEventMixin on PlayerActionMixin {
     startHideTimer();
   }
 
-  /// 选集面板按键处理 - 使用 PlayerFocusHandler
+  /// 選集面板按鍵處理 - 使用 PlayerFocusHandler
   KeyEventResult handleEpisodeKeyEvent(KeyEvent event) {
-    // 支持长按连续移动 (KeyRepeatEvent)
+    // 支援長按連續移動 (KeyRepeatEvent)
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
@@ -362,7 +363,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
     return KeyEventResult.ignored;
   }
 
-  /// 设置面板按键处理 - 保持原有逻辑（有子菜单特殊处理）
+  /// 設定面板按鍵處理 - 保持原有邏輯（有子選單特殊處理）
   KeyEventResult handleSettingsKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
@@ -452,7 +453,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
     return KeyEventResult.ignored;
   }
 
-  /// 获取当前设置菜单的最大索引
+  /// 獲取當前設定選單的最大索引
   int _getSettingsMaxIndex() {
     switch (settingsMenuType) {
       case SettingsMenuType.main:

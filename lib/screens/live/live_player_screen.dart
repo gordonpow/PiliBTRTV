@@ -1,10 +1,11 @@
+import 'package:bili_tv_app/utils/zh_convert.dart';
+import 'package:bili_tv_app/utils/zh_toast.dart';
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/api/live_api.dart';
 import '../../services/api/base_api.dart';
@@ -72,7 +73,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
   // Quality State
   List<Map<String, dynamic>> _qualities = [];
   int _currentQuality = 10000;
-  String _currentQualityDesc = '原画';
+  String _currentQualityDesc = '原畫';
 
   // Follow State
   bool _isFollowed = false;
@@ -91,7 +92,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
     // Initialize online count from widget
     final initialOnline = widget.online ?? 0;
     if (initialOnline >= 10000) {
-      _onlineCount = '${(initialOnline / 10000).toStringAsFixed(1)}万';
+      _onlineCount = '${(initialOnline / 10000).toStringAsFixed(1)}萬';
     } else {
       _onlineCount = initialOnline.toString();
     }
@@ -183,13 +184,13 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
         }
       }
 
-      // 1. 获取播放地址
+      // 1. 獲取播放地址
       final playInfo = await LiveApi.getPlayUrl(
         _realRoomId,
         qn: qn ?? _currentQuality,
       );
       if (playInfo == null) {
-        throw Exception('获取直播地址失败');
+        throw Exception('獲取直播地址失敗');
       }
       debugPrint('LivePlayer: PlayInfo Keys: ${playInfo.keys.toList()}');
       if (playInfo['quality_description'] != null) {
@@ -234,7 +235,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
                           final host = info['host'] as String;
 
                           _lines.add({
-                            'name': '线路$lineCounter',
+                            'name': '線路$lineCounter',
                             'host': host,
                             'extra': info['extra'],
                             'base_url': baseUrl,
@@ -270,12 +271,12 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
         final durl = playInfo['durl'] as List?;
         if (durl != null && durl.isNotEmpty) {
           url = durl[0]['url'] as String;
-          _lines.add({'name': '默认线路', 'url': url});
+          _lines.add({'name': '預設線路', 'url': url});
         }
       }
 
       if (url.isEmpty) {
-        throw Exception('无法获取有效播放地址');
+        throw Exception('無法獲取有效播放地址');
       }
 
       // Parse Quality Options
@@ -284,9 +285,10 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
           playInfo['quality_description'],
         );
         debugPrint('LivePlayer: Raw Qualities: $list');
-        // Filter out '默认' or invalid ones
+        // Filter out '預設' or invalid ones
         _qualities = list.where((q) {
           final desc = q['desc'] as String?;
+          // 與伺服器回傳的簡體文字比對，保留原文
           return desc != null && desc != '默认' && desc.isNotEmpty;
         }).toList();
         debugPrint('LivePlayer: Parsed Qualities: $_qualities');
@@ -321,7 +323,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
         LiveApi.getRelation(_anchorUid).then((relation) {
           if (mounted && relation != null) {
             setState(() {
-              // attribute: 1=悄悄关注, 2=关注, 6=互粉, 128=拉黑
+              // attribute: 1=悄悄關注, 2=關注, 6=互粉, 128=拉黑
               // simpler check: just check if attribute is not 0 (no relation)
               // But standard API returns specific fields usually.
               // Let's assume relation map has 'attribute'
@@ -358,7 +360,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
         _startHideTimer();
       }
 
-      // 3. 连接弹幕 (Use Real ID)
+      // 3. 連線彈幕 (Use Real ID)
       if (!_socketService.isConnected) {
         _connectDanmaku();
       }
@@ -391,7 +393,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
             try {
               _danmakuController!.addDanmaku(
                 DanmakuContentItem(
-                  msg['content'],
+                  ZhConvert.convert(msg['content'] as String),
                   color: Color(msg['color']).withValues(alpha: 255),
                 ),
               );
@@ -411,7 +413,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
             if (count <= 1) return;
 
             if (count >= 10000) {
-              _onlineCount = '${(count / 10000).toStringAsFixed(1)}万';
+              _onlineCount = '${(count / 10000).toStringAsFixed(1)}萬';
             } else {
               _onlineCount = count.toString();
             }
@@ -419,7 +421,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
         } else if (msg['type'] == 'error') {
           debugPrint('LiveSocket Error: ${msg['msg']}');
           if (mounted) {
-            Fluttertoast.showToast(msg: "弹幕连接: ${msg['msg']}");
+            showZhToast(msg: "彈幕連線: ${msg['msg']}");
           }
         }
       },
@@ -458,7 +460,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
           if (online != null && online > 1) {
             setState(() {
               if (online >= 10000) {
-                _onlineCount = '${(online / 10000).toStringAsFixed(1)}万';
+                _onlineCount = '${(online / 10000).toStringAsFixed(1)}萬';
               } else {
                 _onlineCount = online.toString();
               }
@@ -535,7 +537,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
     if (_focusedControlIndex == 0) {
       // Refresh
       debugPrint('Refresh clicked');
-      Fluttertoast.showToast(msg: "正在刷新直播流...");
+      showZhToast(msg: "正在重新整理直播流...");
       _initializePlayer();
     } else if (_focusedControlIndex == 1) {
       // Quality (Was 2)
@@ -555,7 +557,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
           _hideTimer?.cancel();
         });
       } else {
-        Fluttertoast.showToast(msg: "当前只有默认线路");
+        showZhToast(msg: "當前只有預設線路");
       }
     } else if (_focusedControlIndex == 3) {
       // Settings (Was 4)
@@ -568,7 +570,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
     } else if (_focusedControlIndex == 4) {
       // Follow (Was 1) -> Moved to last
       if (_anchorUid == 0) {
-        Fluttertoast.showToast(msg: "无法获取主播信息");
+        showZhToast(msg: "無法獲取主播資訊");
         return;
       }
       final act = _isFollowed ? 2 : 1; // 1=Follow, 2=Unfollow
@@ -577,9 +579,9 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
         setState(() {
           _isFollowed = !_isFollowed;
         });
-        Fluttertoast.showToast(msg: _isFollowed ? "已关注" : "已取消关注");
+        showZhToast(msg: _isFollowed ? "已關注" : "已取消關注");
       } else {
-        Fluttertoast.showToast(msg: "操作失败");
+        showZhToast(msg: "操作失敗");
       }
     }
   }
@@ -776,7 +778,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
         if (_lastBackPressed == null ||
             now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
           _lastBackPressed = now;
-          Fluttertoast.showToast(msg: "再按一次退出直播");
+          showZhToast(msg: "再按一次退出直播");
           return;
         }
 
@@ -959,7 +961,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '$_onlineCount人正在观看',
+                              '$_onlineCount人正在觀看',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 13,
@@ -986,7 +988,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
                   _buildControlButton(
                     index: 0,
                     icon: Icons.refresh,
-                    label: '刷新',
+                    label: '重新整理',
                   ),
                   const SizedBox(width: 20),
                   // Quality (1)
@@ -1001,22 +1003,22 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
                     index: 2,
                     icon: Icons.router,
                     label: _lines.isNotEmpty
-                        ? _lines[_currentLineIndex]['name'] ?? '线路'
-                        : '线路',
+                        ? _lines[_currentLineIndex]['name'] ?? '線路'
+                        : '線路',
                   ),
                   const SizedBox(width: 20),
                   // Settings (3)
                   _buildControlButton(
                     index: 3,
                     icon: Icons.settings,
-                    label: '弹幕设置',
+                    label: '彈幕設定',
                   ),
                   const SizedBox(width: 20),
                   // Follow (4)
                   _buildControlButton(
                     index: 4,
                     icon: _isFollowed ? Icons.favorite : Icons.favorite_border,
-                    label: _isFollowed ? '已关注' : '关注',
+                    label: _isFollowed ? '已關注' : '關注',
                     iconColor: _isFollowed
                         ? const Color(0xFFfb7299)
                         : Colors.white,

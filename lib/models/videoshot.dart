@@ -1,16 +1,16 @@
 import 'dart:typed_data';
 
-/// 视频快照(雪碧图)数据模型
+/// 影片快照(雪碧圖)資料模型
 class VideoshotData {
   final List<String> images;
-  final int imgXLen; // 对应 JS 中的 i
-  final int imgYLen; // 对应 JS 中的 n
-  final int imgXSize; // 对应 JS 中的 a (perImgW)
-  final int imgYSize; // 对应 JS 中的 s (perImgH)
+  final int imgXLen; // 對應 JS 中的 i
+  final int imgYLen; // 對應 JS 中的 n
+  final int imgXSize; // 對應 JS 中的 a (perImgW)
+  final int imgYSize; // 對應 JS 中的 s (perImgH)
   final String? pvdataUrl;
   List<int>? _frameTimestamps;
 
-  int get framesPerImage => imgXLen * imgYLen; // 对应 JS 中的 l
+  int get framesPerImage => imgXLen * imgYLen; // 對應 JS 中的 l
 
   VideoshotData({
     required this.images,
@@ -45,52 +45,52 @@ class VideoshotData {
     _frameTimestamps = timestamps;
   }
 
-  /// 1. 还原 getIndex 算法
-  /// 对应 JS: getIndex = function(t) { ... i = o - 1; ... return i >= 0 && i || 0; }
+  /// 1. 還原 getIndex 演算法
+  /// 對應 JS: getIndex = function(t) { ... i = o - 1; ... return i >= 0 && i || 0; }
   int getIndex(Duration position) {
     if (_frameTimestamps == null || _frameTimestamps!.isEmpty) return 0;
 
     final double seconds = position.inMilliseconds / 1000.0;
     final timestamps = _frameTimestamps!;
 
-    // 默认值：JS 中 i = t.length - 2
+    // 預設值：JS 中 i = t.length - 2
     int resultIdx = timestamps.length - 2;
 
-    // 对应 JS 循环: for (var o = 0; o < t.length - 1; o++)
+    // 對應 JS 迴圈: for (var o = 0; o < t.length - 1; o++)
     for (int o = 0; o < timestamps.length - 1; o++) {
       if (seconds >= timestamps[o] && seconds < timestamps[o + 1]) {
-        resultIdx = o - 1; // 关键：B站逻辑是索引再减1
+        resultIdx = o - 1; // 關鍵：B站邏輯是索引再減1
         break;
       }
     }
 
-    // 对应 JS: return i >= 0 && i || 0;
+    // 對應 JS: return i >= 0 && i || 0;
     return resultIdx >= 0 ? resultIdx : 0;
   }
 
-  /// 2. 还原坐标计算逻辑
-  /// 对应 JS: d = r % l % i * a; (X坐标)
-  /// 对应 JS: u = Math.floor(r % l / n) * s; (Y坐标)
+  /// 2. 還原座標計算邏輯
+  /// 對應 JS: d = r % l % i * a; (X座標)
+  /// 對應 JS: u = Math.floor(r % l / n) * s; (Y座標)
   FrameInfo? getFrameAt(Duration position) {
     if (images.isEmpty) return null;
 
-    // 获取帧索引 r
+    // 獲取幀索引 r
     final int r = getIndex(position);
 
-    // 每张大图的总帧数 l
+    // 每張大圖的總幀數 l
     final int l = framesPerImage;
 
-    // 计算在大图列表中的图片索引 (第几张大图)
-    // 对应 JS: c = t[Math.floor(r / l)]
+    // 計算在大圖列表中的圖片索引 (第幾張大圖)
+    // 對應 JS: c = t[Math.floor(r / l)]
     int imageIndex = (r / l).floor();
     if (imageIndex >= images.length) imageIndex = images.length - 1;
 
-    // 计算在单张大图内部的偏移
-    // 对应 JS X坐标: d = r % l % i * a
-    // i 是 imgXLen (列数), a 是 imgXSize (宽)
+    // 計算在單張大圖內部的偏移
+    // 對應 JS X座標: d = r % l % i * a
+    // i 是 imgXLen (列數), a 是 imgXSize (寬)
     final int x = (r % l % imgXLen) * imgXSize;
 
-    // Y坐标: 标准行主序布局，除以列数 (xLen)
+    // Y座標: 標準行主序佈局，除以列數 (xLen)
     // Python: y = math.floor((r % l) / self.x_len) * self.per_img_h
     final int y = ((r % l) ~/ imgXLen) * imgYSize;
 
@@ -103,8 +103,8 @@ class VideoshotData {
     );
   }
 
-  /// 获取最接近给定位置的帧时间戳
-  /// 用于时间吸附功能，确保预览位置对齐到实际帧
+  /// 獲取最接近給定位置的幀時間戳
+  /// 用於時間吸附功能，確保預覽位置對齊到實際幀
   Duration getClosestTimestamp(Duration position) {
     if (_frameTimestamps == null || _frameTimestamps!.isEmpty) {
       return position;
@@ -113,7 +113,7 @@ class VideoshotData {
     final double seconds = position.inMilliseconds / 1000.0;
     final timestamps = _frameTimestamps!;
 
-    // 找到最接近的时间戳
+    // 找到最接近的時間戳
     int closestIdx = 0;
     double minDiff = (timestamps[0] - seconds).abs();
 
@@ -129,11 +129,11 @@ class VideoshotData {
   }
 
   /// 3. 解析 pvdata.bin
-  /// 严格按照 JS 的 Uint8 移位解析（Big-Endian）
+  /// 嚴格按照 JS 的 Uint8 移位解析（Big-Endian）
   static List<int> parsePvdata(Uint8List bytes) {
     final timestamps = <int>[];
     for (var i = 0; i < bytes.length - 1; i += 2) {
-      // 对应 JS: var r = i.getUint8(s) << 8 | i.getUint8(s + 1);
+      // 對應 JS: var r = i.getUint8(s) << 8 | i.getUint8(s + 1);
       final value = (bytes[i] << 8) | bytes[i + 1];
       timestamps.add(value);
     }

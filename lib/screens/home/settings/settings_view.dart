@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/auth_service.dart';
 import 'tabs/playback_settings.dart';
@@ -10,14 +10,14 @@ import 'tabs/about_settings.dart';
 import '../../../widgets/time_display.dart';
 import '../../../widgets/vip_avatar_badge.dart';
 
-/// 设置分类枚举
+/// 設定分類列舉
 enum SettingsCategory {
-  playback('播放设置'),
-  btr('線程撕裂者'),
-  interface_('界面设置'),
-  plugins('插件中心'),
-  storage('其他设置'),
-  about('关于软件');
+  playback('播放設定'),
+  btr('執行緒撕裂者'),
+  interface_('介面設定'),
+  plugins('外掛中心'),
+  storage('其他設定'),
+  about('關於軟體');
 
   const SettingsCategory(this.label);
   final String label;
@@ -61,7 +61,7 @@ class SettingsViewState extends State<SettingsView> {
     super.dispose();
   }
 
-  /// 请求第一个分类标签的焦点（用于从侧边栏导航）
+  /// 請求第一個分類標籤的焦點（用於從側邊欄導航）
   void focusFirstCategory() {
     if (_categoryFocusNodes.isNotEmpty) {
       _categoryFocusNodes[0].requestFocus();
@@ -82,7 +82,7 @@ class SettingsViewState extends State<SettingsView> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('确认', style: TextStyle(color: Color(0xFFfb7299))),
+            child: const Text('確認', style: TextStyle(color: Color(0xFFfb7299))),
           ),
         ],
       ),
@@ -91,7 +91,7 @@ class SettingsViewState extends State<SettingsView> {
   }
 
   Future<void> _handleLogout() async {
-    final confirmed = await _showConfirmDialog('确认退出', '确定要退出登录吗？');
+    final confirmed = await _showConfirmDialog('確認退出', '確定要退出登入嗎？');
     if (confirmed) {
       widget.onLogout();
     }
@@ -122,7 +122,7 @@ class SettingsViewState extends State<SettingsView> {
           onTap();
           return KeyEventResult.handled;
         }
-        // 阻止向上导航超出设置页面 (如跳到搜索框)
+        // 阻止向上導航超出設定頁面 (如跳到搜尋框)
         if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
           return KeyEventResult.handled;
         }
@@ -154,7 +154,7 @@ class SettingsViewState extends State<SettingsView> {
     );
   }
 
-  /// 构建分类标签
+  /// 構建分類標籤
   Widget _buildCategoryTab({
     required String label,
     required bool isSelected,
@@ -175,7 +175,7 @@ class SettingsViewState extends State<SettingsView> {
             onMoveLeft();
             return KeyEventResult.handled;
           }
-          // 向上导航跳转到退出按钮
+          // 向上導航跳轉到退出按鈕
           if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
             _logoutFocusNode.requestFocus();
             return KeyEventResult.handled;
@@ -245,13 +245,13 @@ class SettingsViewState extends State<SettingsView> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 顶部用户信息栏
+            // 頂部使用者資訊欄
             Container(
               padding: const EdgeInsets.fromLTRB(40, 30, 40, 20),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 头像
+                  // 頭像
                   if (AuthService.face != null && AuthService.face!.isNotEmpty)
                     VipAvatarBadge(
                       size: 45,
@@ -268,12 +268,12 @@ class SettingsViewState extends State<SettingsView> {
                   else
                     _buildDefaultAvatar(),
                   const SizedBox(width: 15),
-                  // 用户名和 UID
+                  // 使用者名稱和 UID
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        AuthService.uname ?? '已登录',
+                        AuthService.uname ?? '已登入',
                         style: TextStyle(
                           color: AuthService.isVip
                               ? const Color(0xFFfb7299) // VIP 粉色
@@ -292,9 +292,9 @@ class SettingsViewState extends State<SettingsView> {
                     ],
                   ),
                   const SizedBox(width: 30),
-                  // 退出登录按钮
+                  // 退出登入按鈕
                   _buildActionButton(
-                    label: '退出登录',
+                    label: '退出登入',
                     color: Colors.red,
                     onTap: _handleLogout,
                     focusNode: _logoutFocusNode,
@@ -303,7 +303,7 @@ class SettingsViewState extends State<SettingsView> {
               ),
             ),
 
-            // 设置分类标签栏
+            // 設定分類標籤欄
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 40),
               child: Row(
@@ -327,7 +327,7 @@ class SettingsViewState extends State<SettingsView> {
 
             const SizedBox(height: 20),
 
-            // 设置内容区域
+            // 設定內容區域
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -337,7 +337,7 @@ class SettingsViewState extends State<SettingsView> {
           ],
         ),
 
-        // 常驻时间显示 (与主界面位置保持一致)
+        // 常駐時間顯示 (與主介面位置保持一致)
         const Positioned(top: 20, right: 30, child: TimeDisplay()),
       ],
     );

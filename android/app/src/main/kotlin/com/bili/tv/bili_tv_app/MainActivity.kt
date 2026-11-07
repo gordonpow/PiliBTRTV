@@ -32,6 +32,19 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_PATH", "APK path is null", null)
                     }
                 }
+                "restart" -> {
+                    // 啟動新的 task，再結束目前程序，讓所有 Dart 狀態重新開始
+                    val launch = packageManager.getLaunchIntentForPackage(packageName)
+                    val component = launch?.component
+                    if (component == null) {
+                        result.error("RESTART_ERROR", "no launch activity", null)
+                    } else {
+                        result.success(null)
+                        val intent = Intent.makeRestartActivityTask(component)
+                        startActivity(intent)
+                        Runtime.getRuntime().exit(0)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }

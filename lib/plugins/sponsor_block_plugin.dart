@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/plugin/plugin_types.dart';
@@ -13,7 +13,7 @@ class SponsorBlockPlugin extends PlayerPlugin {
   String get name => '空降助手';
 
   @override
-  String get description => '基于 SponsorBlock 数据库自动跳过视频中的广告、赞助、片头片尾等片段。';
+  String get description => '基於 SponsorBlock 資料庫自動跳過影片中的廣告、贊助、片頭片尾等片段。';
 
   @override
   String get version => '1.0.0';
@@ -38,14 +38,14 @@ class SponsorBlockPlugin extends PlayerPlugin {
   @override
   Future<void> onEnable() async {
     _loadConfig();
-    debugPrint('✅ 空降助手已启用');
+    debugPrint('✅ 空降助手已啟用');
   }
 
   @override
   Future<void> onDisable() async {
     _segments = [];
     _skippedIds.clear();
-    debugPrint('🔴 空降助手已禁用');
+    debugPrint('🔴 空降助手已停用');
   }
 
   Future<void> _loadConfig() async {
@@ -72,13 +72,13 @@ class SponsorBlockPlugin extends PlayerPlugin {
     _skippedIds.clear();
     _lastPositionMs = 0;
 
-    // 如果没有启用，不请求
+    // 如果沒有啟用，不請求
     if (!await PluginStore.isEnabled(id)) return;
 
     try {
-      // 默认请求所有跳过类型
+      // 預設請求所有跳過型別
       // API: https://bsbsb.top/api/skipSegments?videoID={BVID}&category=sponsor&category=intro&...
-      // 这里简化处理，请求常用的
+      // 這裡簡化處理，請求常用的
       var url = Uri.parse(
         'https://bsbsb.top/api/skipSegments?videoID=$bvid&category=sponsor&category=intro&category=outro&category=interaction&category=selfpromo',
       );
@@ -99,7 +99,7 @@ class SponsorBlockPlugin extends PlayerPlugin {
     }
   }
 
-  // 记录手动跳过
+  // 記錄手動跳過
   void manualSkip(String segmentId) {
     _skippedIds.add(segmentId);
   }
@@ -108,9 +108,9 @@ class SponsorBlockPlugin extends PlayerPlugin {
   Future<SkipAction> onPositionUpdate(int positionMs) async {
     if (_segments.isEmpty) return SkipActionNone();
 
-    // 简单防抖/回退检测
+    // 簡單防抖/回退檢測
     if (positionMs < _lastPositionMs - 2000) {
-      // 回退超过2秒，重置相关片段的跳过状态，允许再次跳过
+      // 回退超過2秒，重置相關片段的跳過狀態，允許再次跳過
       for (var seg in _segments) {
         if (_skippedIds.contains(seg.uuid) &&
             positionMs < seg.startTimeMs - 1000) {
@@ -129,13 +129,13 @@ class SponsorBlockPlugin extends PlayerPlugin {
           _skippedIds.add(seg.uuid);
           return SkipActionSkipTo(
             seg.endTimeMs.toInt(),
-            '已跳过: ${seg.category}',
+            '已跳過: ${seg.category}',
           );
         } else {
-          // 显示按钮
+          // 顯示按鈕
           return SkipActionShowButton(
             seg.endTimeMs.toInt(),
-            '跳过${seg.category}',
+            '跳過${seg.category}',
             seg.uuid,
           );
         }
@@ -166,7 +166,7 @@ class SponsorSegment {
     required this.endTime,
   });
 
-  // 转换为毫秒方便比较
+  // 轉換為毫秒方便比較
   int get startTimeMs => (startTime * 1000).toInt();
   int get endTimeMs => (endTime * 1000).toInt();
 
@@ -219,9 +219,9 @@ class _SponsorBlockSettingsState extends State<_SponsorBlockSettings> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SwitchListTile(
-            title: const Text('自动跳过', style: TextStyle(color: Colors.white)),
+            title: const Text('自動跳過', style: TextStyle(color: Colors.white)),
             subtitle: const Text(
-              '关闭后将显示手动跳过按钮',
+              '關閉後將顯示手動跳過按鈕',
               style: TextStyle(color: Colors.white70),
             ),
             value: _autoSkip,

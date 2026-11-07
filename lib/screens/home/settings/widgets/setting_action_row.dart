@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../../../../core/focus/focus_navigation.dart';
 
-/// 设置页操作按钮行组件
+/// 設定頁操作按鈕行元件
 ///
-/// 使用统一的焦点管理系统
+/// 使用統一的焦點管理系統
 class SettingActionRow extends StatelessWidget {
   final String label;
   final String value;

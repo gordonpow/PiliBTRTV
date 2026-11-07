@@ -1,35 +1,35 @@
-import 'package:flutter/widgets.dart';
+import 'package:bili_tv_app/widgets/zh_widgets.dart';
 
-/// BiliTV 插件基础抽象类
-/// 所有插件必须继承此类
+/// BiliTV 外掛基礎抽象類
+/// 所有外掛必須繼承此類
 abstract class Plugin {
-  /// 唯一标识符，建议使用反向域名风格，如 "com.example.plugin"
+  /// 唯一識別符號，建議使用反向域名風格，如 "com.example.plugin"
   String get id;
 
-  /// 显示名称
+  /// 顯示名稱
   String get name;
 
-  /// 插件描述
+  /// 外掛描述
   String get description;
 
-  /// 版本号
+  /// 版本號
   String get version;
 
   /// 作者
   String get author;
 
-  /// 插件图标 (可选)
+  /// 外掛圖示 (可選)
   IconData? get icon => null;
 
-  /// 插件启用时调用
+  /// 外掛啟用時呼叫
   Future<void> onEnable() async {}
 
-  /// 插件禁用时调用
+  /// 外掛停用時呼叫
   Future<void> onDisable() async {}
 
-  /// 插件是否有设置界面
+  /// 外掛是否有設定介面
   bool get hasSettings => false;
 
-  /// 插件设置界面 (可选)
+  /// 外掛設定介面 (可選)
   Widget? get settingsWidget => null;
 }

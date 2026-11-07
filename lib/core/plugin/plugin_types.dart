@@ -1,41 +1,41 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'plugin.dart';
 
-// 这里的 VideoItem 和 DanmakuItem 需要根据实际项目中的模型进行调整
-// 暂时使用 dynamic 或者定义简单的接口，后续集成时替换为真实类型
+// 這裡的 VideoItem 和 DanmakuItem 需要根據實際專案中的模型進行調整
+// 暫時使用 dynamic 或者定義簡單的介面，後續整合時替換為真實型別
 
-/// 首页/推荐流过滤插件接口
+/// 首頁/推薦流過濾外掛介面
 abstract class FeedPlugin extends Plugin {
-  /// 是否显示该视频/动态
-  /// 返回 false 表示过滤掉
+  /// 是否顯示該影片/動態
+  /// 返回 false 表示過濾掉
   bool shouldShowItem(dynamic item);
 }
 
-/// 弹幕插件接口
+/// 彈幕外掛介面
 abstract class DanmakuPlugin extends Plugin {
-  /// 过滤弹幕
-  /// 返回 null 表示过滤掉，否则返回处理后的弹幕（或原弹幕）
+  /// 過濾彈幕
+  /// 返回 null 表示過濾掉，否則返回處理後的彈幕（或原彈幕）
   dynamic filterDanmaku(dynamic item);
 
-  /// 弹幕样式自定义
-  /// 返回自定义样式，null 表示使用默认样式
+  /// 彈幕樣式自定義
+  /// 返回自定義樣式，null 表示使用預設樣式
   DanmakuStyle? styleDanmaku(dynamic item);
 }
 
-/// 播放器插件接口
+/// 播放器外掛介面
 abstract class PlayerPlugin extends Plugin {
-  /// 视频加载时调用
+  /// 影片載入時呼叫
   Future<void> onVideoLoad(String bvid, int cid);
 
-  /// 播放进度更新时调用 (单位: 毫秒)
-  /// 返回 SkipAction 决定是否跳过或显示按钮
+  /// 播放進度更新時呼叫 (單位: 毫秒)
+  /// 返回 SkipAction 決定是否跳過或顯示按鈕
   Future<SkipAction> onPositionUpdate(int positionMs);
 
-  /// 视频结束时调用
+  /// 影片結束時呼叫
   void onVideoEnd();
 }
 
-/// 弹幕样式定义
+/// 彈幕樣式定義
 class DanmakuStyle {
   final Color? borderColor;
   final Color? backgroundColor;
@@ -48,7 +48,7 @@ class DanmakuStyle {
   });
 }
 
-/// 跳过动作定义
+/// 跳過動作定義
 abstract class SkipAction {}
 
 class SkipActionNone extends SkipAction {}

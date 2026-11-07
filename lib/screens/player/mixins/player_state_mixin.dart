@@ -1,41 +1,41 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import '../player_screen.dart';
 import '../widgets/settings_panel.dart';
 import '../../../models/videoshot.dart';
 
-/// 播放器状态 Mixin
-/// 包含所有 State 变量
+/// 播放器狀態 Mixin
+/// 包含所有 State 變數
 mixin PlayerStateMixin on State<PlayerScreen> {
   // 控制器
   VideoPlayerController? videoController;
   DanmakuController? danmakuController;
 
-  // 插件跳过动作 (如空降助手)
+  // 外掛跳過動作 (如空降助手)
   dynamic currentSkipAction; // SkipActionShowButton?
 
-  // 加载状态
+  // 載入狀態
   bool isLoading = true;
   String? errorMessage;
   int? cid;
-  int? aid; // 视频 aid (用于点赞/投币/收藏)
+  int? aid; // 影片 aid (用於點贊/投幣/收藏)
 
-  // 完整视频信息 (从 API 获取，统一数据来源)
+  // 完整影片資訊 (從 API 獲取，統一資料來源)
   Map<String, dynamic>? fullVideoInfo;
 
-  // 在线观看人数
+  // 線上觀看人數
   String? onlineCount;
   Timer? onlineCountTimer;
 
-  // 当前播放的音频 URL (DASH 模式)
+  // 當前播放的音訊 URL (DASH 模式)
   String? currentAudioUrl;
 
-  // 播放器流订阅
+  // 播放器流訂閱
   List<StreamSubscription> playerSubscriptions = [];
 
-  // 弹幕设置
+  // 彈幕設定
   bool danmakuEnabled = true;
   double danmakuOpacity = 0.6;
   double danmakuFontSize = 17.0;
@@ -44,7 +44,7 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   bool hideTopDanmaku = false;
   bool hideBottomDanmaku = false;
 
-  // 播放设置
+  // 播放設定
   double playbackSpeed = 1.0;
   final List<double> availableSpeeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
 
@@ -57,20 +57,20 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   int focusedButtonIndex = 0; // 0=Play, 1=Settings, 2=Playlist, 3=More
   int focusedSettingIndex = 0;
 
-  // 分辨率
+  // 解析度
   List<Map<String, dynamic>> qualities = [];
   int currentQuality = 80;
-  String currentCodec = ''; // 当前编解码器 (avc/hev/av01)
+  String currentCodec = ''; // 當前編解碼器 (avc/hev/av01)
 
-  // 双击返回
+  // 雙擊返回
   DateTime? lastBackPressed;
 
-  // 选集
+  // 選集
   List<dynamic> episodes = [];
   bool showEpisodePanel = false;
   int focusedEpisodeIndex = 0;
 
-  // 弹幕数据
+  // 彈幕資料
   List<dynamic> danmakuList = [];
   int lastDanmakuIndex = 0;
 
@@ -79,31 +79,31 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   bool showRelatedPanel = false;
   bool showActionButtons = false;
 
-  // 进度条聚焦模式
+  // 進度條聚焦模式
   bool isProgressBarFocused = false;
-  Duration? previewPosition; // 拖动预览位置
+  Duration? previewPosition; // 拖動預覽位置
 
-  // 自动续播
-  int? initialProgress; // 从历史记录恢复的进度
+  // 自動續播
+  int? initialProgress; // 從歷史記錄恢復的進度
 
-  // 相关视频 (用于自动连播)
+  // 相關影片 (用於自動連播)
   List<dynamic> relatedVideos = [];
 
-  // 返回键处理标志 - 防止 handleGlobalKeyEvent 和 onPopInvoked 重复处理
+  // 返回鍵處理標誌 - 防止 handleGlobalKeyEvent 和 onPopInvoked 重複處理
   bool backKeyJustHandled = false;
 
-  // 快进快退指示器
+  // 快進快退指示器
   bool showSeekIndicator = false;
   Timer? seekIndicatorTimer;
 
-  // 快进预览模式 (雪碧图)
+  // 快進預覽模式 (雪碧圖)
   VideoshotData? videoshotData;
-  bool isSeekPreviewMode = false; // 当前是否处于预览快进模式
-  int precachedSpriteIndex = -1; // 已预缓存的雪碧图最大索引 (滑动窗口)
-  bool hasShownVideoshotFailToast = false; // 是否已显示过预览图失败提示
-  bool hasHandledVideoComplete = false; // 防止重复触发视频完成回调
+  bool isSeekPreviewMode = false; // 當前是否處於預覽快進模式
+  int precachedSpriteIndex = -1; // 已預快取的雪碧圖最大索引 (滑動視窗)
+  bool hasShownVideoshotFailToast = false; // 是否已顯示過預覽圖失敗提示
+  bool hasHandledVideoComplete = false; // 防止重複觸發影片完成回撥
 
-  // 获取编解码器简称
+  // 獲取編解碼器簡稱
   String get _codecLabel {
     if (currentCodec.startsWith('av01')) {
       return 'AV1';
@@ -119,7 +119,7 @@ mixin PlayerStateMixin on State<PlayerScreen> {
     return '';
   }
 
-  // 获取当前画质描述 (含编解码器)
+  // 獲取當前畫質描述 (含編解碼器)
   String get currentQualityDesc {
     String desc = '${currentQuality}P';
     for (var q in qualities) {

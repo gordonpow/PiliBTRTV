@@ -2,12 +2,12 @@ import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'package:bili_tv_app/services/btr/btr_proxy.dart';
 
 class MpdGenerator {
-  /// 生成 DASH MPD 文件
-  /// [dashData] 是 Bilibili API 返回的 dash 对象
+  /// 生成 DASH MPD 檔案
+  /// [dashData] 是 Bilibili API 返回的 dash 物件
   static Future<String> generate(Map<String, dynamic> dashData) async {
     final buffer = StringBuffer();
 
-    // MPD 头部
+    // MPD 頭部
     buffer.writeln('<?xml version="1.0" encoding="UTF-8"?>');
     buffer.writeln('<MPD xmlns="urn:mpeg:dash:schema:mpd:2011"');
     buffer.writeln(
@@ -23,7 +23,7 @@ class MpdGenerator {
 
     buffer.writeln('  <Period>');
 
-    // 视频自适应集
+    // 影片自適應集
     if (dashData['video'] != null) {
       buffer.writeln(
         '    <AdaptationSet mimeType="video/mp4" contentType="video" subsegmentAlignment="true" subsegmentStartsWithSAP="1">',
@@ -34,7 +34,7 @@ class MpdGenerator {
       buffer.writeln('    </AdaptationSet>');
     }
 
-    // 音频自适应集
+    // 音訊自適應集
     if (dashData['audio'] != null) {
       buffer.writeln(
         '    <AdaptationSet mimeType="audio/mp4" contentType="audio" subsegmentAlignment="true" subsegmentStartsWithSAP="1">',
@@ -48,7 +48,7 @@ class MpdGenerator {
     buffer.writeln('  </Period>');
     buffer.writeln('</MPD>');
 
-    // 直接返回内容
+    // 直接返回內容
     return buffer.toString();
   }
 
@@ -64,14 +64,14 @@ class MpdGenerator {
     Map<String, dynamic> stream,
     bool isVideo,
   ) async {
-    // 基础信息
+    // 基礎資訊
     final id = stream['id'];
     final codecs = stream['codecs'] ?? (isVideo ? 'avc1.64001E' : 'mp4a.40.2');
     final bandwidth = stream['bandwidth'];
     final width = stream['width'];
     final height = stream['height'];
     final frameRate = stream['frameRate'];
-    // 优先使用 baseUrl，备用使用 backupUrl
+    // 優先使用 baseUrl，備用使用 backupUrl
     final baseUrl = stream['baseUrl'] ?? stream['base_url'];
 
     buffer.write(
@@ -100,17 +100,17 @@ class MpdGenerator {
     }
 
     if (!proxied) {
-      // 基础 URL（XML 转义）
+      // 基礎 URL（XML 轉義）
       buffer.writeln('        <BaseURL>${_xmlEscape(baseUrlStr)}</BaseURL>');
 
-      // 备用 URL (CDN 容灾)
+      // 備用 URL (CDN 容災)
       for (final backup in backups) {
         buffer.writeln('        <BaseURL>${_xmlEscape(backup)}</BaseURL>');
       }
     }
 
-    // 初始化范围 (分片 MP4 必须)
-    // Bilibili 通常通过 SegmentBase 提供 Initialization 和 indexRange
+    // 初始化範圍 (分片 MP4 必須)
+    // Bilibili 通常通過 SegmentBase 提供 Initialization 和 indexRange
 
     if (stream['SegmentBase'] != null) {
       final seg = stream['SegmentBase'];

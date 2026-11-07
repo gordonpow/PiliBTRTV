@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../../services/auth_service.dart';
 
 class VipAvatarBadge extends StatelessWidget {
   final Widget child;
-  final double size; // 头像的总大小 (宽/高)
+  final double size; // 頭像的總大小 (寬/高)
 
   const VipAvatarBadge({super.key, required this.child, required this.size});
 
@@ -13,7 +13,7 @@ class VipAvatarBadge extends StatelessWidget {
       return child;
     }
 
-    // Badge 的大小相对于头像大小的比例
+    // Badge 的大小相對於頭像大小的比例
     final badgeSize = size * 0.35;
 
     return Stack(
@@ -32,7 +32,7 @@ class VipAvatarBadge extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(
                 color: Colors.white,
-                width: 1.5, // 白色描边
+                width: 1.5, // 白色描邊
               ),
             ),
             alignment: Alignment.center,
@@ -40,9 +40,9 @@ class VipAvatarBadge extends StatelessWidget {
               '大',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: badgeSize * 0.7, // 字号根据 badge 大小动态调整
+                fontSize: badgeSize * 0.7, // 字號根據 badge 大小動態調整
                 fontWeight: FontWeight.bold,
-                height: 1.1, // 微调行高以垂直居中
+                height: 1.1, // 微調行高以垂直居中
               ),
             ),
           ),

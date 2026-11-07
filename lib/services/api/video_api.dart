@@ -5,9 +5,9 @@ import 'sign_utils.dart';
 import '../auth_service.dart';
 import '../../models/video.dart';
 
-/// 视频列表和搜索相关 API
+/// 影片列表和搜尋相關 API
 class VideoApi {
-  /// 获取热门视频 (无需登录)
+  /// 獲取熱門影片 (無需登入)
   static Future<List<Video>> getPopularVideos({int page = 1}) async {
     try {
       final uri = Uri.parse(
@@ -24,12 +24,12 @@ class VideoApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return [];
   }
 
-  /// 获取推荐视频 (需要 WBI 签名)
+  /// 獲取推薦影片 (需要 WBI 簽名)
   static Future<List<Video>> getRecommendVideos({int idx = 0}) async {
     try {
       await BaseApi.ensureWbiKeys();
@@ -68,12 +68,12 @@ class VideoApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return [];
   }
 
-  /// 获取分区视频 (按 tid)
+  /// 獲取分區影片 (按 tid)
   static Future<List<Video>> getRegionVideos({
     required int tid,
     int page = 1,
@@ -98,12 +98,12 @@ class VideoApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return [];
   }
 
-  /// 获取观看历史 (需要登录)
+  /// 獲取觀看歷史 (需要登入)
   /// 返回 { 'list': List<Video>, 'viewAt': int, 'max': int, 'hasMore': bool }
   static Future<Map<String, dynamic>> getHistory({
     int ps = 30,
@@ -154,12 +154,12 @@ class VideoApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return {'list': <Video>[], 'hasMore': false};
   }
 
-  /// 获取搜索建议
+  /// 獲取搜尋建議
   static Future<List<String>> getSearchSuggestions(String keyword) async {
     if (keyword.isEmpty) return [];
 
@@ -186,12 +186,12 @@ class VideoApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return [];
   }
 
-  /// 搜索视频 (需要 WBI 签名)
+  /// 搜尋影片 (需要 WBI 簽名)
   static Future<List<Video>> searchVideos(
     String keyword, {
     int page = 1,
@@ -235,12 +235,12 @@ class VideoApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return [];
   }
 
-  /// 获取动态视频列表
+  /// 獲取動態影片列表
   static Future<DynamicFeed> getDynamicFeed({String offset = ''}) async {
     try {
       await BaseApi.ensureWbiKeys();
@@ -314,12 +314,12 @@ class VideoApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return DynamicFeed(videos: [], offset: '', hasMore: false);
   }
 
-  /// 获取相关视频
+  /// 獲取相關影片
   static Future<List<Video>> getRelatedVideos(String bvid) async {
     try {
       final uri = Uri.parse(
@@ -338,12 +338,12 @@ class VideoApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return [];
   }
 
-  /// 获取 UP主 投稿视频列表 (需要 WBI 签名)
+  /// 獲取 UP主 投稿影片列表 (需要 WBI 簽名)
   static Future<List<Video>> getSpaceVideos({
     required int mid,
     int page = 1,
@@ -383,13 +383,13 @@ class VideoApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return [];
   }
 }
 
-/// 动态 Feed 数据结构
+/// 動態 Feed 資料結構
 class DynamicFeed {
   final List<Video> videos;
   final String offset;

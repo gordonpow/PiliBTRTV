@@ -3,25 +3,25 @@ import 'plugin.dart';
 import 'plugin_store.dart';
 
 class PluginManager {
-  // 单例模式
+  // 單例模式
   static final PluginManager _instance = PluginManager._internal();
   factory PluginManager() => _instance;
   PluginManager._internal();
 
-  // 所有注册的插件
+  // 所有註冊的外掛
   final List<Plugin> _plugins = [];
   List<Plugin> get plugins => List.unmodifiable(_plugins);
 
-  // 状态通知
+  // 狀態通知
   final ValueNotifier<List<Plugin>> enabledPluginsNotifier = ValueNotifier([]);
 
-  // 初始化 (预留)
+  // 初始化 (預留)
   Future<void> init() async {
-    // 可以在这里加载初始状态
+    // 可以在這裡載入初始狀態
     await _refreshEnabledPlugins();
   }
 
-  // 注册插件
+  // 註冊外掛
   void register(Plugin plugin) {
     if (_plugins.any((p) => p.id == plugin.id)) {
       debugPrint('Warning: Plugin ${plugin.id} already registered.');
@@ -31,11 +31,11 @@ class PluginManager {
     debugPrint(
       'PluginManager: Registered ${plugin.name} (${plugin.id}). Total: ${_plugins.length}',
     );
-    // 检查并自动启用（如果记录是启用的）
+    // 檢查並自動啟用（如果記錄是啟用的）
     _checkAndEnable(plugin);
   }
 
-  // 检查并启用插件
+  // 檢查並啟用外掛
   Future<void> _checkAndEnable(Plugin plugin) async {
     bool enabled = await PluginStore.isEnabled(plugin.id);
     if (enabled) {
@@ -49,7 +49,7 @@ class PluginManager {
     }
   }
 
-  // 设置插件启用/禁用
+  // 設定外掛啟用/停用
   Future<void> setEnabled(Plugin plugin, bool enabled) async {
     await PluginStore.setEnabled(plugin.id, enabled);
 
@@ -58,7 +58,7 @@ class PluginManager {
         await plugin.onEnable();
       } catch (e) {
         debugPrint('Error enabling plugin ${plugin.name}: $e');
-        // 如果启用失败，回滚状态? 暂时不回滚，允许重试
+        // 如果啟用失敗，回滾狀態? 暫時不回滾，允許重試
       }
     } else {
       try {
@@ -70,7 +70,7 @@ class PluginManager {
     await _refreshEnabledPlugins();
   }
 
-  // 刷新已启用插件列表通知
+  // 重新整理已啟用外掛列表通知
   Future<void> _refreshEnabledPlugins() async {
     List<Plugin> enabledList = [];
     for (var plugin in _plugins) {
@@ -81,12 +81,12 @@ class PluginManager {
     enabledPluginsNotifier.value = enabledList;
   }
 
-  // 获取特定类型的已启用插件
+  // 獲取特定型別的已啟用外掛
   List<T> getEnabledPlugins<T extends Plugin>() {
     return enabledPluginsNotifier.value.whereType<T>().toList();
   }
 
-  // 根据 ID 获取特定插件
+  // 根據 ID 獲取特定外掛
   T? getPlugin<T extends Plugin>(String id) {
     try {
       return _plugins.whereType<T>().firstWhere((p) => p.id == id);

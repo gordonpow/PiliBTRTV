@@ -6,7 +6,7 @@ import 'base_api.dart';
 
 /// Bilibili 直播 API
 class LiveApi {
-  /// 获取直播间信息 (包含真实 RoomID)
+  /// 獲取直播間資訊 (包含真實 RoomID)
   static Future<Map<String, dynamic>?> getRoomInfo(int roomId) async {
     try {
       final url =
@@ -27,9 +27,9 @@ class LiveApi {
     return null;
   }
 
-  /// 获取直播播放地址 (New API)
-  /// [roomId] 房间号
-  /// [qn] 画质 10000=原画
+  /// 獲取直播播放地址 (New API)
+  /// [roomId] 房間號
+  /// [qn] 畫質 10000=原畫
   static Future<Map<String, dynamic>?> getPlayUrl(
     int roomId, {
     int qn = 10000,
@@ -55,7 +55,7 @@ class LiveApi {
     return null;
   }
 
-  /// 获取弹幕服务器配置
+  /// 獲取彈幕伺服器配置
   static Future<Map<String, dynamic>?> getDanmakuConf(int roomId) async {
     // 1. Try XLIVE API (New)
     try {
@@ -111,7 +111,7 @@ class LiveApi {
     return null;
   }
 
-  /// 获取推荐直播列表
+  /// 獲取推薦直播列表
   static Future<List<dynamic>> getRecommended({
     int page = 1,
     int pageSize = 30,
@@ -120,7 +120,7 @@ class LiveApi {
   }) async {
     try {
       if (parentId > 0) {
-        // 使用 v3 接口获取指定父分区的内容 (v1 接口忽略 parent_area_id)
+        // 使用 v3 介面獲取指定父分區的內容 (v1 介面忽略 parent_area_id)
         final url =
             'https://api.live.bilibili.com/room/v3/area/getRoomList?parent_area_id=$parentId&area_id=$areaId&sort_type=online&page=$page&page_size=$pageSize';
 
@@ -135,7 +135,7 @@ class LiveApi {
           }
         }
       } else {
-        // 使用 v1 接口获取推荐 (全部/默认)
+        // 使用 v1 介面獲取推薦 (全部/預設)
         final url =
             'https://api.live.bilibili.com/room/v1/Area/getListByAreaID?areaId=$areaId&sort=online&pageSize=$pageSize&page=$page&parent_area_id=$parentId';
 
@@ -156,7 +156,7 @@ class LiveApi {
     return [];
   }
 
-  /// 获取我的关注正在直播
+  /// 獲取我的關注正在直播
   static Future<List<dynamic>> getFollowedLive({
     int page = 1,
     int pageSize = 20,
@@ -185,10 +185,10 @@ class LiveApi {
     return [];
   }
 
-  /// 获取直播分区列表 (父分区)
-  /// 如: 网游, 手游, 单机, 娱乐
+  /// 獲取直播分區列表 (父分區)
+  /// 如: 網遊, 手遊, 單機, 娛樂
   static Future<List<dynamic>> getParentAreas() async {
-    // 简化版：手动定义几个常用分区，或者调用 API
+    // 簡化版：手動定義幾個常用分區，或者呼叫 API
     // https://api.live.bilibili.com/room/v1/Area/getList?need_entrance=1&parent_area_id=0
     try {
       final url =
@@ -209,8 +209,8 @@ class LiveApi {
     return [];
   }
 
-  /// 获取与用户的关系 (关注状态)
-  /// [fid] 目标用户 UID
+  /// 獲取與使用者的關係 (關注狀態)
+  /// [fid] 目標使用者 UID
   static Future<Map<String, dynamic>?> getRelation(int fid) async {
     try {
       final url = 'https://api.bilibili.com/x/relation?fid=$fid';
@@ -230,9 +230,9 @@ class LiveApi {
     return null;
   }
 
-  /// 修改关注关系
-  /// [fid] 目标用户 UID
-  /// [act] 1=关注, 2=取消关注
+  /// 修改關注關係
+  /// [fid] 目標使用者 UID
+  /// [act] 1=關注, 2=取消關注
   static Future<bool> modifyRelation(int fid, int act) async {
     try {
       final url = 'https://api.bilibili.com/x/relation/modify';

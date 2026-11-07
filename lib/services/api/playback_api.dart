@@ -8,9 +8,9 @@ import '../auth_service.dart';
 import '../codec_service.dart';
 import '../settings_service.dart';
 
-/// 播放相关 API (视频详情、播放地址、弹幕、进度上报)
+/// 播放相關 API (影片詳情、播放地址、彈幕、進度上報)
 class PlaybackApi {
-  /// 获取视频详情（包含分P信息和播放历史）
+  /// 獲取影片詳情（包含分P資訊和播放歷史）
   static Future<Map<String, dynamic>?> getVideoInfo(String bvid) async {
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -34,7 +34,7 @@ class PlaybackApi {
     return null;
   }
 
-  /// 获取视频的 cid (用于播放和弹幕)
+  /// 獲取影片的 cid (用於播放和彈幕)
   static Future<int?> getVideoCid(String bvid) async {
     try {
       final url = 'https://api.bilibili.com/x/web-interface/view?bvid=$bvid';
@@ -56,9 +56,9 @@ class PlaybackApi {
     return null;
   }
 
-  /// 获取视频播放地址
+  /// 獲取影片播放地址
   /// 返回 {'url': String, 'audioUrl': String?, 'qualities': List<Map>, 'currentQuality': int, 'isDash': bool}
-  /// [forceCodec] 强制指定编码器 (用于失败重试)
+  /// [forceCodec] 強制指定編碼器 (用於失敗重試)
   static Future<Map<String, dynamic>?> getVideoPlayUrl({
     required String bvid,
     required int cid,
@@ -72,7 +72,7 @@ class PlaybackApi {
         'bvid': bvid,
         'cid': cid.toString(),
         'qn': qn.toString(),
-        'fnval': '4048', // 请求 DASH + HEVC + AV1 + HDR 等全格式
+        'fnval': '4048', // 請求 DASH + HEVC + AV1 + HDR 等全格式
         'fnver': '0',
         'fourk': '1',
       };
@@ -142,13 +142,13 @@ class PlaybackApi {
 
               dynamic selectedVideo;
 
-              // 获取硬件解码器支持列表
+              // 獲取硬體解碼器支援列表
               final hwDecoders = await CodecService.getHardwareDecoders();
               final hasAv1Hw = hwDecoders.contains('av1');
               final hasHevcHw = hwDecoders.contains('hevc');
               final hasAvcHw = hwDecoders.contains('avc');
 
-              // 1. 如果指定了 forceCodec（失败回退时），优先使用
+              // 1. 如果指定了 forceCodec（失敗回退時），優先使用
               if (forceCodec != null && forceCodec != VideoCodec.auto) {
                 selectedVideo = candidateVideos.firstWhere((v) {
                   final codecs = v['codecs'] as String? ?? '';
@@ -156,18 +156,18 @@ class PlaybackApi {
                 }, orElse: () => null);
               }
 
-              // 2. 首次尝试（forceCodec==null），使用用户设置
+              // 2. 首次嘗試（forceCodec==null），使用使用者設定
               if (selectedVideo == null && forceCodec == null) {
                 final userCodec = SettingsService.preferredCodec;
 
                 if (userCodec != VideoCodec.auto) {
-                  // 用户指定了具体编码器
+                  // 使用者指定了具體編碼器
                   selectedVideo = candidateVideos.firstWhere((v) {
                     final codecs = v['codecs'] as String? ?? '';
                     return codecs.startsWith(userCodec.prefix);
                   }, orElse: () => null);
                 } else {
-                  // 用户设置是"自动"，智能选硬解最优: AV1 > HEVC > AVC
+                  // 使用者設定是"自動"，智慧選硬解最優: AV1 > HEVC > AVC
                   if (hasAv1Hw) {
                     selectedVideo = candidateVideos.firstWhere((v) {
                       final codecs = v['codecs'] as String? ?? '';
@@ -192,7 +192,7 @@ class PlaybackApi {
                 }
               }
 
-              // 3. 兜底：确保有视频（可能会用软解）
+              // 3. 兜底：確保有影片（可能會用軟解）
               selectedVideo ??= candidateVideos.first;
 
               videoUrl = selectedVideo['baseUrl'] ?? selectedVideo['base_url'];
@@ -228,23 +228,23 @@ class PlaybackApi {
             }
           }
         } else {
-          // API 返回错误码
+          // API 返回錯誤碼
           throw Exception(
-            'API错误: ${json['code']} - ${json['message'] ?? '未知错误'}',
+            'API錯誤: ${json['code']} - ${json['message'] ?? '未知錯誤'}',
           );
         }
       } else {
-        // HTTP 错误
+        // HTTP 錯誤
         throw Exception('HTTP ${response.statusCode}');
       }
     } catch (e) {
-      // 返回错误信息而不是 null
+      // 返回錯誤資訊而不是 null
       return {'error': e.toString()};
     }
     return null;
   }
 
-  /// 获取弹幕数据 (XML 格式，支持 deflate/gzip/raw)
+  /// 獲取彈幕資料 (XML 格式，支援 deflate/gzip/raw)
   static Future<List<Map<String, dynamic>>> getDanmaku(int cid) async {
     try {
       final url = 'https://comment.bilibili.com/$cid.xml';
@@ -303,12 +303,12 @@ class PlaybackApi {
         return danmakuList;
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return [];
   }
 
-  /// 上报播放进度 (Heartbeat)
+  /// 上報播放進度 (Heartbeat)
   static Future<bool> reportProgress({
     required String bvid,
     required int cid,
@@ -349,13 +349,13 @@ class PlaybackApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return false;
   }
 
-  /// 获取视频在线观看人数
-  /// 返回 { 'total': 总人数字符串, 'count': 本视频在线人数字符串 }
+  /// 獲取影片線上觀看人數
+  /// 返回 { 'total': 總人數字串, 'count': 本影片線上人數字串 }
   static Future<Map<String, String>?> getOnlineCount({
     required int aid,
     required int cid,
@@ -376,7 +376,7 @@ class PlaybackApi {
         }
       }
     } catch (e) {
-      // 忽略错误
+      // 忽略錯誤
     }
     return null;
   }

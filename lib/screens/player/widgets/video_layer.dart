@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:video_player/video_player.dart';
 
 class VideoLayer extends StatelessWidget {

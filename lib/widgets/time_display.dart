@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 
 class TimeDisplay extends StatefulWidget {
   final TextStyle? textStyle;

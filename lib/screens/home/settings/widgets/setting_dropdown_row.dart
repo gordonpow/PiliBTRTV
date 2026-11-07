@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 
-/// 设置页下拉选择行组件
+/// 設定頁下拉選擇行元件
 ///
-/// 使用统一的焦点管理系统，支持左右键切换选项
+/// 使用統一的焦點管理系統，支援左右鍵切換選項
 class SettingDropdownRow<T> extends StatelessWidget {
   final String label;
   final String? subtitle;
@@ -42,7 +42,7 @@ class SettingDropdownRow<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return Focus(
       onKeyEvent: (node, event) {
-        // 处理左右键导航和值切换
+        // 處理左右鍵導航和值切換
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
         switch (event.logicalKey) {

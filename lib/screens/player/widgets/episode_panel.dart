@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 
 class EpisodePanel extends StatefulWidget {
   final List<dynamic> episodes;
@@ -91,7 +91,7 @@ class _EpisodePanelState extends State<EpisodePanel> {
               child: const Row(
                 children: [
                   Text(
-                    '选集',
+                    '選集',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,

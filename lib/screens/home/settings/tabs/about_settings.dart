@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/utils/zh_toast.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../../../../services/update_service.dart';
 import '../widgets/setting_action_row.dart';
@@ -48,7 +49,7 @@ class _AboutSettingsState extends State<AboutSettings> {
     setState(() => _isCheckingUpdate = false);
 
     if (result.error != null) {
-      Fluttertoast.showToast(
+      showZhToast(
         msg: result.error!,
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.CENTER,
@@ -65,7 +66,7 @@ class _AboutSettingsState extends State<AboutSettings> {
         },
       );
     } else {
-      Fluttertoast.showToast(
+      showZhToast(
         msg: '已是最新版本',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.CENTER,
@@ -79,9 +80,9 @@ class _AboutSettingsState extends State<AboutSettings> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SettingActionRow(
-          label: '检查更新',
-          value: '当前版本: $_currentVersion',
-          buttonLabel: _isCheckingUpdate ? '检查中...' : '检查',
+          label: '檢查更新',
+          value: '當前版本: $_currentVersion',
+          buttonLabel: _isCheckingUpdate ? '檢查中...' : '檢查',
           autofocus: true,
           focusNode: _buttonFocusNode,
           isFirst: true,

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:keframe/keframe.dart';
 import 'tv_live_card.dart';
 
@@ -33,7 +33,7 @@ class _TvLiveHorizontalListState extends State<TvLiveHorizontalList> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 标题
+          // 標題
           Padding(
             padding: const EdgeInsets.only(left: 24, bottom: 12, top: 24),
             child: Text(
@@ -59,7 +59,7 @@ class _TvLiveHorizontalListState extends State<TvLiveHorizontalList> {
                 return FrameSeparateWidget(
                   index: index,
                   child: Container(
-                    width: 240, // 固定宽度
+                    width: 240, // 固定寬度
                     margin: const EdgeInsets.only(right: 20),
                     child: TvLiveCard(
                       room: item,
@@ -82,14 +82,14 @@ class _TvLiveHorizontalListState extends State<TvLiveHorizontalList> {
   }
 
   void _scrollToIndex(int index) {
-    // 简单的滚动逻辑: 居中显示
+    // 簡單的滾動邏輯: 居中顯示
     // 240 width + 20 margin = 260
     final offset = index * 260.0;
-    // 屏幕宽度假设 1920?
-    // 让其尽可能居中或靠左显示
+    // 螢幕寬度假設 1920?
+    // 讓其儘可能居中或靠左顯示
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        offset, // 简单靠左滚动
+        offset, // 簡單靠左滾動
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );

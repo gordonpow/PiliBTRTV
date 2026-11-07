@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -21,7 +21,7 @@ import 'mixins/player_state_mixin.dart';
 import 'mixins/player_action_mixin.dart';
 import 'mixins/player_event_mixin.dart';
 
-/// 视频播放器页面 (使用 Mixin 重构)
+/// 影片播放器頁面 (使用 Mixin 重構)
 class PlayerScreen extends StatefulWidget {
   final Video video;
 
@@ -41,7 +41,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // 保持屏幕常亮，防止电视待机
+    // 保持螢幕常亮，防止電視待機
     WakelockPlus.enable();
     loadSettings();
     initializePlayer();
@@ -50,7 +50,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // 应用进入后台时上报进度 (包括按主页键)
+    // 應用進入後臺時上報進度 (包括按主頁鍵)
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       reportPlaybackProgress();
@@ -59,15 +59,15 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   void dispose() {
-    // 恢复屏幕休眠
+    // 恢復螢幕休眠
     WakelockPlus.disable();
     WidgetsBinding.instance.removeObserver(this);
     hideTimer?.cancel();
     progressReportTimer?.cancel();
-    // 退出时上报进度
+    // 退出時上報進度
     reportPlaybackProgress();
 
-    // 通过 mixin 方法销毁播放器
+    // 通過 mixin 方法銷燬播放器
     disposePlayer();
     super.dispose();
   }
@@ -84,21 +84,21 @@ class _PlayerScreenState extends State<PlayerScreen>
           onKeyEvent: handleGlobalKeyEvent,
           child: Stack(
             children: [
-              // 视频层
+              // 影片層
               VideoLayer(
                 controller: videoController,
                 isLoading: isLoading,
                 errorMessage: errorMessage,
               ),
 
-              // 弹幕层
+              // 彈幕層
               if (!isLoading && videoController != null && danmakuEnabled)
                 DanmakuLayer(
                   onCreated: (c) => danmakuController = c,
                   option: DanmakuOption(
                     opacity: danmakuOpacity,
                     fontSize: danmakuFontSize,
-                    // 弹幕飞行速度随播放倍速同步调整
+                    // 彈幕飛行速度隨播放倍速同步調整
                     duration: danmakuSpeed / playbackSpeed,
                     area: danmakuArea,
                     hideTop: hideTopDanmaku,
@@ -106,11 +106,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ),
                 ),
 
-              // 暂停指示器
+              // 暫停指示器
               if (!isLoading && videoController != null)
                 PauseIndicator(controller: videoController),
 
-              // 迷你进度条 (控制栏隐藏时显示)
+              // 迷你進度條 (控制欄隱藏時顯示)
               if (!isLoading &&
                   videoController != null &&
                   !showControls &&
@@ -120,7 +120,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   duration: videoController!.value.duration,
                 ),
 
-              // 快进快退指示器 (含预览缩略图)
+              // 快進快退指示器 (含預覽縮圖)
               if (showSeekIndicator && videoController != null)
                 Center(
                   child: Container(
@@ -132,7 +132,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // 预览模式: 显示缩略图
+                        // 預覽模式: 顯示縮圖
                         if (isSeekPreviewMode &&
                             previewPosition != null &&
                             videoshotData != null)
@@ -144,7 +144,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                               scale: 0.6,
                             ),
                           ),
-                        // 时间指示器
+                        // 時間指示器
                         Text(
                           isSeekPreviewMode && previewPosition != null
                               ? '${_formatSeekTime(previewPosition!)} / ${_formatSeekTime(videoController!.value.duration)}'
@@ -162,12 +162,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                             ],
                           ),
                         ),
-                        // 预览模式提示
+                        // 預覽模式提示
                         if (isSeekPreviewMode)
                           const Padding(
                             padding: EdgeInsets.only(top: 8),
                             child: Text(
-                              '按确定跳转',
+                              '按確定跳轉',
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -179,7 +179,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ),
                 ),
 
-              // 控制界面
+              // 控制介面
               if (!isLoading && videoController != null)
                 AnimatedOpacity(
                   opacity: showControls ? 1.0 : 0.0,
@@ -214,20 +214,20 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ),
                 ),
 
-              // 常驻时间显示 (当启用且不显示控制栏时，或 controlsOverlay 隐藏了其内部时间时)
-              // 注意：ControlsOverlay 在 alwaysShowPlayerTime=true 时会隐藏内部时间但保留占位
-              // 常驻时间显示 (当启用且不显示控制栏时，或 controlsOverlay 隐藏了其内部时间时)
-              // 注意：ControlsOverlay 在 alwaysShowPlayerTime=true 时会隐藏内部时间但保留占位
+              // 常駐時間顯示 (當啟用且不顯示控制欄時，或 controlsOverlay 隱藏了其內部時間時)
+              // 注意：ControlsOverlay 在 alwaysShowPlayerTime=true 時會隱藏內部時間但保留佔位
+              // 常駐時間顯示 (當啟用且不顯示控制欄時，或 controlsOverlay 隱藏了其內部時間時)
+              // 注意：ControlsOverlay 在 alwaysShowPlayerTime=true 時會隱藏內部時間但保留佔位
               if (SettingsService.alwaysShowPlayerTime)
                 const Positioned(top: 20, right: 30, child: TimeDisplay()),
 
-              // 进度条拖动预览
+              // 進度條拖動預覽
               if (isProgressBarFocused &&
                   previewPosition != null &&
                   videoController != null)
                 _buildProgressPreview(),
 
-              // 点赞/投币/收藏按钮
+              // 點贊/投幣/收藏按鈕
               if (showActionButtons && !isLoading && videoController != null)
                 Positioned(
                   bottom: 100,
@@ -249,7 +249,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ),
                 ),
 
-              // 选集面板
+              // 選集面板
               if (showEpisodePanel)
                 EpisodePanel(
                   episodes: episodes,
@@ -265,7 +265,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   },
                 ),
 
-              // 设置面板
+              // 設定面板
               if (showSettingsPanel)
                 SettingsPanel(
                   menuType: settingsMenuType,
@@ -312,7 +312,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   },
                 ),
 
-              // 更多视频面板
+              // 更多影片面板
               if (showRelatedPanel)
                 RelatedPanel(
                   bvid: widget.video.bvid,
@@ -333,7 +333,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   },
                 ),
 
-              // 插件跳过按钮
+              // 外掛跳過按鈕
               _buildSkipButton(),
             ],
           ),
@@ -393,7 +393,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           ),
           const SizedBox(height: 8),
           const Text(
-            '← → 拖动  ↑ 取消  确定 跳转',
+            '← → 拖動  ↑ 取消  確定 跳轉',
             style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
         ],

@@ -6,12 +6,12 @@ import '../plugins/ad_filter_plugin.dart';
 import '../plugins/danmaku_enhance_plugin.dart';
 import '../core/plugin/plugin_manager.dart';
 
-/// 全局 HTTP 服务
+/// 全域性 HTTP 服務
 ///
 /// 提供:
-/// 1. MPD 文件代理 (播放器使用)
-/// 2. 插件配置 REST API
-/// 3. Web 管理界面
+/// 1. MPD 檔案代理 (播放器使用)
+/// 2. 外掛配置 REST API
+/// 3. Web 管理介面
 class LocalServer {
   static final LocalServer _instance = LocalServer._internal();
   static LocalServer get instance => _instance;
@@ -24,24 +24,24 @@ class LocalServer {
 
   static const int port = 3322;
 
-  /// 服务是否正在运行
+  /// 服務是否正在執行
   bool get isRunning => _server != null;
 
-  /// 获取服务地址 (用于显示)
+  /// 獲取服務地址 (用於顯示)
   String? get address => _localIp != null ? 'http://$_localIp:$port' : null;
 
-  /// 获取 MPD 播放地址
+  /// 獲取 MPD 播放地址
   String get mpdUrl => 'http://127.0.0.1:$port/video.mpd';
 
-  /// 启动服务
+  /// 啟動服務
   Future<void> start() async {
     if (_server != null) return;
 
     try {
-      // 获取本地 IP（使用 NetworkInterface）
+      // 獲取本地 IP（使用 NetworkInterface）
       _localIp = await _getLocalIp();
 
-      // 绑定到所有网络接口
+      // 繫結到所有網路介面
       _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
       _server!.listen(_handleRequest);
 
@@ -51,7 +51,7 @@ class LocalServer {
     }
   }
 
-  /// 获取本地 WiFi/以太网 IP 地址
+  /// 獲取本地 WiFi/乙太網路 IP 地址
   Future<String?> _getLocalIp() async {
     try {
       final interfaces = await NetworkInterface.list(
@@ -59,7 +59,7 @@ class LocalServer {
         includeLoopback: false,
       );
       for (var interface in interfaces) {
-        // 优先选择 WiFi 或以太网接口
+        // 優先選擇 WiFi 或乙太網路介面
         final name = interface.name.toLowerCase();
         if (name.contains('wlan') ||
             name.contains('wifi') ||
@@ -72,7 +72,7 @@ class LocalServer {
           }
         }
       }
-      // 回退：返回第一个非回环地址
+      // 回退：返回第一個非迴環地址
       for (var interface in interfaces) {
         for (var addr in interface.addresses) {
           if (!addr.isLoopback) {
@@ -86,7 +86,7 @@ class LocalServer {
     return null;
   }
 
-  /// 停止服务
+  /// 停止服務
   Future<void> stop() async {
     await _server?.close();
     _server = null;
@@ -94,19 +94,19 @@ class LocalServer {
     debugPrint('🔴 LocalServer stopped');
   }
 
-  /// 设置当前 MPD 内容
+  /// 設定當前 MPD 內容
   void setMpdContent(String content) {
     _currentMpdContent = content;
   }
 
-  /// 清除 MPD 内容
+  /// 清除 MPD 內容
   void clearMpdContent() {
     _currentMpdContent = null;
   }
 
-  /// 处理 HTTP 请求
+  /// 處理 HTTP 請求
   Future<void> _handleRequest(HttpRequest request) async {
-    // CORS 头
+    // CORS 頭
     request.response.headers.add('Access-Control-Allow-Origin', '*');
     request.response.headers.add(
       'Access-Control-Allow-Methods',
@@ -117,7 +117,7 @@ class LocalServer {
       'Content-Type',
     );
 
-    // 预检请求
+    // 預檢請求
     if (request.method == 'OPTIONS') {
       request.response.statusCode = 200;
       await request.response.close();
@@ -127,7 +127,7 @@ class LocalServer {
     final path = request.uri.path;
 
     try {
-      // MPD 文件
+      // MPD 檔案
       if (path.endsWith('.mpd')) {
         await _serveMpd(request);
       }
@@ -135,7 +135,7 @@ class LocalServer {
       else if (path.startsWith('/api/')) {
         await _handleApi(request);
       }
-      // Web 管理界面
+      // Web 管理介面
       else if (path == '/' || path == '/index.html') {
         await _serveWebUI(request);
       }
@@ -152,7 +152,7 @@ class LocalServer {
     await request.response.close();
   }
 
-  /// 提供 MPD 文件
+  /// 提供 MPD 檔案
   Future<void> _serveMpd(HttpRequest request) async {
     if (_currentMpdContent == null) {
       request.response.statusCode = 404;
@@ -167,16 +167,16 @@ class LocalServer {
     request.response.write(_currentMpdContent);
   }
 
-  /// 处理 API 请求
+  /// 處理 API 請求
   Future<void> _handleApi(HttpRequest request) async {
     final path = request.uri.path;
     final method = request.method;
 
-    // 去广告插件 API
+    // 去廣告外掛 API
     if (path.startsWith('/api/ad-filter/')) {
       await _handleAdFilterApi(request, path, method);
     }
-    // 弹幕增强插件 API
+    // 彈幕增強外掛 API
     else if (path.startsWith('/api/danmaku/')) {
       await _handleDanmakuApi(request, path, method);
     } else {
@@ -185,7 +185,7 @@ class LocalServer {
     }
   }
 
-  /// 去广告插件 API
+  /// 去廣告外掛 API
   Future<void> _handleAdFilterApi(
     HttpRequest request,
     String path,
@@ -197,7 +197,7 @@ class LocalServer {
       return;
     }
 
-    // /api/ad-filter/config - 获取/更新配置
+    // /api/ad-filter/config - 獲取/更新配置
     if (path == '/api/ad-filter/config') {
       if (method == 'GET') {
         final config = plugin.getConfig();
@@ -259,7 +259,7 @@ class LocalServer {
         _jsonResponse(request, {'error': 'Method not allowed'}, 405);
       }
     }
-    // /api/ad-filter/upnames - UP主名称黑名单
+    // /api/ad-filter/upnames - UP主名稱黑名單
     else if (path == '/api/ad-filter/upnames') {
       if (method == 'GET') {
         _jsonResponse(request, {'upnames': plugin.getBlockedUpNames()});
@@ -288,7 +288,7 @@ class LocalServer {
         _jsonResponse(request, {'error': 'Method not allowed'}, 405);
       }
     }
-    // /api/ad-filter/blocked - UP主 MID 黑名单
+    // /api/ad-filter/blocked - UP主 MID 黑名單
     else if (path == '/api/ad-filter/blocked') {
       if (method == 'GET') {
         _jsonResponse(request, {'blocked': plugin.getBlockedMids()});
@@ -311,7 +311,7 @@ class LocalServer {
     }
   }
 
-  /// 弹幕增强插件 API
+  /// 彈幕增強外掛 API
   Future<void> _handleDanmakuApi(
     HttpRequest request,
     String path,
@@ -325,7 +325,7 @@ class LocalServer {
       return;
     }
 
-    // /api/danmaku/config - 获取/更新配置
+    // /api/danmaku/config - 獲取/更新配置
     if (path == '/api/danmaku/config') {
       if (method == 'GET') {
         final config = plugin.getConfig();
@@ -374,7 +374,7 @@ class LocalServer {
         _jsonResponse(request, {'error': 'Method not allowed'}, 405);
       }
     }
-    // 兼容旧 API: /api/danmaku/block/{keyword}
+    // 相容舊 API: /api/danmaku/block/{keyword}
     else if (path.startsWith('/api/danmaku/block/') &&
         !path.contains('/full')) {
       final keyword = Uri.decodeComponent(
@@ -387,7 +387,7 @@ class LocalServer {
         _jsonResponse(request, {'error': 'Method not allowed'}, 405);
       }
     }
-    // /api/danmaku/block/full (全词匹配)
+    // /api/danmaku/block/full (全詞匹配)
     else if (path == '/api/danmaku/block/full') {
       if (method == 'GET') {
         _jsonResponse(request, {'keywords': plugin.getFullKeywords()});
@@ -432,7 +432,7 @@ class LocalServer {
     }
   }
 
-  /// 读取 JSON 请求体
+  /// 讀取 JSON 請求體
   Future<Map<String, dynamic>?> _readJsonBody(HttpRequest request) async {
     try {
       final content = await utf8.decoder.bind(request).join();
@@ -442,7 +442,7 @@ class LocalServer {
     }
   }
 
-  /// 发送 JSON 响应
+  /// 傳送 JSON 響應
   void _jsonResponse(
     HttpRequest request,
     Map<String, dynamic> data, [
@@ -453,20 +453,20 @@ class LocalServer {
     request.response.write(jsonEncode(data));
   }
 
-  /// 提供 Web 管理界面
+  /// 提供 Web 管理介面
   Future<void> _serveWebUI(HttpRequest request) async {
     request.response.headers.contentType = ContentType.html;
     request.response.write(_webUIHtml);
   }
 
-  /// Web 管理界面 HTML
+  /// Web 管理介面 HTML
   static const String _webUIHtml = '''
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BiliTV 插件管理</title>
+  <title>BiliTV 外掛管理</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
@@ -644,31 +644,31 @@ class LocalServer {
 </head>
 <body>
   <div class="container">
-    <h1>📺 BiliTV 插件管理</h1>
+    <h1>📺 BiliTV 外掛管理</h1>
     
-    <!-- 去广告插件 -->
+    <!-- 去廣告外掛 -->
     <div class="card">
-      <h2>🚫 去广告增强</h2>
+      <h2>🚫 去廣告增強</h2>
       
-      <!-- 过滤开关 -->
+      <!-- 過濾開關 -->
       <div class="switch-row">
         <div class="switch-label">
-          <span>过滤广告推广</span>
-          <span>隐藏商业合作、恰饭、推广等内容</span>
+          <span>過濾廣告推廣</span>
+          <span>隱藏商業合作、恰飯、推廣等內容</span>
         </div>
         <div class="switch" id="filterSponsored" onclick="toggleAdConfig('filterSponsored')"></div>
       </div>
       <div class="switch-row">
         <div class="switch-label">
-          <span>过滤标题党</span>
-          <span>隐藏震惊体、夸张标题视频</span>
+          <span>過濾標題黨</span>
+          <span>隱藏震驚體、誇張標題影片</span>
         </div>
         <div class="switch" id="filterClickbait" onclick="toggleAdConfig('filterClickbait')"></div>
       </div>
       <div class="switch-row">
         <div class="switch-label">
-          <span>过滤低播放量</span>
-          <span>隐藏播放量低于1000的视频</span>
+          <span>過濾低播放量</span>
+          <span>隱藏播放量低於1000的影片</span>
         </div>
         <div class="switch" id="filterLowQuality" onclick="toggleAdConfig('filterLowQuality')"></div>
       </div>
@@ -678,55 +678,55 @@ class LocalServer {
       <!-- UP主拉黑 -->
       <h3>👤 UP主拉黑</h3>
       <div class="input-row">
-        <input type="text" id="upNameInput" placeholder="输入UP主名称">
-        <button onclick="addUpName()">添加</button>
+        <input type="text" id="upNameInput" placeholder="輸入UP主名稱">
+        <button onclick="addUpName()">新增</button>
       </div>
       <div class="tags" id="upNames"></div>
       
       <div class="divider"></div>
       
-      <!-- 自定义关键词 -->
-      <h3>🔤 自定义屏蔽关键词</h3>
-      <p style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:12px;">标题中包含这些关键词的视频将被屏蔽</p>
+      <!-- 自定義關鍵詞 -->
+      <h3>🔤 自定義遮蔽關鍵詞</h3>
+      <p style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:12px;">標題中包含這些關鍵詞的影片將被遮蔽</p>
       <div class="input-row">
-        <input type="text" id="adKeywordInput" placeholder="输入要屏蔽的标题关键词">
-        <button onclick="addAdKeyword()">添加</button>
+        <input type="text" id="adKeywordInput" placeholder="輸入要遮蔽的標題關鍵詞">
+        <button onclick="addAdKeyword()">新增</button>
       </div>
       <div class="tags" id="adKeywords"></div>
     </div>
 
-    <!-- 弹幕屏蔽插件 -->
+    <!-- 彈幕遮蔽外掛 -->
     <div class="card">
-      <h2>💬 弹幕屏蔽</h2>
+      <h2>💬 彈幕遮蔽</h2>
       
-      <!-- 开关 -->
+      <!-- 開關 -->
       <div class="switch-row">
         <div class="switch-label">
-          <span>启用弹幕屏蔽</span>
-          <span>屏蔽包含指定关键词的弹幕</span>
+          <span>啟用彈幕遮蔽</span>
+          <span>遮蔽包含指定關鍵詞的彈幕</span>
         </div>
         <div class="switch" id="enableFilter" onclick="toggleDanmakuConfig('enableFilter')"></div>
       </div>
       
       <div class="divider"></div>
       
-      <!-- 部分匹配关键词 -->
-      <h3>📝 部分匹配关键词</h3>
-      <p style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:12px;">包含即屏蔽（如 "第一" 会屏蔽 "我是第一名"）</p>
+      <!-- 部分匹配關鍵詞 -->
+      <h3>📝 部分匹配關鍵詞</h3>
+      <p style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:12px;">包含即遮蔽（如 "第一" 會遮蔽 "我是第一名"）</p>
       <div class="input-row">
-        <input type="text" id="partialKeywordInput" placeholder="输入部分匹配关键词">
-        <button onclick="addDanmakuKeyword('partial')">添加</button>
+        <input type="text" id="partialKeywordInput" placeholder="輸入部分匹配關鍵詞">
+        <button onclick="addDanmakuKeyword('partial')">新增</button>
       </div>
       <div class="tags" id="partialKeywords"></div>
 
       <div class="divider" style="margin: 20px 0;"></div>
 
-      <!-- 全词匹配关键词 -->
-      <h3>🔤 全词匹配关键词</h3>
-      <p style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:12px;">必须完全一致才屏蔽（如 "第一" 只屏蔽 "第一"）</p>
+      <!-- 全詞匹配關鍵詞 -->
+      <h3>🔤 全詞匹配關鍵詞</h3>
+      <p style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:12px;">必須完全一致才遮蔽（如 "第一" 只遮蔽 "第一"）</p>
       <div class="input-row">
-        <input type="text" id="fullKeywordInput" placeholder="输入全词匹配关键词">
-        <button onclick="addDanmakuKeyword('full')">添加</button>
+        <input type="text" id="fullKeywordInput" placeholder="輸入全詞匹配關鍵詞">
+        <button onclick="addDanmakuKeyword('full')">新增</button>
       </div>
       <div class="tags" id="fullKeywords"></div>
     </div>
@@ -737,7 +737,7 @@ class LocalServer {
     let danmakuConfig = {};
 
     async function loadData() {
-      // 加载去广告配置
+      // 載入去廣告配置
       try {
         const configRes = await fetch('/api/ad-filter/config');
         adConfig = await configRes.json();
@@ -746,36 +746,36 @@ class LocalServer {
         updateSwitch('filterLowQuality', adConfig.filterLowQuality);
       } catch (e) { console.error(e); }
 
-      // 加载UP主名称
+      // 載入UP主名稱
       try {
         const upRes = await fetch('/api/ad-filter/upnames');
         const upData = await upRes.json();
         renderTags('upNames', upData.upnames || [], deleteUpName, false, true);
       } catch (e) { console.error(e); }
 
-      // 加载自定义关键词
+      // 載入自定義關鍵詞
       try {
         const adRes = await fetch('/api/ad-filter/keywords');
         const adData = await adRes.json();
         renderTags('adKeywords', adData.keywords || [], deleteAdKeyword);
       } catch (e) { console.error(e); }
 
-      // 加载弹幕配置
+      // 載入彈幕配置
       try {
         const dmConfigRes = await fetch('/api/danmaku/config');
         danmakuConfig = await dmConfigRes.json();
         updateSwitch('enableFilter', danmakuConfig.enableFilter);
       } catch (e) { console.error(e); }
 
-      // 加载部分匹配关键词
+      // 載入部分匹配關鍵詞
       loadDanmakuKeywords('partial');
-      // 加载全词匹配关键词
+      // 載入全詞匹配關鍵詞
       loadDanmakuKeywords('full');
     }
 
     async function loadDanmakuKeywords(type) {
       try {
-        // partial 也可以用 /api/danmaku/block (兼容)
+        // partial 也可以用 /api/danmaku/block (相容)
         const path = type === 'partial' ? '/api/danmaku/block' : '/api/danmaku/block/' + type;
         const res = await fetch(path);
         const data = await res.json();
@@ -814,7 +814,7 @@ class LocalServer {
       const container = document.getElementById(containerId);
       if (!container) return;
       if (keywords.length === 0) {
-        container.innerHTML = '<span class="empty">暂无</span>';
+        container.innerHTML = '<span class="empty">暫無</span>';
         return;
       }
       container.innerHTML = '';
@@ -879,7 +879,7 @@ class LocalServer {
         body: JSON.stringify({ keyword })
       });
       input.value = '';
-      loadDanmakuKeywords(type); // 只刷新对应列表
+      loadDanmakuKeywords(type); // 只重新整理對應列表
     }
 
     async function deleteDanmakuKeyword(type, keyword) {
@@ -888,10 +888,10 @@ class LocalServer {
         : '/api/danmaku/block/' + type + '/' + encodeURIComponent(keyword);
         
       await fetch(path, { method: 'DELETE' });
-      loadDanmakuKeywords(type); // 只刷新对应列表
+      loadDanmakuKeywords(type); // 只重新整理對應列表
     }
 
-    // 回车键提交
+    // 回車鍵提交
     document.getElementById('upNameInput').addEventListener('keypress', e => {
       if (e.key === 'Enter') addUpName();
     });

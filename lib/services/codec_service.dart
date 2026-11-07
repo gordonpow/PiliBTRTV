@@ -1,13 +1,13 @@
 import 'package:flutter/services.dart';
 
-/// 编解码器服务 - 查询设备硬件解码能力
+/// 編解碼器服務 - 查詢裝置硬體解碼能力
 class CodecService {
   static const _channel = MethodChannel('com.bili.tv/codec');
 
-  // 缓存硬件解码器列表
+  // 快取硬體解碼器列表
   static List<String>? _hardwareDecoders;
 
-  /// 获取设备支持的硬件解码格式
+  /// 獲取裝置支援的硬體解碼格式
   /// 返回: ['avc', 'hevc', 'av1', 'vp9'] 等
   static Future<List<String>> getHardwareDecoders() async {
     if (_hardwareDecoders != null) {
@@ -19,23 +19,23 @@ class CodecService {
       _hardwareDecoders = List<String>.from(result ?? []);
       return _hardwareDecoders!;
     } catch (e) {
-      // 如果查询失败，返回空列表（将使用所有编码器）
+      // 如果查詢失敗，返回空列表（將使用所有編碼器）
       return [];
     }
   }
 
-  /// 检查是否支持指定格式的硬件解码
+  /// 檢查是否支援指定格式的硬體解碼
   static Future<bool> hasHardwareDecoder(String codec) async {
     final decoders = await getHardwareDecoders();
     return decoders.contains(codec.toLowerCase());
   }
 
-  /// 检查是否支持 H.264 硬解
+  /// 檢查是否支援 H.264 硬解
   static Future<bool> hasAvcHardware() => hasHardwareDecoder('avc');
 
-  /// 检查是否支持 HEVC 硬解
+  /// 檢查是否支援 HEVC 硬解
   static Future<bool> hasHevcHardware() => hasHardwareDecoder('hevc');
 
-  /// 检查是否支持 AV1 硬解
+  /// 檢查是否支援 AV1 硬解
   static Future<bool> hasAv1Hardware() => hasHardwareDecoder('av1');
 }

@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 
-/// 虚拟键盘按钮
+/// 虛擬鍵盤按鈕
 class TvKeyboardButton extends StatefulWidget {
   final String label;
   final VoidCallback onTap;
   final VoidCallback? onMoveLeft;
-  final VoidCallback? onBack; // 返回键回调
+  final VoidCallback? onBack; // 返回鍵回撥
 
   const TvKeyboardButton({
     super.key,
@@ -34,7 +34,7 @@ class _TvKeyboardButtonState extends State<TvKeyboardButton> {
             widget.onMoveLeft!();
             return KeyEventResult.handled;
           }
-          // 返回键
+          // 返回鍵
           if ((event.logicalKey == LogicalKeyboardKey.escape ||
                   event.logicalKey == LogicalKeyboardKey.goBack ||
                   event.logicalKey == LogicalKeyboardKey.browserBack) &&
@@ -71,13 +71,13 @@ class _TvKeyboardButtonState extends State<TvKeyboardButton> {
   }
 }
 
-/// 操作按钮 (搜索/清空等)
+/// 操作按鈕 (搜尋/清空等)
 class TvActionButton extends StatefulWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
   final VoidCallback? onMoveLeft;
-  final VoidCallback? onBack; // 返回键回调
+  final VoidCallback? onBack; // 返回鍵回撥
 
   const TvActionButton({
     super.key,
@@ -106,7 +106,7 @@ class _TvActionButtonState extends State<TvActionButton> {
             widget.onMoveLeft!();
             return KeyEventResult.handled;
           }
-          // 返回键
+          // 返回鍵
           if ((event.logicalKey == LogicalKeyboardKey.escape ||
                   event.logicalKey == LogicalKeyboardKey.goBack ||
                   event.logicalKey == LogicalKeyboardKey.browserBack) &&

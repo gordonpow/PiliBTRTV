@@ -1,20 +1,20 @@
-import 'package:flutter/widgets.dart';
+import 'package:bili_tv_app/widgets/zh_widgets.dart';
 import 'package:flutter/services.dart';
 
-/// 播放器内部焦点导航工具
+/// 播放器內部焦點導航工具
 ///
-/// 提供播放器面板内的焦点导航逻辑，可被 player_event_mixin 使用
+/// 提供播放器面板內的焦點導航邏輯，可被 player_event_mixin 使用
 class PlayerFocusHandler {
-  /// 处理控制栏按钮导航（水平模式）
+  /// 處理控制欄按鈕導航（水平模式）
   ///
-  /// [event] - 键盘事件
-  /// [currentIndex] - 当前聚焦按钮索引
-  /// [maxIndex] - 最大按钮索引
-  /// [onIndexChange] - 索引变化回调
-  /// [onSelect] - 确认键回调
-  /// [onHide] - 隐藏控制栏回调（上下键触发）
+  /// [event] - 鍵盤事件
+  /// [currentIndex] - 當前聚焦按鈕索引
+  /// [maxIndex] - 最大按鈕索引
+  /// [onIndexChange] - 索引變化回撥
+  /// [onSelect] - 確認鍵回撥
+  /// [onHide] - 隱藏控制欄回撥（上下鍵觸發）
   ///
-  /// 返回事件处理结果和新的索引
+  /// 返回事件處理結果和新的索引
   static ({KeyEventResult result, int newIndex}) handleControlsNavigation(
     KeyEvent event, {
     required int currentIndex,
@@ -50,17 +50,17 @@ class PlayerFocusHandler {
     }
   }
 
-  /// 处理设置面板导航（垂直模式，带子菜单）
+  /// 處理設定面板導航（垂直模式，帶子選單）
   ///
-  /// [event] - 键盘事件
-  /// [currentIndex] - 当前聚焦项索引
-  /// [maxIndex] - 最大项索引
-  /// [isSubMenu] - 是否在子菜单中
-  /// [onActivate] - 激活当前项回调
-  /// [onBack] - 返回上级菜单回调
-  /// [onAdjust] - 调整值回调（用于弹幕设置等，传入 -1 或 1）
+  /// [event] - 鍵盤事件
+  /// [currentIndex] - 當前聚焦項索引
+  /// [maxIndex] - 最大項索引
+  /// [isSubMenu] - 是否在子選單中
+  /// [onActivate] - 啟用當前項回撥
+  /// [onBack] - 返回上級選單回撥
+  /// [onAdjust] - 調整值回撥（用於彈幕設定等，傳入 -1 或 1）
   ///
-  /// 返回事件处理结果和新的索引
+  /// 返回事件處理結果和新的索引
   static ({KeyEventResult result, int newIndex}) handleSettingsPanelNavigation(
     KeyEvent event, {
     required int currentIndex,
@@ -113,13 +113,13 @@ class PlayerFocusHandler {
     }
   }
 
-  /// 处理选集面板导航（垂直/水平模式）
+  /// 處理選集面板導航（垂直/水平模式）
   ///
-  /// [event] - 键盘事件
-  /// [currentIndex] - 当前选中索引
+  /// [event] - 鍵盤事件
+  /// [currentIndex] - 當前選中索引
   /// [maxIndex] - 最大索引
-  /// [onSelect] - 选中回调
-  /// [onClose] - 关闭面板回调
+  /// [onSelect] - 選中回撥
+  /// [onClose] - 關閉面板回撥
   static ({KeyEventResult result, int newIndex}) handleEpisodePanelNavigation(
     KeyEvent event, {
     required int currentIndex,
@@ -127,7 +127,7 @@ class PlayerFocusHandler {
     VoidCallback? onSelect,
     VoidCallback? onClose,
   }) {
-    // 支持长按连续移动 (KeyRepeatEvent)
+    // 支援長按連續移動 (KeyRepeatEvent)
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return (result: KeyEventResult.ignored, newIndex: currentIndex);
     }
@@ -146,7 +146,7 @@ class PlayerFocusHandler {
         return (result: KeyEventResult.handled, newIndex: currentIndex);
 
       case LogicalKeyboardKey.arrowRight:
-        // 右键在选集面板为无效操作
+        // 右鍵在選集面板為無效操作
         return (result: KeyEventResult.handled, newIndex: currentIndex);
 
       case LogicalKeyboardKey.enter:
@@ -163,13 +163,13 @@ class PlayerFocusHandler {
     }
   }
 
-  /// 处理快进快退指示器导航（特殊预览模式）
+  /// 處理快進快退指示器導航（特殊預覽模式）
   ///
-  /// [event] - 键盘事件
-  /// [onSeekBackward] - 后退回调
-  /// [onSeekForward] - 前进回调
-  /// [onConfirm] - 确认跳转回调
-  /// [onCancel] - 取消预览回调
+  /// [event] - 鍵盤事件
+  /// [onSeekBackward] - 後退回撥
+  /// [onSeekForward] - 前進回撥
+  /// [onConfirm] - 確認跳轉回調
+  /// [onCancel] - 取消預覽回撥
   static KeyEventResult handleSeekPreviewNavigation(
     KeyEvent event, {
     VoidCallback? onSeekBackward,
@@ -177,7 +177,7 @@ class PlayerFocusHandler {
     VoidCallback? onConfirm,
     VoidCallback? onCancel,
   }) {
-    // 支持 KeyRepeat 用于快速拖动
+    // 支援 KeyRepeat 用於快速拖動
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
@@ -213,14 +213,14 @@ class PlayerFocusHandler {
     }
   }
 
-  /// 检查是否是返回键
+  /// 檢查是否是返回鍵
   static bool isBackKey(KeyEvent event) {
     return event.logicalKey == LogicalKeyboardKey.goBack ||
         event.logicalKey == LogicalKeyboardKey.browserBack ||
         event.logicalKey == LogicalKeyboardKey.escape;
   }
 
-  /// 检查是否是确认键
+  /// 檢查是否是確認鍵
   static bool isSelectKey(KeyEvent event) {
     return event.logicalKey == LogicalKeyboardKey.enter ||
         event.logicalKey == LogicalKeyboardKey.select;

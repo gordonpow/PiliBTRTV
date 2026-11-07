@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import '../../models/video.dart';
@@ -15,7 +15,7 @@ import '../player/player_screen.dart';
 class HomeTab extends StatefulWidget {
   final FocusNode? sidebarFocusNode;
   final VoidCallback? onFirstLoadComplete;
-  final List<Video>? preloadedVideos; // 接收预加载数据
+  final List<Video>? preloadedVideos; // 接收預載入資料
 
   const HomeTab({
     super.key,
@@ -34,15 +34,15 @@ class HomeTabState extends State<HomeTab> {
   late List<HomeCategory> _categories;
   late List<FocusNode> _categoryFocusNodes;
 
-  // 数据缓存
+  // 資料快取
   final Map<int, List<Video>> _categoryVideos = {};
   final Map<int, bool> _categoryLoading = {};
   final Map<int, int> _categoryPage = {};
   final Map<int, int> _categoryRefreshIdx = {};
   bool _firstLoadDone = false;
-  bool _usedPreloadedData = false; // 标记是否使用了预加载数据
-  bool _isRefreshing = false; // 标记是否正在刷新中（用于控制分帧渲染）
-  // 每个视频卡片的 FocusNode
+  bool _usedPreloadedData = false; // 標記是否使用了預載入資料
+  bool _isRefreshing = false; // 標記是否正在重新整理中（用於控制分幀渲染）
+  // 每個影片卡片的 FocusNode
   final Map<int, FocusNode> _videoFocusNodes = {};
 
   @override
@@ -51,25 +51,25 @@ class HomeTabState extends State<HomeTab> {
     _loadCategoryOrder();
     _categoryFocusNodes = List.generate(_categories.length, (_) => FocusNode());
 
-    // 【优化核心 1】如果有预加载数据，立即填充，且标记 loading 为 false
+    // 【最佳化核心 1】如果有預載入資料，立即填充，且標記 loading 為 false
     if (widget.preloadedVideos != null && widget.preloadedVideos!.isNotEmpty) {
       _categoryVideos[0] = widget.preloadedVideos!;
       _categoryRefreshIdx[0] = 1;
-      _categoryLoading[0] = false; // 关键：明确标记不加载
-      _usedPreloadedData = true; // 标记使用了预加载数据
+      _categoryLoading[0] = false; // 關鍵：明確標記不載入
+      _usedPreloadedData = true; // 標記使用了預載入資料
       _firstLoadDone = true;
 
-      // 通知父组件（用于 Sidebar 焦点处理等）
+      // 通知父元件（用於 Sidebar 焦點處理等）
       WidgetsBinding.instance.addPostFrameCallback((_) {
         widget.onFirstLoadComplete?.call();
       });
     } else {
-      // 只有没数据时，才自己去请求
+      // 只有沒資料時，才自己去請求
       _loadVideosForCategory(0);
     }
   }
 
-  // ... (省略 _loadCategoryOrder, dispose 等未改动代码) ...
+  // ... (省略 _loadCategoryOrder, dispose 等未改動程式碼) ...
 
   void _loadCategoryOrder() {
     final order = SettingsService.categoryOrder;
@@ -92,7 +92,7 @@ class HomeTabState extends State<HomeTab> {
     for (var node in _categoryFocusNodes) {
       node.dispose();
     }
-    // 清理视频卡片的 FocusNode
+    // 清理影片卡片的 FocusNode
     for (final node in _videoFocusNodes.values) {
       node.dispose();
     }
@@ -100,7 +100,7 @@ class HomeTabState extends State<HomeTab> {
     super.dispose();
   }
 
-  // 获取或创建视频卡片的 FocusNode
+  // 獲取或建立影片卡片的 FocusNode
   FocusNode _getFocusNode(int index) {
     return _videoFocusNodes.putIfAbsent(index, () => FocusNode());
   }
@@ -115,7 +115,7 @@ class HomeTabState extends State<HomeTab> {
   }) async {
     if (_categoryLoading[categoryIndex] == true) return;
 
-    // ... (保持原有的分页逻辑) ...
+    // ... (保持原有的分頁邏輯) ...
     final currentPage = _categoryPage[categoryIndex] ?? 1;
     final currentRefreshIdx = _categoryRefreshIdx[categoryIndex] ?? 0;
 
@@ -125,7 +125,7 @@ class HomeTabState extends State<HomeTab> {
       setState(() {
         _categoryLoading[categoryIndex] = true;
         _categoryVideos[categoryIndex] = [];
-        _isRefreshing = true; // 开始刷新
+        _isRefreshing = true; // 開始重新整理
       });
     } else {
       setState(() => _categoryLoading[categoryIndex] = true);
@@ -135,7 +135,7 @@ class HomeTabState extends State<HomeTab> {
     List<Video> videos;
 
     try {
-      // 网络请求逻辑...
+      // 網路請求邏輯...
       switch (category) {
         case HomeCategory.recommend:
           final idx = refresh ? 0 : currentRefreshIdx;
@@ -162,7 +162,7 @@ class HomeTabState extends State<HomeTab> {
     setState(() {
       final page = _categoryPage[categoryIndex] ?? 1;
 
-      // 插件过滤
+      // 外掛過濾
       final filteredVideos = _filterVideos(videos);
 
       if (refresh || page == 1) {
@@ -174,7 +174,7 @@ class HomeTabState extends State<HomeTab> {
         ];
       }
       _categoryLoading[categoryIndex] = false;
-      _isRefreshing = false; // 刷新完成
+      _isRefreshing = false; // 重新整理完成
 
       if (!_firstLoadDone) {
         _firstLoadDone = true;
@@ -185,7 +185,7 @@ class HomeTabState extends State<HomeTab> {
     });
   }
 
-  // ... (省略 _loadMore, _switchCategory 等辅助方法) ...
+  // ... (省略 _loadMore, _switchCategory 等輔助方法) ...
   void _loadMore() {
     if (_isLoading) return;
     final page = (_categoryPage[_selectedCategoryIndex] ?? 1) + 1;
@@ -195,7 +195,7 @@ class HomeTabState extends State<HomeTab> {
 
   void _switchCategory(int index) {
     if (_selectedCategoryIndex == index) return;
-    // 切换分类后不再是初始预加载状态
+    // 切換分類後不再是初始預載入狀態
     _usedPreloadedData = false;
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
     setState(() => _selectedCategoryIndex = index);
@@ -203,7 +203,7 @@ class HomeTabState extends State<HomeTab> {
   }
 
   void refreshCurrentCategory() {
-    // 刷新后不再是初始预加载状态
+    // 重新整理後不再是初始預載入狀態
     _usedPreloadedData = false;
     _loadVideosForCategory(_selectedCategoryIndex, refresh: true);
   }
@@ -216,13 +216,13 @@ class HomeTabState extends State<HomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    // ... (Auth check logic 保持不变) ...
+    // ... (Auth check logic 保持不變) ...
     if (!AuthService.isLoggedIn) {
-      return const Center(child: Text("请先登录")); // 简写，保持你原有的 UI
+      return const Center(child: Text("請先登入")); // 簡寫，保持你原有的 UI
     }
 
-    // 判断是否是"启动后的第一屏数据"
-    // 使用稳定的标志变量，避免 List 引用比较在 loadMore 后失效
+    // 判斷是否是"啟動後的第一屏資料"
+    // 使用穩定的標誌變數，避免 List 引用比較在 loadMore 後失效
     final bool isInitialLoad =
         _selectedCategoryIndex == 0 && _usedPreloadedData;
 
@@ -257,13 +257,13 @@ class HomeTabState extends State<HomeTab> {
                                 _loadMore();
                               }
 
-                              // 【优化】只有刷新时才使用交错加载
-                              // 初始加载和从播放器返回时，图片已在缓存中，直接显示
+                              // 【最佳化】只有重新整理時才使用交錯載入
+                              // 初始載入和從播放器返回時，圖片已在快取中，直接顯示
                               final int? staggerIdx = _isRefreshing
                                   ? (index % 8)
                                   : null;
 
-                              // 构建卡片内容
+                              // 構建卡片內容
                               Widget buildCard(BuildContext ctx) {
                                 return TvVideoCard(
                                   video: video,
@@ -278,14 +278,14 @@ class HomeTabState extends State<HomeTab> {
                                       : () => _getFocusNode(
                                           index - 1,
                                         ).requestFocus(),
-                                  // 强制向右导航，避免 ScaleTransition 导致的误判
+                                  // 強制向右導航，避免 ScaleTransition 導致的誤判
                                   onMoveRight:
                                       (index + 1 < _currentVideos.length)
                                       ? () => _getFocusNode(
                                           index + 1,
                                         ).requestFocus()
                                       : null,
-                                  // 严格按列向上移动（4个一行），最顶行跳到分类标签
+                                  // 嚴格按列向上移動（4個一行），最頂行跳到分類標籤
                                   onMoveUp: index >= 4
                                       ? () => _getFocusNode(
                                           index - 4,
@@ -293,7 +293,7 @@ class HomeTabState extends State<HomeTab> {
                                       : () =>
                                             _categoryFocusNodes[_selectedCategoryIndex]
                                                 .requestFocus(),
-                                  // 严格按列向下移动
+                                  // 嚴格按列向下移動
                                   onMoveDown:
                                       (index + 4 < _currentVideos.length)
                                       ? () => _getFocusNode(
@@ -338,7 +338,7 @@ class HomeTabState extends State<HomeTab> {
                                 );
                               }
 
-                              // 只有刷新时使用分帧渲染，其他情况直接渲染
+                              // 只有重新整理時使用分幀渲染，其他情況直接渲染
                               if (_isRefreshing) {
                                 return FrameSeparateWidget(
                                   index: index,
@@ -365,7 +365,7 @@ class HomeTabState extends State<HomeTab> {
           ),
         ),
 
-        // ... (Header / Category Tabs 保持不变) ...
+        // ... (Header / Category Tabs 保持不變) ...
         Positioned(
           top: 0,
           left: 0,
@@ -415,7 +415,7 @@ class HomeTabState extends State<HomeTab> {
   }
 }
 
-/// 分类标签组件
+/// 分類標籤元件
 class _CategoryTab extends StatelessWidget {
   final String label;
   final bool isSelected;
@@ -449,7 +449,7 @@ class _CategoryTab extends StatelessWidget {
               onMoveLeft!();
               return KeyEventResult.handled;
             }
-            // 确定键刷新当前分类
+            // 確定鍵重新整理當前分類
             if (event.logicalKey == LogicalKeyboardKey.select ||
                 event.logicalKey == LogicalKeyboardKey.enter) {
               onConfirm();
@@ -464,7 +464,7 @@ class _CategoryTab extends StatelessWidget {
             return GestureDetector(
               onTap: onTap,
               child: Container(
-                // 紧凑的 padding 确保文字高度位置与普通标题接近
+                // 緊湊的 padding 確保文字高度位置與普通標題接近
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
                 decoration: BoxDecoration(
                   color: f ? const Color(0xFFfb7299) : Colors.transparent,
@@ -514,20 +514,20 @@ class _CategoryTab extends StatelessWidget {
   }
 }
 
-/// 首页分类枚举
+/// 首頁分類列舉
 enum HomeCategory {
-  recommend('推荐', 0),
-  popular('热门', 0),
-  anime('番剧', 13),
-  movie('影视', 181),
-  game('游戏', 4),
-  knowledge('知识', 36),
+  recommend('推薦', 0),
+  popular('熱門', 0),
+  anime('番劇', 13),
+  movie('影視', 181),
+  game('遊戲', 4),
+  knowledge('知識', 36),
   tech('科技', 188),
-  music('音乐', 3),
+  music('音樂', 3),
   dance('舞蹈', 129),
   life('生活', 160),
   food('美食', 211),
-  douga('动画', 1);
+  douga('動畫', 1);
 
   const HomeCategory(this.label, this.tid);
   final String label;

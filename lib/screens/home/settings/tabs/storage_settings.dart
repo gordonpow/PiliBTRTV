@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/utils/zh_toast.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../../../../services/settings_service.dart';
 import '../widgets/setting_action_row.dart';
@@ -45,8 +46,8 @@ class _StorageSettingsState extends State<StorageSettings> {
     await _loadCacheSize();
     if (mounted) {
       setState(() => _isClearing = false);
-      Fluttertoast.showToast(
-        msg: '缓存已清除',
+      showZhToast(
+        msg: '快取已清除',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.CENTER,
       );
@@ -67,7 +68,7 @@ class _StorageSettingsState extends State<StorageSettings> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('确认', style: TextStyle(color: Color(0xFFfb7299))),
+            child: const Text('確認', style: TextStyle(color: Color(0xFFfb7299))),
           ),
         ],
       ),
@@ -81,7 +82,7 @@ class _StorageSettingsState extends State<StorageSettings> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SettingActionRow(
-          label: '清除图片缓存',
+          label: '清除圖片快取',
           value: '${_cacheSizeMB.toStringAsFixed(1)} MB',
           buttonLabel: _isClearing ? '清除中...' : '清除',
           autofocus: true,
@@ -94,8 +95,8 @@ class _StorageSettingsState extends State<StorageSettings> {
               ? null
               : () async {
                   final confirmed = await _showConfirmDialog(
-                    '确认清除',
-                    '确定要清除图片缓存吗？',
+                    '確認清除',
+                    '確定要清除圖片快取嗎？',
                   );
                   if (confirmed) _clearCache();
                 },

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../services/bilibili_api.dart';
@@ -71,7 +71,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
   }
 
   void _handleKeyboardTap(String key) {
-    if (key == '后退') {
+    if (key == '後退') {
       if (_searchText.isNotEmpty) {
         setState(() {
           _searchText = _searchText.substring(0, _searchText.length - 1);
@@ -83,7 +83,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
         _searchText = '';
         _suggestions = [];
       });
-    } else if (key == '搜索') {
+    } else if (key == '搜尋') {
       if (_searchText.trim().isNotEmpty) {
         SearchHistoryService.add(_searchText.trim());
       }
@@ -123,7 +123,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 左侧键盘区
+        // 左側鍵盤區
         SizedBox(
           width: 380,
           child: Container(
@@ -134,7 +134,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  // 搜索输入框
+                  // 搜尋輸入框
                   Container(
                     height: 50,
                     width: double.infinity,
@@ -146,7 +146,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
                     ),
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      _searchText.isEmpty ? '输入关键词搜索...' : _searchText,
+                      _searchText.isEmpty ? '輸入關鍵詞搜尋...' : _searchText,
                       style: TextStyle(
                         fontSize: 22,
                         color: _searchText.isEmpty
@@ -159,7 +159,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  // 清空/后退按钮
+                  // 清空/後退按鈕
                   SizedBox(
                     height: 48,
                     child: Row(
@@ -181,8 +181,8 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
                           child: FocusTraversalOrder(
                             order: const NumericFocusOrder(1.1),
                             child: TvKeyboardButton(
-                              label: '后退',
-                              onTap: () => _handleKeyboardTap('后退'),
+                              label: '後退',
+                              onTap: () => _handleKeyboardTap('後退'),
                               onBack: widget.onBackToHome,
                             ),
                           ),
@@ -191,7 +191,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // 字母数字键盘
+                  // 字母數字鍵盤
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -217,16 +217,16 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  // 搜索按钮
+                  // 搜尋按鈕
                   FocusTraversalOrder(
                     order: const NumericFocusOrder(3.0),
                     child: SizedBox(
                       height: 48,
                       width: double.infinity,
                       child: TvActionButton(
-                        label: '搜索',
+                        label: '搜尋',
                         color: const Color(0xFFfb7299),
-                        onTap: () => _handleKeyboardTap('搜索'),
+                        onTap: () => _handleKeyboardTap('搜尋'),
                         onMoveLeft: () =>
                             widget.sidebarFocusNode?.requestFocus(),
                         onBack: widget.onBackToHome,
@@ -238,15 +238,15 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
             ),
           ),
         ),
-        // 右侧建议区
+        // 右側建議區
         Expanded(child: _buildSuggestions()),
       ],
     );
   }
 
-  /// 构建搜索建议列表
+  /// 構建搜尋建議列表
   Widget _buildSuggestions() {
-    // 如果没有建议，显示搜索历史
+    // 如果沒有建議，顯示搜尋歷史
     if (_suggestions.isEmpty) {
       final history = SearchHistoryService.getAll();
       if (history.isEmpty) {
@@ -265,7 +265,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
               ),
               const SizedBox(height: 20),
               const Text(
-                '输入关键词开始搜索',
+                '輸入關鍵詞開始搜尋',
                 style: TextStyle(color: Colors.white38, fontSize: 16),
               ),
             ],
@@ -273,14 +273,14 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
         );
       }
 
-      // 显示搜索历史
+      // 顯示搜尋歷史
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 30),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '搜索历史',
+              '搜尋歷史',
               style: TextStyle(
                 color: Colors.white70,
                 fontSize: 16,
@@ -290,14 +290,14 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
             const SizedBox(height: 15),
             Expanded(
               child: ListView.builder(
-                itemCount: history.length + 1, // +1 为清除按钮
+                itemCount: history.length + 1, // +1 為清除按鈕
                 itemBuilder: (context, index) {
                   if (index == history.length) {
-                    // 清除搜索记录按钮
+                    // 清除搜尋記錄按鈕
                     return Padding(
                       padding: const EdgeInsets.only(top: 15),
                       child: _SuggestionItem(
-                        text: '清除搜索记录',
+                        text: '清除搜尋記錄',
                         icon: Icons.delete_outline,
                         onTap: () async {
                           await SearchHistoryService.clear();
@@ -345,7 +345,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
   }
 }
 
-/// 搜索建议项
+/// 搜尋建議項
 class _SuggestionItem extends StatefulWidget {
   final String text;
   final VoidCallback onTap;
@@ -374,7 +374,7 @@ class _SuggestionItemState extends State<_SuggestionItem> {
         onFocusChange: (focused) => setState(() => _isFocused = focused),
         onKeyEvent: (node, event) {
           if (event is KeyDownEvent) {
-            // 返回键
+            // 返回鍵
             if ((event.logicalKey == LogicalKeyboardKey.escape ||
                     event.logicalKey == LogicalKeyboardKey.goBack ||
                     event.logicalKey == LogicalKeyboardKey.browserBack) &&

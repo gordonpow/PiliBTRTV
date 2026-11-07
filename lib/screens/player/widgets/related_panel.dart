@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../models/video.dart';
@@ -112,7 +112,7 @@ class _RelatedPanelState extends State<RelatedPanel> {
           color: Colors.black.withValues(alpha: 0.9),
           child: Column(
             children: [
-              // 头部
+              // 頭部
               Container(
                 padding: const EdgeInsets.all(16),
                 child: const Row(
@@ -120,7 +120,7 @@ class _RelatedPanelState extends State<RelatedPanel> {
                     Icon(Icons.expand_more, color: Colors.white, size: 24),
                     SizedBox(width: 8),
                     Text(
-                      '更多视频',
+                      '更多影片',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -131,14 +131,14 @@ class _RelatedPanelState extends State<RelatedPanel> {
                 ),
               ),
               const Divider(color: Colors.grey, height: 1),
-              // 视频列表
+              // 影片列表
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _videos.isEmpty
                     ? const Center(
                         child: Text(
-                          '暂无相关视频',
+                          '暫無相關影片',
                           style: TextStyle(color: Colors.grey),
                         ),
                       )
@@ -188,7 +188,7 @@ class _RelatedPanelState extends State<RelatedPanel> {
             ),
           ),
           const SizedBox(width: 12),
-          // 信息
+          // 資訊
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

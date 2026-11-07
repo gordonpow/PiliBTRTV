@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -7,12 +7,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'base_api.dart';
 import '../../models/videoshot.dart';
 
-/// 视频快照 API
+/// 影片快照 API
 class VideoshotApi {
-  /// 获取视频快照(雪碧图)数据
+  /// 獲取影片快照(雪碧圖)資料
   ///
-  /// [bvid] 视频 BV 号
-  /// [cid] 视频分P的 cid (可选，不传则获取默认分P)
+  /// [bvid] 影片 BV 號
+  /// [cid] 影片分P的 cid (可選，不傳則獲取預設分P)
   static Future<VideoshotData?> getVideoshot({
     required String bvid,
     int? cid,
@@ -35,11 +35,11 @@ class VideoshotApi {
           final data = json['data'] as Map<String, dynamic>;
           final images = data['image'] as List<dynamic>?;
 
-          // 检查是否有有效的雪碧图
+          // 檢查是否有有效的雪碧圖
           if (images != null && images.isNotEmpty) {
             final videoshotData = VideoshotData.fromJson(data);
 
-            // 异步加载 pvdata（精确时间戳）和图片资源
+            // 非同步載入 pvdata（精確時間戳）和圖片資源
             if (videoshotData.pvdataUrl != null) {
               _loadPvdata(videoshotData);
             }
@@ -55,7 +55,7 @@ class VideoshotApi {
     return null;
   }
 
-  /// 异步加载 pvdata.bin 并解析帧时间戳
+  /// 非同步載入 pvdata.bin 並解析幀時間戳
   static Future<void> _loadPvdata(VideoshotData data) async {
     if (data.pvdataUrl == null) return;
 
@@ -73,12 +73,12 @@ class VideoshotApi {
       }
     } catch (e) {
       debugPrint('Failed to load pvdata: $e');
-      // 加载失败时继续使用均匀分布估算
+      // 載入失敗時繼續使用均勻分佈估算
     }
   }
 
-  /// 自定义缓存管理器，用于管理雪碧图
-  /// 增加最大缓存数量(1000)和保留时间(7天)，避免频繁清理导致重新下载
+  /// 自定義快取管理器，用於管理雪碧圖
+  /// 增加最大快取數量(1000)和保留時間(7天)，避免頻繁清理導致重新下載
   static final cacheManager = CacheManager(
     Config(
       'videoshot_cache',
@@ -89,11 +89,11 @@ class VideoshotApi {
     ),
   );
 
-  /// 预加载雪碧图图片到缓存
+  /// 預載入雪碧圖圖片到快取
   static Future<void> _preloadImages(VideoshotData data) async {
     try {
       for (final url in data.images) {
-        // 使用自定义缓存管理器预下载
+        // 使用自定義快取管理器預下載
         cacheManager.downloadFile(url);
       }
       debugPrint('Started preloading ${data.images.length} videoshot images');
@@ -102,10 +102,10 @@ class VideoshotApi {
     }
   }
 
-  /// 预加载单张雪碧图到 Flutter 内存缓存 (GPU)
+  /// 預載入單張雪碧圖到 Flutter 記憶體快取 (GPU)
   ///
   /// [context] Flutter BuildContext
-  /// [url] 雪碧图 URL
+  /// [url] 雪碧圖 URL
   static Future<void> precacheSprite(BuildContext context, String url) async {
     try {
       final provider = CachedNetworkImageProvider(
@@ -124,9 +124,9 @@ class VideoshotApi {
     }
   }
 
-  /// 从 Flutter 内存缓存中移除雪碧图
+  /// 從 Flutter 記憶體快取中移除雪碧圖
   ///
-  /// [url] 雪碧图 URL
+  /// [url] 雪碧圖 URL
   static void evictSprite(String url) {
     try {
       final provider = CachedNetworkImageProvider(

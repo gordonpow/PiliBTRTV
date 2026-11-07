@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/settings_service.dart';
 import '../utils/image_url_utils.dart';
@@ -31,9 +31,9 @@ class TvLiveCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // API 字段可能不同，getListByAreaID 返回的数据结构:
+    // API 欄位可能不同，getListByAreaID 返回的資料結構:
     // title, cover, uname, online, roomid
-    final title = room['title'] ?? '无标题';
+    final title = room['title'] ?? '無標題';
     final cover =
         room['pic'] ??
         room['room_cover'] ??
@@ -45,7 +45,7 @@ class TvLiveCard extends StatelessWidget {
 
     String onlineText = '$online';
     if (online >= 10000) {
-      onlineText = '${(online / 10000).toStringAsFixed(1)}万';
+      onlineText = '${(online / 10000).toStringAsFixed(1)}萬';
     }
 
     return BaseTvCard(
@@ -61,7 +61,7 @@ class TvLiveCard extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           _buildImage(cover),
-          // 直播中角标
+          // 直播中角標
           Positioned(
             right: 4,
             top: 4,
@@ -87,7 +87,7 @@ class TvLiveCard extends StatelessWidget {
               ),
             ),
           ),
-          // 底部阴影
+          // 底部陰影
           Positioned(
             left: 0,
             right: 0,
@@ -106,7 +106,7 @@ class TvLiveCard extends StatelessWidget {
               ),
             ),
           ),
-          // 在线人数
+          // 線上人數
           Positioned(
             left: 6,
             bottom: 6,
@@ -127,7 +127,7 @@ class TvLiveCard extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 标题
+            // 標題
             SizedBox(
               height: 20,
               child: isFocused
@@ -183,7 +183,7 @@ class TvLiveCard extends StatelessWidget {
       return Container(color: const Color(0xFF2d2d2d));
     }
 
-    // 直播封面通常是 16:9 或类似，这里沿用 360x200 逻辑
+    // 直播封面通常是 16:9 或類似，這裡沿用 360x200 邏輯
     return CachedNetworkImage(
       imageUrl: ImageUrlUtils.getResizedUrl(url, width: 360, height: 200),
       fit: BoxFit.cover,

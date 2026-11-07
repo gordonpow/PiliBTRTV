@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:video_player/video_player.dart';
 import '../../../models/video.dart';
 import '../../../widgets/time_display.dart';
@@ -17,10 +17,10 @@ class ControlsOverlay extends StatelessWidget {
   final VoidCallback onToggleDanmaku;
   final String currentQuality;
   final VoidCallback onQualityClick;
-  final bool isProgressBarFocused; // 进度条是否获得焦点
-  final Duration? previewPosition; // 预览位置（快进快退时）
-  final String? onlineCount; // 在线观看人数
-  final int danmakuCount; // 弹幕总数
+  final bool isProgressBarFocused; // 進度條是否獲得焦點
+  final Duration? previewPosition; // 預覽位置（快進快退時）
+  final String? onlineCount; // 線上觀看人數
+  final int danmakuCount; // 彈幕總數
 
   const ControlsOverlay({
     super.key,
@@ -53,30 +53,30 @@ class ControlsOverlay extends StatelessWidget {
     return '${twoDigits(m)}:${twoDigits(s)}';
   }
 
-  // 构建视频信息文本
+  // 構建影片資訊文本
   String _buildVideoInfoText() {
     final parts = <String>[];
     parts.add(video.ownerName);
     if (video.pubdate > 0) {
-      parts.add('发布于${video.pubdateFormatted}');
+      parts.add('釋出於${video.pubdateFormatted}');
     }
     if (video.view > 0) {
-      parts.add('${video.viewFormatted}次观看');
+      parts.add('${video.viewFormatted}次觀看');
     }
     return parts.join(' · ');
   }
 
-  // 格式化弹幕数
+  // 格式化彈幕數
   String _formatDanmakuCount(int count) {
     if (count >= 10000) {
-      return '${(count / 10000).toStringAsFixed(1)}万';
+      return '${(count / 10000).toStringAsFixed(1)}萬';
     }
     return count.toString();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 计算缓冲时长
+    // 計算緩衝時長
     Duration buffered = Duration.zero;
     if (controller.value.buffered.isNotEmpty) {
       buffered = controller.value.buffered.last.end;
@@ -84,13 +84,13 @@ class ControlsOverlay extends StatelessWidget {
 
     return Stack(
       children: [
-        // 顶部渐变 + 标题
+        // 頂部漸變 + 標題
         Positioned(
           top: 0,
           left: 0,
           right: 0,
           child: Container(
-            // 右侧预留空间给时间显示 (150)
+            // 右側預留空間給時間顯示 (150)
             padding: const EdgeInsets.fromLTRB(40, 20, 150, 40),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -112,10 +112,10 @@ class ControlsOverlay extends StatelessWidget {
                       child: SizedBox(
                         height: 30, // 固定高度
                         child: ConditionalMarquee(
-                          text: video.title.isNotEmpty ? video.title : '加载中...',
+                          text: video.title.isNotEmpty ? video.title : '載入中...',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 22, // 固定字号
+                            fontSize: 22, // 固定字號
                             fontWeight: FontWeight.bold,
                           ),
                           blankSpace: 50.0,
@@ -138,13 +138,13 @@ class ControlsOverlay extends StatelessWidget {
           ),
         ),
 
-        // 顶部时间显示 (仅当非全局常驻时显示)
-        // 位置与 PlayerScreen 的常驻时间保持一致 (top: 20, right: 30)
-        // 注意：Global Time 在 PlayerScreen 中处理，这里只处理 Controls overlay 内部的临时显示
+        // 頂部時間顯示 (僅當非全域性常駐時顯示)
+        // 位置與 PlayerScreen 的常駐時間保持一致 (top: 20, right: 30)
+        // 注意：Global Time 在 PlayerScreen 中處理，這裡只處理 Controls overlay 內部的臨時顯示
         if (!alwaysShowPlayerTime)
           const Positioned(top: 20, right: 30, child: TimeDisplay()),
 
-        // 底部控制区
+        // 底部控制區
         Positioned(
           bottom: 0,
           left: 0,
@@ -164,7 +164,7 @@ class ControlsOverlay extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 进度条
+                // 進度條
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -178,7 +178,7 @@ class ControlsOverlay extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 20),
-                    // 放大时间码字体
+                    // 放大時間碼字型
                     Text(
                       '${_formatDuration(previewPosition ?? controller.value.position)} / ${_formatDuration(controller.value.duration)}',
                       style: const TextStyle(
@@ -192,42 +192,42 @@ class ControlsOverlay extends StatelessWidget {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    // 选集 (原 index 1 → 现 index 0)
+                    // 選集 (原 index 1 → 現 index 0)
                     _buildControlButton(
                       index: 0,
                       icon: Icons.playlist_play,
                       onTap: onEpisodes,
                     ),
                     const SizedBox(width: 24),
-                    // UP主 (原 index 2 → 现 index 1)
+                    // UP主 (原 index 2 → 現 index 1)
                     _buildControlButton(
                       index: 1,
                       icon: Icons.person,
                       onTap: () {},
                     ),
                     const SizedBox(width: 24),
-                    // 更多视频 (原 index 3 → 现 index 2)
+                    // 更多影片 (原 index 3 → 現 index 2)
                     _buildControlButton(
                       index: 2,
                       icon: Icons.expand_more,
                       onTap: () {},
                     ),
                     const SizedBox(width: 24),
-                    // 设置 (原 index 4 → 现 index 3)
+                    // 設定 (原 index 4 → 現 index 3)
                     _buildControlButton(
                       index: 3,
                       icon: Icons.tune,
                       onTap: onSettings,
                     ),
                     const SizedBox(width: 24),
-                    // 点赞/投币/收藏 (原 index 5 → 现 index 4)
+                    // 點贊/投幣/收藏 (原 index 5 → 現 index 4)
                     _buildControlButton(
                       index: 4,
                       icon: Icons.thumb_up_outlined,
                       onTap: () {},
                     ),
                     const Spacer(),
-                    // 在线人数 (纯文字)
+                    // 線上人數 (純文字)
                     if (onlineCount != null && onlineCount!.isNotEmpty)
                       Text(
                         '在看:$onlineCount',
@@ -238,11 +238,11 @@ class ControlsOverlay extends StatelessWidget {
                       ),
                     if (onlineCount != null && onlineCount!.isNotEmpty)
                       const SizedBox(width: 16),
-                    // 弹幕数 (纯文字)
+                    // 彈幕數 (純文字)
                     Text(
                       isDanmakuEnabled && danmakuCount > 0
-                          ? '弹幕:${_formatDanmakuCount(danmakuCount)}'
-                          : (isDanmakuEnabled ? '弹幕' : '弹幕关'),
+                          ? '彈幕:${_formatDanmakuCount(danmakuCount)}'
+                          : (isDanmakuEnabled ? '彈幕' : '彈幕關'),
                       style: TextStyle(
                         color: isDanmakuEnabled
                             ? Colors.white.withValues(alpha: 0.8)
@@ -251,7 +251,7 @@ class ControlsOverlay extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    // 画质 (纯文字)
+                    // 畫質 (純文字)
                     Text(
                       currentQuality,
                       style: TextStyle(

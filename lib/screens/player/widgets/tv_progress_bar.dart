@@ -1,17 +1,17 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 
-/// TV 遥控器优化的视频进度条
+/// TV 遙控器最佳化的影片進度條
 ///
 /// 特性:
-/// - 圆点指示器显示当前位置
-/// - 支持焦点高亮
-/// - 显示缓冲进度
+/// - 圓點指示器顯示當前位置
+/// - 支援焦點高亮
+/// - 顯示緩衝進度
 class TvProgressBar extends StatelessWidget {
   final Duration position;
   final Duration duration;
   final Duration buffered;
   final bool isFocused;
-  final Duration? previewPosition; // 预览位置（快进/快退时显示）
+  final Duration? previewPosition; // 預覽位置（快進/快退時顯示）
 
   const TvProgressBar({
     super.key,
@@ -29,7 +29,7 @@ class TvProgressBar extends StatelessWidget {
     final bufferedMs = buffered.inMilliseconds;
     final previewMs = previewPosition?.inMilliseconds;
 
-    // 计算百分比
+    // 計算百分比
     final progress = totalMs > 0 ? positionMs / totalMs : 0.0;
     final bufferedProgress = totalMs > 0 ? bufferedMs / totalMs : 0.0;
     final previewProgress = (previewMs != null && totalMs > 0)
@@ -45,11 +45,11 @@ class TvProgressBar extends StatelessWidget {
             : null;
 
         return SizedBox(
-          height: 40, // 增加高度以容纳预览标签
+          height: 40, // 增加高度以容納預覽標籤
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              // 进度条主体
+              // 進度條主體
               Positioned(
                 left: 0,
                 right: 0,
@@ -62,7 +62,7 @@ class TvProgressBar extends StatelessWidget {
                   ),
                   child: Stack(
                     children: [
-                      // 缓冲进度
+                      // 緩衝進度
                       FractionallySizedBox(
                         widthFactor: bufferedProgress.clamp(0.0, 1.0),
                         child: Container(
@@ -72,7 +72,7 @@ class TvProgressBar extends StatelessWidget {
                           ),
                         ),
                       ),
-                      // 已播放进度
+                      // 已播放進度
                       FractionallySizedBox(
                         widthFactor: progress.clamp(0.0, 1.0),
                         child: Container(
@@ -87,7 +87,7 @@ class TvProgressBar extends StatelessWidget {
                 ),
               ),
 
-              // 预览位置指示器（快进/快退时）
+              // 預覽位置指示器（快進/快退時）
               if (previewDotX != null && previewProgress != null)
                 Positioned(
                   left: previewDotX.clamp(10.0, width - 10.0) - 10,
@@ -113,8 +113,8 @@ class TvProgressBar extends StatelessWidget {
                   ),
                 ),
 
-              // 当前位置圆点
-              if (previewDotX == null) // 正常播放时显示
+              // 當前位置圓點
+              if (previewDotX == null) // 正常播放時顯示
                 Positioned(
                   left: dotX.clamp(8.0, width - 8.0) - 8,
                   top: isFocused ? 8 : 10,
@@ -140,7 +140,7 @@ class TvProgressBar extends StatelessWidget {
                   ),
                 ),
 
-              // 预览时间标签
+              // 預覽時間標籤
               if (previewPosition != null && previewDotX != null)
                 Positioned(
                   left: (previewDotX - 30).clamp(0.0, width - 60),

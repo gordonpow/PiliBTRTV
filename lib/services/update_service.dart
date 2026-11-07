@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../config/env.dart';
 
-/// 更新信息模型
+/// 更新資訊模型
 class UpdateInfo {
   final String version;
   final int versionCode;
@@ -36,7 +36,7 @@ class UpdateInfo {
   }
 }
 
-/// 更新检查结果
+/// 更新檢查結果
 class UpdateCheckResult {
   final bool hasUpdate;
   final UpdateInfo? updateInfo;
@@ -45,12 +45,12 @@ class UpdateCheckResult {
   UpdateCheckResult({required this.hasUpdate, this.updateInfo, this.error});
 }
 
-/// 更新服务
+/// 更新服務
 class UpdateService {
   static const String _serverUrlKey = 'update_server_url';
   static const String _apiKeyKey = 'update_api_key';
 
-  // 固定配置 (开源版本留空，需要更新功能请自行配置服务器)
+  // 固定配置 (開源版本留空，需要更新功能請自行配置伺服器)
   static const String defaultServerUrl = Env.updateServerUrl;
   static const String defaultApiKey = Env.updateApiKey;
 
@@ -61,54 +61,54 @@ class UpdateService {
     _prefs ??= await SharedPreferences.getInstance();
   }
 
-  /// 获取更新服务器地址
+  /// 獲取更新伺服器地址
   static String get serverUrl {
     return _prefs?.getString(_serverUrlKey) ?? defaultServerUrl;
   }
 
-  /// 设置更新服务器地址
+  /// 設定更新伺服器地址
   static Future<void> setServerUrl(String url) async {
     await init();
     await _prefs!.setString(_serverUrlKey, url);
   }
 
-  /// 获取 API Key
+  /// 獲取 API Key
   static String get apiKey {
     return _prefs?.getString(_apiKeyKey) ?? defaultApiKey;
   }
 
-  /// 设置 API Key
+  /// 設定 API Key
   static Future<void> setApiKey(String key) async {
     await init();
     await _prefs!.setString(_apiKeyKey, key);
   }
 
-  /// 获取设备 CPU 架构
+  /// 獲取裝置 CPU 架構
   static String _getDeviceArch() {
-    // Android 设备架构检测
-    // arm64-v8a 对应 64 位 ARM
-    // armeabi-v7a 对应 32 位 ARM
+    // Android 裝置架構檢測
+    // arm64-v8a 對應 64 位 ARM
+    // armeabi-v7a 對應 32 位 ARM
     final arch = Platform.version;
     if (arch.contains('arm64') || arch.contains('aarch64')) {
       return 'arm64-v8a';
     } else if (arch.contains('arm')) {
       return 'armeabi-v7a';
     }
-    // 默认返回 arm64-v7a
+    // 預設返回 arm64-v7a
     return 'arm64-v7a';
   }
 
-  /// 检查更新
+  /// 檢查更新
   static Future<UpdateCheckResult> checkForUpdate() async {
     try {
       await init();
 
-      // 如果未配置服务器地址，跳过更新检查
+      // 如果未配置伺服器地址，跳過更新檢查
       if (serverUrl.isEmpty) {
         return UpdateCheckResult(hasUpdate: false, error: null);
       }
 
-      // 获取服务器版本信息
+      // 獲取伺服器版本資訊
       final response = await http
           .get(Uri.parse('$serverUrl/version'), headers: {'X-API-Key': apiKey})
           .timeout(const Duration(seconds: 10));
@@ -116,27 +116,27 @@ class UpdateService {
       if (response.statusCode != 200) {
         return UpdateCheckResult(
           hasUpdate: false,
-          error: '服务器响应错误: ${response.statusCode}',
+          error: '伺服器響應錯誤: ${response.statusCode}',
         );
       }
 
       final json = jsonDecode(response.body);
       final updateInfo = UpdateInfo.fromJson(json);
 
-      // 获取当前 App 版本
+      // 獲取當前 App 版本
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersionCode = int.tryParse(packageInfo.buildNumber) ?? 0;
 
-      // 比较版本号
+      // 比較版本號
       final hasUpdate = updateInfo.versionCode > currentVersionCode;
 
       return UpdateCheckResult(hasUpdate: hasUpdate, updateInfo: updateInfo);
     } catch (e) {
-      return UpdateCheckResult(hasUpdate: false, error: '检查更新失败: $e');
+      return UpdateCheckResult(hasUpdate: false, error: '檢查更新失敗: $e');
     }
   }
 
-  /// 下载并安装更新
+  /// 下載並安裝更新
   static Future<void> downloadAndInstall(
     UpdateInfo updateInfo, {
     Function(double)? onProgress,
@@ -146,23 +146,23 @@ class UpdateService {
     try {
       await init();
 
-      // 请求存储权限
+      // 請求儲存許可權
       final status = await Permission.storage.request();
       if (!status.isGranted) {
         // 部分 Android 版本 (11+) 不需要 WRITE_EXTERNAL_STORAGE，而是 scoped storage
-        // 但为了兼容旧版本，还是建议请求。如果请求失败，尝试继续（以防是 scoped storage 的情况）
-        // 或者请求 REQUEST_INSTALL_PACKAGES (在安装时会触发)
+        // 但為了相容舊版本，還是建議請求。如果請求失敗，嘗試繼續（以防是 scoped storage 的情況）
+        // 或者請求 REQUEST_INSTALL_PACKAGES (在安裝時會觸發)
 
-        // 尝试请求 manageExternalStorage (Android 11+)
+        // 嘗試請求 manageExternalStorage (Android 11+)
         if (await Permission.manageExternalStorage.isGranted == false) {
-          // 简单的兼容处理: 即使 denied 也尝试继续，因为可能是 Scoped Storage
+          // 簡單的相容處理: 即使 denied 也嘗試繼續，因為可能是 Scoped Storage
         }
       }
 
-      // 获取设备架构
+      // 獲取裝置架構
       final arch = _getDeviceArch();
 
-      // 下载 APK（带架构参数）
+      // 下載 APK（帶架構引數）
       final downloadUrl = Uri.parse(
         '$serverUrl/download',
       ).replace(queryParameters: {'arch': arch});
@@ -172,7 +172,7 @@ class UpdateService {
       final streamedResponse = await request.send();
 
       if (streamedResponse.statusCode != 200) {
-        onError?.call('下载失败: ${streamedResponse.statusCode}');
+        onError?.call('下載失敗: ${streamedResponse.statusCode}');
         return;
       }
 
@@ -188,47 +188,47 @@ class UpdateService {
         }
       }
 
-      // 保存到本地
+      // 儲存到本地
       final dir = await getExternalStorageDirectory();
       if (dir == null) {
-        onError?.call('无法获取存储目录');
+        onError?.call('無法獲取儲存目錄');
         return;
       }
 
       final apkFile = File('${dir.path}/bilitv_update.apk');
       await apkFile.writeAsBytes(bytes);
 
-      // 通知下载完成
+      // 通知下載完成
       onComplete?.call();
 
-      // 稍等一下确保文件写入完成
+      // 稍等一下確保檔案寫入完成
       await Future.delayed(const Duration(milliseconds: 500));
 
-      // 调用 Android Intent 安装 APK
+      // 呼叫 Android Intent 安裝 APK
       await _installApk(apkFile.path);
     } catch (e) {
-      onError?.call('下载安装失败: $e');
+      onError?.call('下載安裝失敗: $e');
     }
   }
 
-  /// 调用系统安装 APK
+  /// 呼叫系統安裝 APK
   static Future<void> _installApk(String apkPath) async {
     const platform = MethodChannel('com.bili.tv/update');
     try {
       await platform.invokeMethod('installApk', {'path': apkPath});
     } catch (e) {
-      // 如果原生方法不存在，使用备用方案
-      throw Exception('安装 APK 需要原生代码支持: $e');
+      // 如果原生方法不存在，使用備用方案
+      throw Exception('安裝 APK 需要原生程式碼支援: $e');
     }
   }
 
-  /// 获取当前版本信息
+  /// 獲取當前版本資訊
   static Future<String> getCurrentVersion() async {
     final packageInfo = await PackageInfo.fromPlatform();
     return '${packageInfo.version} (${packageInfo.buildNumber})';
   }
 
-  /// 显示更新对话框
+  /// 顯示更新對話方塊
   static void showUpdateDialog(
     BuildContext context,
     UpdateInfo updateInfo, {
@@ -241,7 +241,7 @@ class UpdateService {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2A2A2A),
         title: Text(
-          '发现新版本 ${updateInfo.version}',
+          '發現新版本 ${updateInfo.version}',
           style: const TextStyle(color: Colors.white),
         ),
         content: Column(
@@ -249,7 +249,7 @@ class UpdateService {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              '更新内容:',
+              '更新內容:',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -270,7 +270,7 @@ class UpdateService {
                 onCancel?.call();
               },
               child: const Text(
-                '稍后再说',
+                '稍後再說',
                 style: TextStyle(color: Colors.white54),
               ),
             ),
@@ -289,7 +289,7 @@ class UpdateService {
     );
   }
 
-  /// 显示下载进度对话框
+  /// 顯示下載進度對話方塊
   static void showDownloadProgress(
     BuildContext context,
     UpdateInfo updateInfo,
@@ -302,7 +302,7 @@ class UpdateService {
   }
 }
 
-/// 下载进度对话框
+/// 下載進度對話方塊
 class _DownloadProgressDialog extends StatefulWidget {
   final UpdateInfo updateInfo;
 
@@ -338,7 +338,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
       },
       onComplete: () {
         if (mounted) {
-          // 下载完成，关闭对话框，系统会弹出安装界面
+          // 下載完成，關閉對話方塊，系統會彈出安裝介面
           Navigator.of(context).pop();
         }
       },
@@ -349,7 +349,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: const Color(0xFF2A2A2A),
-      title: const Text('正在下载更新', style: TextStyle(color: Colors.white)),
+      title: const Text('正在下載更新', style: TextStyle(color: Colors.white)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -371,7 +371,7 @@ class _DownloadProgressDialogState extends State<_DownloadProgressDialog> {
         if (_error != null)
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('关闭', style: TextStyle(color: Colors.white54)),
+            child: const Text('關閉', style: TextStyle(color: Colors.white54)),
           ),
       ],
     );

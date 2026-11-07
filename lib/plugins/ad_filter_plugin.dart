@@ -1,5 +1,6 @@
+import 'package:bili_tv_app/utils/zh_convert.dart';
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/plugin/plugin_types.dart';
 import '../models/video.dart';
@@ -9,10 +10,10 @@ class AdFilterPlugin extends FeedPlugin {
   String get id => 'ad_filter';
 
   @override
-  String get name => '去广告增强';
+  String get name => '去廣告增強';
 
   @override
-  String get description => '过滤广告、拉黑UP主、屏蔽关键词';
+  String get description => '過濾廣告、拉黑UP主、遮蔽關鍵詞';
 
   @override
   String get version => '2.0.0';
@@ -31,8 +32,9 @@ class AdFilterPlugin extends FeedPlugin {
   @override
   Widget? get settingsWidget => _AdFilterSettings(plugin: this);
 
-  // 🔥 内置广告关键词
+  // 🔥 內建廣告關鍵詞
   static const List<String> _adKeywords = [
+    // 與伺服器回傳的簡體文字比對，保留原文 (begin)
     // 商业合作类
     '商业合作', '恰饭', '推广', '广告', '赞助', '植入',
     '合作推广', '品牌合作', '本期合作', '本视频由',
@@ -43,10 +45,12 @@ class AdFilterPlugin extends FeedPlugin {
     '优惠券', '领券', '限时优惠', '好物推荐', '种草',
     // 游戏推广类
     '新游推荐', '游戏推广', '首发', '公测', '不删档',
+    // 與伺服器回傳的簡體文字比對，保留原文 (end)
   ];
 
-  // 🔥 标题党关键词
+  // 🔥 標題黨關鍵詞
   static const List<String> _clickbaitKeywords = [
+    // 與伺服器回傳的簡體文字比對，保留原文 (begin)
     '震惊',
     '惊呆了',
     '太厉害了',
@@ -76,10 +80,12 @@ class AdFilterPlugin extends FeedPlugin {
     '曝光',
     '揭秘',
     '独家',
+    // 與伺服器回傳的簡體文字比對，保留原文 (end)
   ];
 
-  // 🔥 简繁体转换表
+  // 🔥 簡繁體轉換表
   static const Map<String, String> _simplifiedToTraditional = {
+    // 與伺服器回傳的簡體文字比對，保留原文 (begin)
     '说': '說',
     '话': '話',
     '语': '語',
@@ -120,20 +126,21 @@ class AdFilterPlugin extends FeedPlugin {
     '车': '車',
     '马': '馬',
     '鸟': '鳥',
+    // 與伺服器回傳的簡體文字比對，保留原文 (end)
   };
 
   @override
   Future<void> onEnable() async {
     await _loadConfig();
-    debugPrint('✅ 去广告增强v2.0已启用');
+    debugPrint('✅ 去廣告增強v2.0已啟用');
     debugPrint(
-      '📋 拉黑UP主: ${_config.blockedUpNames.length}个, 屏蔽关键词: ${_config.blockedKeywords.length}个',
+      '📋 拉黑UP主: ${_config.blockedUpNames.length}個, 遮蔽關鍵詞: ${_config.blockedKeywords.length}個',
     );
   }
 
   @override
   Future<void> onDisable() async {
-    debugPrint('🔴 去广告增强已禁用');
+    debugPrint('🔴 去廣告增強已停用');
   }
 
   Future<void> _loadConfig() async {
@@ -154,7 +161,7 @@ class AdFilterPlugin extends FeedPlugin {
     await prefs.setString('plugin_config_$id', jsonEncode(config.toJson()));
   }
 
-  // 添加屏蔽关键词
+  // 新增遮蔽關鍵詞
   void addKeyword(String keyword) {
     if (!_config.blockedKeywords.contains(keyword)) {
       _config.blockedKeywords.add(keyword);
@@ -162,7 +169,7 @@ class AdFilterPlugin extends FeedPlugin {
     }
   }
 
-  // 移除屏蔽关键词
+  // 移除遮蔽關鍵詞
   void removeKeyword(String keyword) {
     if (_config.blockedKeywords.contains(keyword)) {
       _config.blockedKeywords.remove(keyword);
@@ -170,16 +177,16 @@ class AdFilterPlugin extends FeedPlugin {
     }
   }
 
-  // 获取屏蔽关键词列表 (API 使用)
+  // 獲取遮蔽關鍵詞列表 (API 使用)
   List<String> getKeywords() => List.unmodifiable(_config.blockedKeywords);
 
-  // 获取屏蔽的UP主MID列表 (API 使用)
+  // 獲取遮蔽的UP主MID列表 (API 使用)
   List<int> getBlockedMids() => List.unmodifiable(_config.blockedMids);
 
-  // 获取屏蔽的UP主名称列表 (API 使用)
+  // 獲取遮蔽的UP主名稱列表 (API 使用)
   List<String> getBlockedUpNames() => List.unmodifiable(_config.blockedUpNames);
 
-  // 屏蔽 UP 主 (按名称和MID)
+  // 遮蔽 UP 主 (按名稱和MID)
   void blockUploader(String name, int mid) {
     bool changed = false;
     if (name.isNotEmpty && !_config.blockedUpNames.contains(name)) {
@@ -196,7 +203,7 @@ class AdFilterPlugin extends FeedPlugin {
     }
   }
 
-  // 取消屏蔽 UP 主 (按MID)
+  // 取消遮蔽 UP 主 (按MID)
   void unblockUploader(int mid) {
     if (_config.blockedMids.contains(mid)) {
       _config.blockedMids.remove(mid);
@@ -204,7 +211,7 @@ class AdFilterPlugin extends FeedPlugin {
     }
   }
 
-  // 取消屏蔽 UP 主 (按名称)
+  // 取消遮蔽 UP 主 (按名稱)
   void unblockUploaderByName(String name) {
     if (_config.blockedUpNames.contains(name)) {
       _config.blockedUpNames.remove(name);
@@ -212,7 +219,7 @@ class AdFilterPlugin extends FeedPlugin {
     }
   }
 
-  // 添加UP主名称到黑名单
+  // 新增UP主名稱到黑名單
   void addBlockedUpName(String name) {
     if (name.isNotEmpty && !_config.blockedUpNames.contains(name)) {
       _config.blockedUpNames.add(name);
@@ -220,10 +227,10 @@ class AdFilterPlugin extends FeedPlugin {
     }
   }
 
-  // 获取配置 (API 使用)
+  // 獲取配置 (API 使用)
   AdFilterConfig getConfig() => _config;
 
-  // 设置过滤开关
+  // 設定過濾開關
   void setFilterSponsored(bool value) {
     _config.filterSponsored = value;
     saveConfig(_config);
@@ -244,7 +251,7 @@ class AdFilterPlugin extends FeedPlugin {
     saveConfig(_config);
   }
 
-  /// 🔥 检查UP主名称是否在拉黑列表中 (支持简繁体)
+  /// 🔥 檢查UP主名稱是否在拉黑列表中 (支援簡繁體)
   bool _isUpNameBlocked(String upName) {
     final normalizedUpName = _normalizeChineseChars(upName.toLowerCase());
 
@@ -252,16 +259,16 @@ class AdFilterPlugin extends FeedPlugin {
       final normalizedBlocked = _normalizeChineseChars(
         blockedName.toLowerCase(),
       );
-      // 精确匹配或模糊匹配
+      // 精確匹配或模糊匹配
       return normalizedUpName == normalizedBlocked ||
           normalizedUpName.contains(normalizedBlocked) ||
           normalizedBlocked.contains(normalizedUpName);
     });
   }
 
-  /// 将繁体字转换为简体字 (用于比较)
+  /// 將繁體字轉換為簡體字 (用於比較)
   String _normalizeChineseChars(String text) {
-    // 创建繁体→简体映射
+    // 建立繁體→簡體對映
     final traditionalToSimplified = <String, String>{};
     for (final entry in _simplifiedToTraditional.entries) {
       traditionalToSimplified[entry.value] = entry.key;
@@ -283,48 +290,48 @@ class AdFilterPlugin extends FeedPlugin {
     final upMid = item.ownerMid;
     final viewCount = item.view;
 
-    // 1️⃣ 检查UP主拉黑列表（按名称）- 支持模糊匹配和简繁体
+    // 1️⃣ 檢查UP主拉黑列表（按名稱）- 支援模糊匹配和簡繁體
     if (_isUpNameBlocked(upName)) {
-      debugPrint('🚫 拉黑UP主[名称]: $upName - $title');
+      debugPrint('🚫 拉黑UP主[名稱]: $upName - $title');
       return false;
     }
 
-    // 2️⃣ 检查UP主拉黑列表（按MID）
+    // 2️⃣ 檢查UP主拉黑列表（按MID）
     if (_config.blockedMids.contains(upMid)) {
       debugPrint('🚫 拉黑UP主[MID]: $upMid - $title');
       return false;
     }
 
-    // 3️⃣ 检测广告/推广关键词
+    // 3️⃣ 檢測廣告/推廣關鍵詞
     if (_config.filterSponsored) {
       for (final keyword in _adKeywords) {
         if (title.toLowerCase().contains(keyword.toLowerCase())) {
-          debugPrint('🚫 过滤广告: $title (UP: $upName)');
+          debugPrint('🚫 過濾廣告: $title (UP: $upName)');
           return false;
         }
       }
     }
 
-    // 4️⃣ 检测标题党
+    // 4️⃣ 檢測標題黨
     if (_config.filterClickbait) {
       for (final keyword in _clickbaitKeywords) {
         if (title.toLowerCase().contains(keyword.toLowerCase())) {
-          debugPrint('🚫 过滤标题党: $title');
+          debugPrint('🚫 過濾標題黨: $title');
           return false;
         }
       }
     }
 
-    // 5️⃣ 检测自定义屏蔽关键词
+    // 5️⃣ 檢測自定義遮蔽關鍵詞
     for (final keyword in _config.blockedKeywords) {
       if (keyword.isNotEmpty &&
           title.toLowerCase().contains(keyword.toLowerCase())) {
-        debugPrint('🚫 自定义屏蔽: $title (关键词: $keyword)');
+        debugPrint('🚫 自定義遮蔽: $title (關鍵詞: $keyword)');
         return false;
       }
     }
 
-    // 6️⃣ 过滤低质量视频（播放量过低）
+    // 6️⃣ 過濾低質量影片（播放量過低）
     if (_config.filterLowQuality &&
         viewCount > 0 &&
         viewCount < _config.minViewCount) {
@@ -336,20 +343,20 @@ class AdFilterPlugin extends FeedPlugin {
   }
 }
 
-/// 去广告配置 v2.0
+/// 去廣告配置 v2.0
 class AdFilterConfig {
-  // 基础过滤开关
-  bool filterSponsored; // 过滤广告推广
-  bool filterClickbait; // 过滤标题党
-  bool filterLowQuality; // 过滤低质量
+  // 基礎過濾開關
+  bool filterSponsored; // 過濾廣告推廣
+  bool filterClickbait; // 過濾標題黨
+  bool filterLowQuality; // 過濾低質量
   int minViewCount; // 最低播放量
 
   // UP主拉黑
-  List<String> blockedUpNames; // 拉黑UP主名称
+  List<String> blockedUpNames; // 拉黑UP主名稱
   List<int> blockedMids; // 拉黑UP主MID
 
-  // 自定义关键词
-  List<String> blockedKeywords; // 自定义屏蔽词
+  // 自定義關鍵詞
+  List<String> blockedKeywords; // 自定義遮蔽詞
 
   AdFilterConfig({
     this.filterSponsored = true,
@@ -410,9 +417,9 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ========== 过滤开关 ==========
+            // ========== 過濾開關 ==========
             const Text(
-              '过滤开关',
+              '過濾開關',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -423,11 +430,11 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
 
             SwitchListTile(
               title: const Text(
-                '过滤广告推广',
+                '過濾廣告推廣',
                 style: TextStyle(color: Colors.white),
               ),
               subtitle: const Text(
-                '隐藏商业合作、恰饭、推广等内容',
+                '隱藏商業合作、恰飯、推廣等內容',
                 style: TextStyle(color: Colors.white70),
               ),
               value: config.filterSponsored,
@@ -437,9 +444,9 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
             ),
 
             SwitchListTile(
-              title: const Text('过滤标题党', style: TextStyle(color: Colors.white)),
+              title: const Text('過濾標題黨', style: TextStyle(color: Colors.white)),
               subtitle: const Text(
-                '隐藏震惊体、夸张标题视频',
+                '隱藏震驚體、誇張標題影片',
                 style: TextStyle(color: Colors.white70),
               ),
               value: config.filterClickbait,
@@ -450,11 +457,11 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
 
             SwitchListTile(
               title: const Text(
-                '过滤低播放量',
+                '過濾低播放量',
                 style: TextStyle(color: Colors.white),
               ),
               subtitle: Text(
-                '隐藏播放量低于 ${config.minViewCount} 的视频',
+                '隱藏播放量低於 ${config.minViewCount} 的影片',
                 style: const TextStyle(color: Colors.white70),
               ),
               value: config.filterLowQuality,
@@ -481,8 +488,8 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
                 Expanded(
                   child: TextField(
                     controller: _upNameController,
-                    decoration: const InputDecoration(
-                      hintText: '输入UP主名称',
+                    decoration: InputDecoration(
+                      hintText: ZhConvert.convert('輸入UP主名稱'),
                       border: OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white12,
@@ -501,7 +508,7 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
             const SizedBox(height: 8),
             if (config.blockedUpNames.isEmpty)
               const Text(
-                '暂无拉黑的UP主',
+                '暫無拉黑的UP主',
                 style: TextStyle(
                   color: Colors.white38,
                   fontStyle: FontStyle.italic,
@@ -527,10 +534,10 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
 
             const Divider(color: Colors.white24),
 
-            // ========== 自定义关键词 ==========
+            // ========== 自定義關鍵詞 ==========
             const SizedBox(height: 16),
             const Text(
-              '自定义屏蔽关键词',
+              '自定義遮蔽關鍵詞',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -543,8 +550,8 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
                 Expanded(
                   child: TextField(
                     controller: _keywordController,
-                    decoration: const InputDecoration(
-                      hintText: '输入关键词',
+                    decoration: InputDecoration(
+                      hintText: ZhConvert.convert('輸入關鍵詞'),
                       border: OutlineInputBorder(),
                       filled: true,
                       fillColor: Colors.white12,
@@ -563,7 +570,7 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
             const SizedBox(height: 16),
             if (config.blockedKeywords.isEmpty)
               const Text(
-                '暂无自定义屏蔽词',
+                '暫無自定義遮蔽詞',
                 style: TextStyle(
                   color: Colors.white38,
                   fontStyle: FontStyle.italic,
@@ -588,7 +595,7 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
 
             const SizedBox(height: 24),
             const Text(
-              '已屏蔽UP主 (MID)',
+              '已遮蔽UP主 (MID)',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 18,
@@ -598,7 +605,7 @@ class _AdFilterSettingsState extends State<_AdFilterSettings> {
             const SizedBox(height: 8),
             if (config.blockedMids.isEmpty)
               const Text(
-                '暂无通过MID屏蔽的UP主',
+                '暫無通過MID遮蔽的UP主',
                 style: TextStyle(
                   color: Colors.white38,
                   fontStyle: FontStyle.italic,

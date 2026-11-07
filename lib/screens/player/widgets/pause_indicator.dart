@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:video_player/video_player.dart';
 
 class PauseIndicator extends StatelessWidget {
@@ -10,7 +10,7 @@ class PauseIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     if (controller == null) return const SizedBox.shrink();
 
-    // 由于 VideoPlayerValue 不是 ValueListenable，我们依赖父组件重建
+    // 由於 VideoPlayerValue 不是 ValueListenable，我們依賴父元件重建
     final isPlaying = controller!.value.isPlaying;
     final isBuffering = controller!.value.isBuffering;
 
