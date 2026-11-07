@@ -100,6 +100,6 @@ T-1、T-2 平行 → T-3（會改動幾乎所有檔案，單獨執行）→ T-4 
 - `lib/widgets/history_video_card.dart:78` `video.badge == '未开播'`
 - `lib/screens/live/live_player_screen.dart:292` `desc != '默认'`
 - `lib/services/api/base_api.dart:204-213` `万`、`亿` 數字單位解析
-- `lib/plugins/ad_filter_plugin.dart:38-47`、`:54-84` 廣告／標題黨關鍵詞，`:88-129` `_simplifiedToTraditional` 簡繁對照表（`_normalizeChineseChars` 用它）
+- `lib/plugins/ad_filter_plugin.dart:37-48`、`:53-83` 廣告／標題黨關鍵詞，`:88-129` `_simplifiedToTraditional` 簡繁對照表（`_normalizeChineseChars` 用它）
 - `lib/plugins/danmaku_enhance_plugin.dart:156`、`:163` 預設屏蔽詞 `['剧透', '前方高能']`
 - 未改動（兩種字體相同）：`video.dart:105` 的 `contains('直播')`。
