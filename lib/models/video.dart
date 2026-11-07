@@ -110,7 +110,13 @@ class Video {
   factory Video.fromSearch(Map<String, dynamic> json) {
     // 搜尋結果的標題可能包含 <em> 高亮標籤，需要清理
     String title = json['title'] ?? '';
-    title = title.replaceAll(RegExp(r'<[^>]*>'), '');
+    title = title
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&amp;', '&');
 
     return Video(
       bvid: json['bvid'] ?? '',

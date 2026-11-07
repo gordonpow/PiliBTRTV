@@ -203,7 +203,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
               sliver: SliverGrid(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 4,
-                  childAspectRatio: 360 / 300,
+                  childAspectRatio: 320 / 280, // 與其他分頁一致，避免卡片底部溢出 0.325px
                   crossAxisSpacing: 20,
                   mainAxisSpacing: 30,
                 ),
