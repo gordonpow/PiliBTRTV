@@ -1,0 +1,62 @@
+11-07 14:07:31.050  2333  2333 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-07 14:07:31.069  2333  2333 I AndroidRuntime: Using default boot image
+11-07 14:07:31.069  2333  2333 I AndroidRuntime: Leaving lock profiling enabled
+11-07 14:07:31.220  2333  2333 D AndroidRuntime: Calling main entry com.android.commands.monkey.Monkey
+11-07 14:07:31.223  2333  2333 W Monkey  : args: [-p, com.gordonpow.pilibtrtv, -c, android.intent.category.LEANBACK_LAUNCHER, 1]
+11-07 14:07:31.248  2333  2333 W Monkey  :  arg: "com.gordonpow.pilibtrtv"
+11-07 14:07:31.248  2333  2333 W Monkey  : data="com.gordonpow.pilibtrtv"
+11-07 14:07:31.353   681   976 I ActivityTaskManager: START u0 {act=android.intent.action.MAIN cat=[android.intent.category.LEANBACK_LAUNCHER] flg=0x10200000 cmp=com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity} with LAUNCH_SINGLE_TOP from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+11-07 14:07:31.361  2333  2333 I AndroidRuntime: VM exiting with result code 0.
+11-07 14:07:31.371   681   713 I ActivityManager: Start proc 2348:com.gordonpow.pilibtrtv/u0a88 for next-top-activity {com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity}
+11-07 14:07:31.390  2348  2348 I onpow.pilibtrtv: Late-enabling -Xcheck:jni
+11-07 14:07:31.417  2348  2348 I onpow.pilibtrtv: Using CollectorTypeCMC GC.
+11-07 14:07:31.417  2348  2348 W onpow.pilibtrtv: Unexpected CPU variant for x86: x86_64.
+11-07 14:07:31.417  2348  2348 W onpow.pilibtrtv: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, alderlake, default
+11-07 14:07:31.756  2348  2348 D nativeloader: Configuring clns-7 for other apk /data/app/~~DNu3tpkQE1dXp19pFT4gbg==/com.gordonpow.pilibtrtv-yw2CjpFhsyO0t_kwM4e_Kg==/base.apk. target_sdk_version=36, uses_libraries=, library_path=/data/app/~~DNu3tpkQE1dXp19pFT4gbg==/com.gordonpow.pilibtrtv-yw2CjpFhsyO0t_kwM4e_Kg==/lib/x86_64:/data/app/~~DNu3tpkQE1dXp19pFT4gbg==/com.gordonpow.pilibtrtv-yw2CjpFhsyO0t_kwM4e_Kg==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.gordonpow.pilibtrtv
+11-07 14:07:31.763  2348  2348 I onpow.pilibtrtv: AssetManager2(0x71bb9cc46558) locale list changing from [] to [en-US]
+11-07 14:07:31.771  2348  2348 V GraphicsEnvironment: com.gordonpow.pilibtrtv is not listed in per-application setting
+11-07 14:07:31.771  2348  2348 V GraphicsEnvironment: com.gordonpow.pilibtrtv is not listed in ANGLE allowlist or settings, returning default
+11-07 14:07:31.803  2348  2348 I onpow.pilibtrtv: AssetManager2(0x71bb9cc4f518) locale list changing from [] to [en-US]
+11-07 14:07:31.834  2348  2367 D FlutterJNI: Beginning load of flutter...
+11-07 14:07:31.998  2348  2367 D nativeloader: Load /data/app/~~DNu3tpkQE1dXp19pFT4gbg==/com.gordonpow.pilibtrtv-yw2CjpFhsyO0t_kwM4e_Kg==/base.apk!/lib/x86_64/libflutter.so using class loader ns clns-7 (caller=/data/app/~~DNu3tpkQE1dXp19pFT4gbg==/com.gordonpow.pilibtrtv-yw2CjpFhsyO0t_kwM4e_Kg==/base.apk): ok
+11-07 14:07:32.000  2348  2367 D FlutterJNI: flutter (null) was loaded normally!
+11-07 14:07:32.020  2348  2348 I onpow.pilibtrtv: AssetManager2(0x71bb9cc50af8) locale list changing from [] to [en-US]
+11-07 14:07:32.027  2348  2348 W onpow.pilibtrtv: type=1400 audit(0.0:46): avc:  denied  { read } for  name="max_map_count" dev="proc" ino=15674 scontext=u:r:untrusted_app:s0:c88,c256,c512,c768 tcontext=u:object_r:proc_max_map_count:s0 tclass=file permissive=0 app=com.gordonpow.pilibtrtv
+11-07 14:07:32.186  2348  2370 I flutter : [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+11-07 14:07:32.352  2348  2376 I flutter : The Dart VM service is listening on http://127.0.0.1:33911/tsb9bfpG98g=/
+11-07 14:07:32.821  2348  2348 I onpow.pilibtrtv: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported,test-api) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+11-07 14:07:32.821  2348  2348 I onpow.pilibtrtv: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityRecord;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+11-07 14:07:32.821  2348  2348 I onpow.pilibtrtv: hiddenapi: Accessing hidden field Landroid/view/accessibility/AccessibilityNodeInfo;->mChildNodeIds:Landroid/util/LongArray; (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+11-07 14:07:32.821  2348  2348 I onpow.pilibtrtv: hiddenapi: Accessing hidden method Landroid/util/LongArray;->get(I)J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+11-07 14:07:32.835  2348  2348 D FlutterRenderer: Width is zero. 0,0
+11-07 14:07:33.075   681   880 D CoreBackPreview: Window{f21f727 u0 com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@c25eb7d, mPriority=-1, mIsAnimationCallback=false, mOverrideBehavior=0}
+11-07 14:07:33.112  2348  2348 D FlutterRenderer: Width is zero. 0,0
+11-07 14:07:33.117  2348  2348 D FlutterJNI: Sending viewport metrics to the engine.
+11-07 14:07:33.206  2348  2352 I onpow.pilibtrtv: Compiler allocated 5042KB to compile void android.view.ViewRootImpl.performTraversals()
+11-07 14:07:33.251   681   706 I BLASTSyncEngine: Unfinished container: Task{d1bfd8e #17 type=standard I=com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity}
+11-07 14:07:33.251   681   706 I BLASTSyncEngine:   Window{f21f727 u0 com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity} DRAW_PENDING
+11-07 14:07:33.251   681   706 I BLASTSyncEngine: Unfinished container: ActivityRecord{165808521 u0 com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity t17}
+11-07 14:07:33.251   681   706 I BLASTSyncEngine:   Window{f21f727 u0 com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity} DRAW_PENDING
+11-07 14:07:33.260   681   703 V WindowManager:         {WCT{RemoteToken{faac279 Task{d1bfd8e #17 type=standard I=com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity}}} m=OPEN f=MOVE_TO_TOP p=WCT{RemoteToken{58bdbbe Display{#0 state=ON size=1920x1080 ROTATION_0}}} leash=Surface(name=Task=17)/@0xe2cdec3 sb=Rect(0, 0 - 1920, 1080) eb=Rect(0, 0 - 1920, 1080) epz=Point(1920, 1080) d=0 taskParent=-1},
+11-07 14:07:34.860  2348  2348 I flutter : PluginManager: Registered 空降助手 (sponsor_block). Total: 1
+11-07 14:07:34.862  2348  2348 I flutter : PluginManager: Registered 去廣告增強 (ad_filter). Total: 2
+11-07 14:07:34.862  2348  2348 I flutter : PluginManager: Registered 彈幕遮蔽 (danmaku_enhance). Total: 3
+11-07 14:07:34.893  2348  2348 I flutter : 🌐 LocalServer started at http://10.0.2.15:3322
+11-07 14:07:35.393  2348  2348 I ExoPlayerImpl: Init d8591ff [AndroidXMedia3/1.8.0] [emu64xa, sdk_google_atv64_x86_64, Google, 36]
+11-07 14:07:35.405  2348  2348 I onpow.pilibtrtv: hiddenapi: Accessing hidden method Landroid/media/AudioTrack;->getLatency()I (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/media3/exoplayer/audio/AudioTrackPositionTracker; (domain=app) using reflection: allowed
+11-07 14:07:35.449  2348  2348 D FlutterJNI: Sending viewport metrics to the engine.
+11-07 14:07:35.493  2348  2348 D FlutterJNI: Sending viewport metrics to the engine.
+11-07 14:07:35.493   681   703 I ActivityTaskManager: Displayed com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity for user 0: +4s157ms
+11-07 14:07:35.494   681   703 I ActivityTaskManager: Fully drawn com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity: +4s157ms
+11-07 14:07:35.525   681   788 I ImeTracker: com.gordonpow.pilibtrtv:27cf6fc9: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+11-07 14:07:35.527  2348  2348 I ImeTracker: com.gordonpow.pilibtrtv:27cf6fc9: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+11-07 14:07:35.528  1195  1195 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1345 onStartInput(EditorInfo{EditorInfo{packageName=com.gordonpow.pilibtrtv, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+11-07 14:07:35.530   681   758 W PackageConfigPersister: App-specific configuration not found for packageName: com.gordonpow.pilibtrtv and userId: 0
+11-07 14:07:35.640  2348  2393 E onpow.pilibtrtv: Failed to query component interface for required system resources: 6
+11-07 14:07:36.140   681   758 I MediaFocusControl: requestAudioFocus() from uid/pid 10088/2348 AA=USAGE_MEDIA/CONTENT_TYPE_MOVIE clientId=android.media.AudioManager@ee90400androidx.media3.exoplayer.AudioFocusManager$$ExternalSyntheticLambda0@6ee439 callingPack=com.gordonpow.pilibtrtv req=1 flags=0x0 sdk=36
+11-07 14:07:38.122  2348  2427 D ProfileInstaller: Installing profile for com.gordonpow.pilibtrtv
+11-07 14:07:38.682   681  1101 D CoreBackPreview: Window{f21f727 u0 com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@57e30cb, mPriority=0, mIsAnimationCallback=true, mOverrideBehavior=0}
+11-07 14:07:38.937   536   536 D CompositionEngine: Layer: com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity#86 had an out of bounds transparent region
+11-07 14:07:39.038  2348  2348 I ExoPlayerImpl: Release d8591ff [AndroidXMedia3/1.8.0] [emu64xa, sdk_google_atv64_x86_64, Google, 36] [media3.common, media3.exoplayer, media3.decoder, media3.datasource, media3.extractor]
+11-07 14:07:39.088   681   757 I MediaFocusControl: abandonAudioFocus() from uid/pid 10088/2348 clientId=android.media.AudioManager@ee90400androidx.media3.exoplayer.AudioFocusManager$$ExternalSyntheticLambda0@6ee439 callingPack=com.gordonpow.pilibtrtv
+11-07 14:07:58.946  2348  2354 W onpow.pilibtrtv: Cleared Reference was only reachable from finalizer (only reported once)

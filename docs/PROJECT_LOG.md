@@ -35,14 +35,24 @@
 
 發布：v1.2.2-btr.1（2026-11-07）。尚未實機測試。
 
+| `9c96830` | 所有 B站請求帶 buvid3（修正點影片「獲取影片資訊失敗」，HTTP 412）；圖示改為 PiliBTR、TV banner |
+| `f9beb34` | 繁簡切換：介面改台灣繁體用語（s2twp），顯示時 ZhConvert（繁 s2tw／簡 tw2sp），語言設定與重新啟動 |
+| `d176bb8` | GitHub 自動檢查更新與 App 內安裝（紅點、間隔、ABI 選檔） |
+| `5d2c4e8`、`7acf7dd`、`c917280` | Cookie 加 b_nut、Referer 結尾斜線、未登入取 WBI 金鑰（修正搜尋 412／無結果）；轉換表 CRLF 造成字間空白；CDN 狀態暫停時仍顯示 |
+| `16c63e2` | 未登入也能進入設定頁（登入按鈕開 QR 登入頁，返回鍵回設定） |
+
+版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.2`（尚未發布 Release）。
+
 ### 已實作、尚未 commit
 
-- 繁簡切換（T-3）：原始碼文字轉台灣繁體、執行時 ZhConvert、語言設定與重啟（規格：`docs/work/zh-update-icon/`）；已於 feat/zh-update 分支 commit。
-- GitHub 自動更新（T-4）：`UpdateService` 改為檢查 gordonpow/PiliBTRTV releases，App 內下載並安裝（`installApk` 回傳 ok/permission、`getSupportedAbis`）；關於軟體分頁新增檢查更新、自動檢查、間隔，有新版時顯示紅點；已於 feat/zh-update 分支 commit。
+（無）
 
 ### 待辦
 
-- 實機測試：播放、跳轉、切畫質、CDN 狀態、設定頁遙控器操作、自訂節點輸入框。
+- 實機測試：切畫質、自訂節點輸入框、App 內更新安裝流程、登入後功能。
+- 已在模擬器（Android TV API 36 x86_64）驗證：搜尋、播放、BTR 多節點、CDN 狀態、繁簡切換與重啟、未登入設定頁、關於軟體更新項目。TV launcher banner 未驗證。
+- 搜尋鍵盤（8.7px）與影片卡片（0.325px）有版面溢出，原版即有，未處理。
+- Android TV API 33 映像檔是 32 位元 x86，Flutter 不支援，模擬器請用 `Android_TV_API36`。
 - 直播尚未接 BTR。
 
 ## 3. 對話紀錄
@@ -65,3 +75,10 @@
 | 請求 | 結果 |
 |---|---|
 | 實作 T-3 繁簡切換 | 80 個檔案以 OpenCC s2twp 轉為繁體，伺服器比對點保留簡體；新增 ZhConvert、zh_text、語言設定與重啟；`flutter analyze` 無問題 |
+
+### 2026-11-07：修正無法播放、繁簡切換、自動更新、圖示、模擬器
+
+| 請求 | 結果 |
+|---|---|
+| 點影片顯示獲取影片資訊失敗；加繁簡切換（規則同 PiliBTR，繁體用台灣用語）；加自動更新（邏輯同 PiliBTR）；圖示改與 PiliBTR 相似；能否用模擬器測試 | 根因為缺 buvid3（412）；另找到搜尋需 b_nut、Referer 結尾斜線、未登入 nav 回 -101 仍有 WBI 金鑰。完成繁簡切換、GitHub 自動更新、圖示與 banner。建立 Android TV API 36 模擬器並實測（截圖：`docs/work/zh-update-icon/screens/`） |
+| 未登入也能進設定 | 設定頁一律顯示，未登入時顯示「登入」按鈕開 QR 頁 |

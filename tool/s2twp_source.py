@@ -38,7 +38,8 @@ def main():
             elif in_block:
                 out.append(line)
             else:
-                out.append(cc.convert(line))
+                # 專有名詞「線程撕裂者」不套用 s2twp 的「線程→執行緒」。
+                out.append(cc.convert(line).replace('執行緒撕裂者', '線程撕裂者'))
         res = '\n'.join(out)
         if res != src:
             with open(path, 'w', encoding='utf-8', newline='') as f:

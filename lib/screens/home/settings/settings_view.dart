@@ -14,7 +14,7 @@ import '../../../widgets/vip_avatar_badge.dart';
 /// 設定分類列舉
 enum SettingsCategory {
   playback('播放設定'),
-  btr('執行緒撕裂者'),
+  btr('線程撕裂者'),
   interface_('介面設定'),
   plugins('外掛中心'),
   storage('其他設定'),

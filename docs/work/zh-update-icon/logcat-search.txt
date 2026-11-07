@@ -1,0 +1,80 @@
+11-07 13:55:41.910  2495  2495 I onpow.pilibtrtv: AssetManager2(0x7cf8a06f1758) locale list changing from [] to [en-US]
+11-07 13:55:41.917  2495  2495 W onpow.pilibtrtv: type=1400 audit(0.0:56): avc:  denied  { read } for  name="max_map_count" dev="proc" ino=18782 scontext=u:r:untrusted_app:s0:c88,c256,c512,c768 tcontext=u:object_r:proc_max_map_count:s0 tclass=file permissive=0 app=com.gordonpow.pilibtrtv
+11-07 13:55:41.985  2495  2526 I flutter : [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+11-07 13:55:42.098   686   717 I BLASTSyncEngine: Unfinished container: Task{ee147cd #8 type=standard I=com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity}
+11-07 13:55:42.102   686   717 I BLASTSyncEngine: Unfinished container: ActivityRecord{23538020 u0 com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity t8}
+11-07 13:55:42.140   686   714 V WindowManager:         {WCT{RemoteToken{6b81b09 Task{ee147cd #8 type=standard I=com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity}}} m=OPEN f=MOVE_TO_TOP p=WCT{RemoteToken{696710e Display{#0 state=ON size=1920x1080 ROTATION_0}}} leash=Surface(name=Task=8)/@0x9c8c0d3 sb=Rect(0, 0 - 1920, 1080) eb=Rect(0, 0 - 1920, 1080) epz=Point(1920, 1080) d=0 taskParent=-1},
+11-07 13:55:42.270  2495  2532 I flutter : The Dart VM service is listening on http://127.0.0.1:35095/jyNQ21cRHlo=/
+11-07 13:55:42.456  2495  2495 I onpow.pilibtrtv: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported,test-api) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+11-07 13:55:42.457  2495  2495 I onpow.pilibtrtv: hiddenapi: Accessing hidden method Landroid/view/accessibility/AccessibilityRecord;->getSourceNodeId()J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+11-07 13:55:42.457  2495  2495 I onpow.pilibtrtv: hiddenapi: Accessing hidden field Landroid/view/accessibility/AccessibilityNodeInfo;->mChildNodeIds:Landroid/util/LongArray; (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+11-07 13:55:42.458  2495  2495 I onpow.pilibtrtv: hiddenapi: Accessing hidden method Landroid/util/LongArray;->get(I)J (runtime_flags=0, domain=platform, api=unsupported) from Lio/flutter/view/AccessibilityViewEmbedder$ReflectionAccessors; (domain=app) using reflection: allowed
+11-07 13:55:42.473  2495  2495 D FlutterRenderer: Width is zero. 0,0
+11-07 13:55:42.693  2495  2495 I flutter : PluginManager: Registered 空降助手 (sponsor_block). Total: 1
+11-07 13:55:42.704  2495  2495 I flutter : PluginManager: Registered 去广告增强 (ad_filter). Total: 2
+11-07 13:55:42.706  2495  2495 I flutter : PluginManager: Registered 弹幕屏蔽 (danmaku_enhance). Total: 3
+11-07 13:55:42.767  2495  2495 I flutter : 🌐 LocalServer started at http://10.0.2.15:3322
+11-07 13:55:43.216   686   945 D CoreBackPreview: Window{75ec296 u0 com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@84f24b3, mPriority=-1, mIsAnimationCallback=false, mOverrideBehavior=0}
+11-07 13:55:43.240  2495  2501 I onpow.pilibtrtv: Compiler allocated 5042KB to compile void android.view.ViewRootImpl.performTraversals()
+11-07 13:55:43.243  2495  2495 D FlutterRenderer: Width is zero. 0,0
+11-07 13:55:43.251  2495  2495 D FlutterJNI: Sending viewport metrics to the engine.
+11-07 13:55:43.712   686  1291 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+11-07 13:55:44.038  2495  2495 D FlutterJNI: Sending viewport metrics to the engine.
+11-07 13:55:44.076  2495  2495 I ExoPlayerImpl: Init 74f7ed1 [AndroidXMedia3/1.8.0] [emu64xa, sdk_google_atv64_x86_64, Google, 36]
+11-07 13:55:44.100  2495  2495 I onpow.pilibtrtv: hiddenapi: Accessing hidden method Landroid/media/AudioTrack;->getLatency()I (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/media3/exoplayer/audio/AudioTrackPositionTracker; (domain=app) using reflection: allowed
+11-07 13:55:44.120  2495  2557 D AudioSystem: onNewServiceWithAdapter: media.audio_flinger service obtained 0x7cf7b07744a0
+11-07 13:55:44.164  2495  2557 D AudioSystem: getService: checking for service media.audio_flinger: 0x7cf78075d0f0
+11-07 13:55:44.354  2495  2495 D FlutterJNI: Sending viewport metrics to the engine.
+11-07 13:55:44.366   686   714 I ActivityTaskManager: Displayed com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity for user 0: +4s179ms
+11-07 13:55:44.366   686   714 I ActivityTaskManager: Fully drawn com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity: +4s179ms
+11-07 13:55:44.383  2495  2557 E MediaCodec: Media Quality Service not found.
+11-07 13:55:44.385  2495  2563 E onpow.pilibtrtv: Failed to query component interface for required system resources: 6
+11-07 13:55:44.457   686   791 I ImeTracker: com.gordonpow.pilibtrtv:63348a80: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+11-07 13:55:44.463  2495  2495 I ImeTracker: com.gordonpow.pilibtrtv:63348a80: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+11-07 13:55:44.573  2188  2188 E GoogleInputMethodService: GoogleInputMethodService.getEditorInfo():1852 EditorInfo should never be null.
+11-07 13:55:44.576  2188  2188 E GoogleInputMethodService: GoogleInputMethodService.getEditorInfo():1852 EditorInfo should never be null.
+11-07 13:55:44.620  2188  2260 I ManifestedDataDownloader: ManifestedDataDownloader.download():67 downloading manifest https://www.gstatic.com/android/keyboard/dictionarypack/2025052121/tv/metadata.json-perlang/en-US.json?v=2025091900
+11-07 13:55:44.630  2188  2188 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1345 onStartInput(EditorInfo{EditorInfo{packageName=com.gordonpow.pilibtrtv, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+11-07 13:55:44.698   686   945 W PackageConfigPersister: App-specific configuration not found for packageName: com.gordonpow.pilibtrtv and userId: 0
+11-07 13:55:45.528   686   945 I MediaFocusControl: requestAudioFocus() from uid/pid 10088/2495 AA=USAGE_MEDIA/CONTENT_TYPE_MOVIE clientId=android.media.AudioManager@20c5f35androidx.media3.exoplayer.AudioFocusManager$$ExternalSyntheticLambda0@c44dfca callingPack=com.gordonpow.pilibtrtv req=1 flags=0x0 sdk=36
+11-07 13:55:47.969   686   709 D CoreBackPreview: Window{75ec296 u0 com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@2336e51, mPriority=0, mIsAnimationCallback=true, mOverrideBehavior=0}
+11-07 13:55:48.441  1897  2190 E ActivityThread: Failed to find provider info for com.google.android.tvsetup.app.machine.services.castsetup.castsetupinfo.CastInfoProvider
+11-07 13:55:48.442  1897  2190 E cast_ClientAuthCredsFactoryProvisioned: Cannot get device credentials
+11-07 13:55:48.959  2495  2605 D ProfileInstaller: Installing profile for com.gordonpow.pilibtrtv
+11-07 13:55:48.966   535   535 D CompositionEngine: Layer: com.gordonpow.pilibtrtv/com.bili.tv.bili_tv_app.MainActivity#97 had an out of bounds transparent region
+11-07 13:55:49.129  2495  2495 I ExoPlayerImpl: Release 74f7ed1 [AndroidXMedia3/1.8.0] [emu64xa, sdk_google_atv64_x86_64, Google, 36] [media3.common, media3.exoplayer, media3.decoder, media3.datasource, media3.extractor]
+11-07 13:55:49.183   686  1748 I MediaFocusControl: abandonAudioFocus() from uid/pid 10088/2495 clientId=android.media.AudioManager@20c5f35androidx.media3.exoplayer.AudioFocusManager$$ExternalSyntheticLambda0@c44dfca callingPack=com.gordonpow.pilibtrtv
+11-07 13:56:04.444  1897  2190 E ActivityThread: Failed to find provider info for com.google.android.tvsetup.app.machine.services.castsetup.castsetupinfo.CastInfoProvider
+11-07 13:56:04.444  1897  2190 E cast_ClientAuthCredsFactoryProvisioned: Cannot get device credentials
+11-07 13:56:05.267   686   771 W BestClock: java.time.DateTimeException: No network time available
+11-07 13:56:05.267   686   771 W BestClock: java.time.DateTimeException: No network time available
+11-07 13:56:05.267   686   771 W BestClock: java.time.DateTimeException: No network time available
+11-07 13:56:05.267   686   771 W BestClock: java.time.DateTimeException: No network time available
+11-07 13:56:05.267   686   771 W BestClock: java.time.DateTimeException: No network time available
+11-07 13:56:05.341   686   883 W BestClock: java.time.DateTimeException: No network time available
+11-07 13:56:05.341   686   883 W BestClock: java.time.DateTimeException: No network time available
+11-07 13:56:05.341   686   883 W BestClock: java.time.DateTimeException: No network time available
+11-07 13:56:05.341   686   883 W BestClock: java.time.DateTimeException: No network time available
+11-07 13:56:07.811  2495  2502 W onpow.pilibtrtv: Cleared Reference was only reachable from finalizer (only reported once)
+11-07 13:56:32.696  1897  1897 I cast_shell: [1107/135632.696443:INFO:ccs_transport_https.cc(1468)] No cloud settings for register request
+11-07 13:56:32.697  1897  1897 E cast_shell: [1107/135632.697264:ERROR:ccs_transport_https.cc(1424)] CreateAndSignJwtAsync() returned invalid JWT. Not attaching to headers.
+11-07 13:56:32.697  1897  1897 E cast_shell: [1107/135632.697313:ERROR:cast_auth_headers.cc(167)] Unable to update signature header
+11-07 13:56:32.697  1897  1897 I cast_shell: [1107/135632.697456:INFO:metrics_recorder.cc(193)] cast event: Cloud.Transport.Https.Register.Out
+11-07 13:56:32.924  1897  1897 E cast_shell: [1107/135632.924163:ERROR:ccs_transport_https.cc(2164)] Received response code 403 for message_id = a5639299-fb82-4c62-acca-a42d002b739f - 
+11-07 13:56:32.924  1897  1897 I cast_shell: [1107/135632.924514:INFO:metrics_recorder.cc(193)] cast event: Cloud.Transport.Https.Register.Out.Error
+11-07 13:56:33.422  1897  1897 I cast_shell: [metrics_stat_logger] Cloud.Transport.Https.Register.Out=2
+11-07 13:56:33.422  1897  1897 I cast_shell: [metrics_stat_logger] Cloud.Transport.Https.Register.Out.Error=2
+11-07 13:56:36.445  1897  2190 E ActivityThread: Failed to find provider info for com.google.android.tvsetup.app.machine.services.castsetup.castsetupinfo.CastInfoProvider
+11-07 13:56:36.445  1897  2190 E cast_ClientAuthCredsFactoryProvisioned: Cannot get device credentials
+11-07 13:56:41.366  1254  1423 W GmsUrlRequestImpl: [https://android.googleapis.com/auth/devicekey] Content-Type header is overwritten.
+11-07 13:56:41.461  1254  1423 W GLSUser : [AppCertManager] Exception while requesting key: 
+11-07 13:56:41.461  1254  1423 W GLSUser : java.util.concurrent.ExecutionException: aymf: Parse Proto Exception with response code 400
+11-07 13:56:41.461  1254  1423 W GLSUser : Caused by: aymf: Parse Proto Exception with response code 400
+11-07 13:56:46.129   686   855 D SntpClient: request time failed: java.net.SocketTimeoutException: Poll timed out
+11-07 13:56:51.146   686   855 D SntpClient: request time failed: java.net.SocketTimeoutException: Poll timed out
+11-07 13:56:56.148   686   855 D SntpClient: request time failed: java.net.SocketTimeoutException: Poll timed out
+11-07 13:57:01.154   686   855 D SntpClient: request time failed: java.net.SocketTimeoutException: Poll timed out
+11-07 13:57:06.161   686   855 D SntpClient: request time failed: java.net.SocketTimeoutException: Poll timed out
+11-07 13:57:11.168   686   855 D SntpClient: request time failed: java.net.SocketTimeoutException: Poll timed out
+11-07 13:57:16.179   686   855 D SntpClient: request time failed: java.net.SocketTimeoutException: Poll timed out
+11-07 13:57:21.186   686   855 D SntpClient: request time failed: java.net.SocketTimeoutException: Poll timed out

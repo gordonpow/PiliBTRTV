@@ -8,7 +8,7 @@ import '../widgets/setting_action_row.dart';
 import '../widgets/setting_dropdown_row.dart';
 import '../widgets/setting_toggle_row.dart';
 
-/// 執行緒撕裂者（BTR）播放加速設定
+/// 線程撕裂者（BTR）播放加速設定
 class BtrSettings extends StatefulWidget {
   final VoidCallback onMoveUp;
   final FocusNode? sidebarFocusNode;
