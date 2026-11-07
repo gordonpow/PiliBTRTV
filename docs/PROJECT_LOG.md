@@ -43,7 +43,7 @@
 | `3e1c437` | 動態空白（mid／pub_ts 改為字串）、歷史紀錄一直轉圈（失敗時缺欄位）、登入後分頁重新載入 |
 | （本次） | 開機動畫改為 PiliBTR 風格：粉紫光線匯聚後浮現圖示，無文字，2.4 秒（`tool/gen_splash.py` 產生） |
 
-版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.2`（尚未發布 Release）。
+版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.2`。發布：v1.2.2-btr.2（2026-11-07，附 release APK 57.6MB）。
 
 ### 已實作、尚未 commit
 
@@ -98,3 +98,4 @@
 | 請求 | 結果 |
 |---|---|
 | 搜尋同時支援內建鍵盤與電視系統鍵盤（IME）以輸入中文；修正鍵盤區底部溢位 | 搜尋框可用 D-pad 聚焦，按確認鍵開啟系統鍵盤（隱藏 TextField 與 `_searchText` 雙向同步，組字中不回寫）；返回鍵先關鍵盤並以 `SearchImeBackGuard` 避免 HomeScreen 同時處理；按鍵格改為依高度自適應；`flutter analyze` 無問題 |
+| 發布 | GitHub Release `v1.2.2-btr.2`（含搜尋系統鍵盤 `29591a3`、卡片溢出與標題實體 `a535085`） |
