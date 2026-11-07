@@ -6,6 +6,7 @@ import 'package:bili_tv_app/models/video.dart';
 import 'home/home_tab.dart';
 import 'home/history_tab.dart';
 import 'home/search_tab.dart';
+import 'home/search/search_keyboard_view.dart' show SearchImeBackGuard;
 import 'home/login_tab.dart';
 import 'home/dynamic_tab.dart';
 import 'home/live_tab.dart';
@@ -24,8 +25,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _selectedTabIndex = 1; // 預設選中首頁
   DateTime? _lastBackPressed;
   DateTime? _backFromSearchHandled; // 防止搜尋鍵盤返回鍵重複處理
@@ -175,6 +175,11 @@ class _HomeScreenState extends State<HomeScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+
+        // 搜尋的系統鍵盤（IME）開啟或剛關閉：返回鍵只用來關閉鍵盤
+        if (_selectedTabIndex == 0 && SearchImeBackGuard.shouldSwallowBack()) {
+          return;
+        }
 
         // 檢查是否剛剛被搜尋鍵盤的返回鍵處理過
         if (_backFromSearchHandled != null &&

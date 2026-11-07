@@ -5,6 +5,24 @@ import '../../../services/bilibili_api.dart';
 import '../../../services/search_history_service.dart';
 import '../../../widgets/tv_keyboard_button.dart';
 
+/// 系統鍵盤（IME）返回鍵防護：IME 開啟或剛關閉時，HomeScreen 不處理返回鍵。
+class SearchImeBackGuard {
+  static bool imeOpen = false;
+  static DateTime? _closedAt;
+
+  static void markClosed() {
+    imeOpen = false;
+    _closedAt = DateTime.now();
+  }
+
+  static bool shouldSwallowBack() {
+    if (imeOpen) return true;
+    final t = _closedAt;
+    return t != null &&
+        DateTime.now().difference(t) < const Duration(milliseconds: 400);
+  }
+}
+
 class SearchKeyboardView extends StatefulWidget {
   final FocusNode? sidebarFocusNode;
   final VoidCallback? onBackToHome;
@@ -21,9 +39,17 @@ class SearchKeyboardView extends StatefulWidget {
   State<SearchKeyboardView> createState() => _SearchKeyboardViewState();
 }
 
-class _SearchKeyboardViewState extends State<SearchKeyboardView> {
+class _SearchKeyboardViewState extends State<SearchKeyboardView>
+    with WidgetsBindingObserver {
   String _searchText = '';
   List<String> _suggestions = [];
+
+  // 搜尋框（D-pad 焦點）與隱藏的 TextField（系統鍵盤輸入）
+  final FocusNode _boxFocus = FocusNode(debugLabel: 'searchBox');
+  late final FocusNode _textFocus;
+  final TextEditingController _controller = TextEditingController();
+  bool _boxFocused = false;
+  bool _imeVisible = false;
 
   final List<String> _gridKeys = [
     'A',
@@ -68,30 +94,148 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
   void initState() {
     super.initState();
     SearchHistoryService.init(); // Initialize history
+    _textFocus = FocusNode(
+      debugLabel: 'searchText',
+      skipTraversal: true,
+      onKeyEvent: _onTextKey,
+    );
+    _textFocus.addListener(_onTextFocusChanged);
+    _controller.addListener(_onControllerChanged);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (SearchImeBackGuard.imeOpen) SearchImeBackGuard.markClosed();
+    _controller.removeListener(_onControllerChanged);
+    _textFocus.removeListener(_onTextFocusChanged);
+    _controller.dispose();
+    _textFocus.dispose();
+    _boxFocus.dispose();
+    super.dispose();
+  }
+
+  double _viewInsetsBottom() {
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    return views.isEmpty ? 0 : views.first.viewInsets.bottom;
+  }
+
+  @override
+  void didChangeMetrics() {
+    final visible = _viewInsetsBottom() > 0;
+    if (visible == _imeVisible) return;
+    _imeVisible = visible;
+    if (!visible && _textFocus.hasFocus) {
+      // 系統鍵盤被收起（例如按返回鍵）：焦點回到搜尋框
+      SearchImeBackGuard.markClosed();
+      _boxFocus.requestFocus();
+    }
+  }
+
+  bool _isBackKey(KeyEvent event) =>
+      event.logicalKey == LogicalKeyboardKey.escape ||
+      event.logicalKey == LogicalKeyboardKey.goBack ||
+      event.logicalKey == LogicalKeyboardKey.browserBack;
+
+  KeyEventResult _onTextKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (_isBackKey(event)) {
+      // 先關閉輸入狀態，不讓 HomeScreen 同時處理返回
+      SearchImeBackGuard.markClosed();
+      _boxFocus.requestFocus();
+      return KeyEventResult.handled;
+    }
+    // 系統鍵盤未顯示時，方向鍵不要被 TextField 困住
+    if (!_imeVisible) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        _boxFocus.requestFocus();
+        widget.sidebarFocusNode?.requestFocus();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+          event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        _boxFocus.requestFocus();
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          _boxFocus.focusInDirection(TraversalDirection.down);
+        }
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _onTextFocusChanged() {
+    if (_textFocus.hasFocus) {
+      SearchImeBackGuard.imeOpen = true;
+      return;
+    }
+    if (SearchImeBackGuard.imeOpen) SearchImeBackGuard.markClosed();
+    // 失去焦點後若沒有其他焦點目標，回到搜尋框（而非側邊欄）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final primary = FocusManager.instance.primaryFocus;
+      if (primary == null || primary is FocusScopeNode) {
+        _boxFocus.requestFocus();
+      }
+    });
+  }
+
+  void _onControllerChanged() {
+    final text = _controller.text;
+    if (text == _searchText) return;
+    // IME 輸入（含注音/拼音組字中的文字）同步到 _searchText
+    setState(() => _searchText = text);
+    _fetchSuggestions();
+  }
+
+  /// 以內建鍵盤更新文字，並同步到 controller（IME 組字由 IME 自己寫入，這裡不回寫）
+  void _setText(String text) {
+    _searchText = text;
+    if (_controller.text != text) {
+      _controller.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    }
+  }
+
+  void _openIme() {
+    _textFocus.requestFocus();
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _textFocus.hasFocus) {
+        SystemChannels.textInput.invokeMethod('TextInput.show');
+      }
+    });
+  }
+
+  void _submit() {
+    if (_searchText.trim().isNotEmpty) {
+      SearchHistoryService.add(_searchText.trim());
+    }
+    widget.onSearch(_searchText);
   }
 
   void _handleKeyboardTap(String key) {
     if (key == '後退') {
       if (_searchText.isNotEmpty) {
-        setState(() {
-          _searchText = _searchText.substring(0, _searchText.length - 1);
-        });
+        setState(
+          () => _setText(_searchText.substring(0, _searchText.length - 1)),
+        );
         _fetchSuggestions();
       }
     } else if (key == '清空') {
       setState(() {
-        _searchText = '';
+        _setText('');
         _suggestions = [];
       });
     } else if (key == '搜尋') {
-      if (_searchText.trim().isNotEmpty) {
-        SearchHistoryService.add(_searchText.trim());
-      }
-      widget.onSearch(_searchText);
+      _submit();
     } else {
-      setState(() {
-        _searchText += key;
-      });
+      setState(() => _setText(_searchText + key));
       _fetchSuggestions();
     }
   }
@@ -111,9 +255,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
   }
 
   void _selectSuggestion(String suggestion) {
-    setState(() {
-      _searchText = suggestion;
-    });
+    setState(() => _setText(suggestion));
     SearchHistoryService.add(suggestion);
     widget.onSearch(suggestion);
   }
@@ -128,37 +270,126 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
           width: 380,
           child: Container(
             color: const Color(0xFF252525),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: FocusTraversalGroup(
               policy: OrderedTraversalPolicy(),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  // 搜尋輸入框
-                  Container(
-                    height: 50,
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    decoration: BoxDecoration(
-                      color: Colors.white10,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      _searchText.isEmpty ? '輸入關鍵詞搜尋...' : _searchText,
-                      style: TextStyle(
-                        fontSize: 22,
-                        color: _searchText.isEmpty
-                            ? Colors.white24
-                            : Colors.white,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
+                  // 搜尋輸入框：D-pad 可聚焦，確認鍵開啟系統鍵盤
+                  FocusTraversalOrder(
+                    order: const NumericFocusOrder(0.0),
+                    child: Focus(
+                      focusNode: _boxFocus,
+                      onFocusChange: (f) => setState(() => _boxFocused = f),
+                      onKeyEvent: (node, event) {
+                        if (event is! KeyDownEvent) {
+                          return KeyEventResult.ignored;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                          widget.sidebarFocusNode?.requestFocus();
+                          return KeyEventResult.handled;
+                        }
+                        if (_isBackKey(event) && widget.onBackToHome != null) {
+                          widget.onBackToHome!();
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.enter ||
+                            event.logicalKey == LogicalKeyboardKey.select ||
+                            event.logicalKey ==
+                                LogicalKeyboardKey.numpadEnter) {
+                          _openIme();
+                          return KeyEventResult.handled;
+                        }
+                        return KeyEventResult.ignored;
+                      },
+                      child: GestureDetector(
+                        onTap: _openIme,
+                        child: Stack(
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              height: 50,
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 15,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _boxFocused
+                                    ? Colors.white24
+                                    : Colors.white10,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _boxFocused
+                                      ? Colors.white
+                                      : Colors.white12,
+                                  width: _boxFocused ? 2 : 1,
+                                ),
+                              ),
+                              alignment: Alignment.centerLeft,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _searchText.isEmpty
+                                          ? '輸入關鍵詞搜尋...'
+                                          : _searchText,
+                                      style: TextStyle(
+                                        fontSize: 22,
+                                        color: _searchText.isEmpty
+                                            ? Colors.white24
+                                            : Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 2,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.keyboard,
+                                    size: 22,
+                                    color: _boxFocused
+                                        ? Colors.white
+                                        : Colors.white24,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // 隱藏的 TextField：負責接收系統鍵盤（IME）輸入
+                            Positioned(
+                              left: 0,
+                              top: 0,
+                              child: SizedBox(
+                                width: 1,
+                                height: 1,
+                                child: Opacity(
+                                  opacity: 0,
+                                  child: TextField(
+                                    controller: _controller,
+                                    focusNode: _textFocus,
+                                    keyboardType: TextInputType.text,
+                                    textInputAction: TextInputAction.search,
+                                    onSubmitted: (_) => _submit(),
+                                    enableSuggestions: true,
+                                    autocorrect: false,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  if (_boxFocused)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Text(
+                        '按確認鍵開啟系統鍵盤',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                    ),
+                  const SizedBox(height: 10),
                   // 清空/後退按鈕
                   SizedBox(
                     height: 48,
@@ -192,31 +423,45 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView> {
                   ),
                   const SizedBox(height: 10),
                   // 字母數字鍵盤
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.zero,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 6,
-                          childAspectRatio: 1.1,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                    itemCount: _gridKeys.length,
-                    itemBuilder: (context, index) => FocusTraversalOrder(
-                      order: NumericFocusOrder(2.0 + (index * 0.001)),
-                      child: TvKeyboardButton(
-                        label: _gridKeys[index],
-                        onTap: () => _handleKeyboardTap(_gridKeys[index]),
-                        onMoveLeft: (index % 6 == 0)
-                            ? () => widget.sidebarFocusNode?.requestFocus()
-                            : null,
-                        onBack: widget.onBackToHome,
-                      ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // 依可用高度計算按鍵比例，避免底部溢位
+                        const rows = 6;
+                        const spacing = 8.0;
+                        final cellW = (constraints.maxWidth - spacing * 5) / 6;
+                        final cellH =
+                            (constraints.maxHeight - spacing * (rows - 1)) /
+                            rows;
+                        final ratio = cellH > 0 ? cellW / cellH : 1.1;
+                        return GridView.builder(
+                          physics: const NeverScrollableScrollPhysics(),
+                          padding: EdgeInsets.zero,
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 6,
+                                childAspectRatio: ratio.clamp(0.8, 1.6),
+                                crossAxisSpacing: spacing,
+                                mainAxisSpacing: spacing,
+                              ),
+                          itemCount: _gridKeys.length,
+                          itemBuilder: (context, index) => FocusTraversalOrder(
+                            order: NumericFocusOrder(2.0 + (index * 0.001)),
+                            child: TvKeyboardButton(
+                              label: _gridKeys[index],
+                              onTap: () => _handleKeyboardTap(_gridKeys[index]),
+                              onMoveLeft: (index % 6 == 0)
+                                  ? () =>
+                                        widget.sidebarFocusNode?.requestFocus()
+                                  : null,
+                              onBack: widget.onBackToHome,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 10),
                   // 搜尋按鈕
                   FocusTraversalOrder(
                     order: const NumericFocusOrder(3.0),
