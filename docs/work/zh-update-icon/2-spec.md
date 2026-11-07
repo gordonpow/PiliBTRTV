@@ -61,7 +61,23 @@ T-1、T-2 平行 → T-3（會改動幾乎所有檔案，單獨執行）→ T-4 
 
 ## 審查紀錄
 
-（審查後補）
+2026-11-07：Haiku 子代理審查，見 [review-spec.md](review-spec.md)。以下採用，實作以本節為準（優先於上文）：
+
+- R1（T-3a）比對點：轉換後用 `git diff` 逐行檢查；凡不在顯示路徑（Text／Toast／對話框）的中文字串一律還原為簡體並加註解，包含：`ad_filter_plugin.dart` 的關鍵字清單與 `_simplifiedToTraditional`／`_normalizeChineseChars` 對照表、`danmaku_enhance_plugin.dart` 預設屏蔽詞、`base_api.dart` 的「万」「亿」解析、`models/video.dart` 的 `'投稿视频'` 等 badge 比對、`history_video_card.dart` 的 `'未开播'`、`live_player_screen.dart` 的 `'默认'`，以及其他同類。這些常數保留原文並加註解（之後重跑轉換腳本時要跳過含此註解的行）。
+- R2：`home_category_order`／`enabled_categories` 是 ASCII id，不需遷移。使用者輸入的中文資料（插件關鍵字、UP 主名稱、搜尋紀錄）不轉換。
+- R3：`main()` 先 `WidgetsFlutterBinding.ensureInitialized()`、`await SettingsService.init()`，再 `await ZhConvert.init()`；`SettingsService.appLanguage` 取代 P 的 `Pref.appLanguage`；import 改 `package:bili_tv_app/...`。
+- R4：`t2s_ui.txt` 產生器同時抓單引號與雙引號字串；含 `$` 插值的字串在簡體模式靠字表轉換即可。`hintText`、`helperText`、`labelText`、`tooltip`、`Tab(text:)` 等不經過 `Text` 的屬性包 `ZhConvert.convert(...)`（`rg "hintText|helperText|labelText|tooltip" lib` 逐一確認）。
+- R5（T-4）ABI：`com.bili.tv/update` channel 加 `getSupportedAbis`（回傳 `Build.SUPPORTED_ABIS`）。選擇：檔名含 ABI 者優先；否則檔名不含任何 ABI 字樣（`arm64-v8a`、`armeabi-v7a`、`x86_64`、`x86`）的通用 `.apk`；都沒有時 toast「找不到適用此裝置的安裝檔」。
+- R6：`installApk` 回傳字串 `ok`／`permission`，Dart 用 `invokeMethod<String>`；開權限頁 `ACTION_MANAGE_UNKNOWN_APP_SOURCES` 失敗時 fallback `Settings.ACTION_SECURITY_SETTINGS`；重啟前 await 寫入設定。
+- R7：AC 驗證補充：`rg -n "视频|设置|软件" lib` 只剩例外清單；`rg "update_server_url|update_api_key|Env\." lib` 為 0；模擬器截 launcher 畫面驗證 banner；測試語言切換重啟。
+- R9：更新對話框 autofocus「下載並安裝」；下載中以 `PopScope` 攔截返回鍵；其他對話框返回鍵可關閉。
+- R10：P 的依賴對應：`Api.latestApp` → 常數 URL；GetX `Rxn`/`obs` → `ValueNotifier`；`SmartDialog.showToast` → `SettingsService.toast`；`PageUtils.launchURL` 不需要；`Pref` → `SettingsService`。`use_zh_text.py` 目標檔名改為 `lib/widgets/zh_material.dart`、`zh_widgets.dart`。`UpdateService.init()` 與 `about_settings.dart` 同步改。
+
+不採用：
+- R5 假 release 測試、R7 單元測試：本次不加，以模擬器測試為主。
+- R8：`comment.bilibili.com`、passport QR 登入維持原樣（不是 412 的來源）。
+- R10 `_lastCheck` 持久化：與 PiliBTR 相同（記憶體），冷啟動時檢查一次。
+- 審查稱「本專案不是 git repo」不正確，已用 git 管理。
 
 ## 實作偏差
 
