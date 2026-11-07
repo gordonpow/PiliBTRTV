@@ -59,7 +59,10 @@ abstract final class ZhConvert {
       final tab = line.indexOf('\t');
       if (tab <= 0) continue;
       final key = line.substring(0, tab);
-      table[key] = line.substring(tab + 1);
+      // Strip the \r of CRLF line ends; it would show as a space.
+      var value = line.substring(tab + 1);
+      if (value.endsWith('\r')) value = value.substring(0, value.length - 1);
+      table[key] = value;
       if (maxLen != null) {
         final first = key.codeUnitAt(0);
         final old = maxLen[first];

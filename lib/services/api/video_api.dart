@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'base_api.dart';
 import 'sign_utils.dart';
@@ -231,10 +232,17 @@ class VideoApi {
         final json = jsonDecode(response.body);
         if (json['code'] == 0 && json['data'] != null) {
           final result = json['data']['result'] as List? ?? [];
+          if (result.isEmpty) {
+            debugPrint('searchVideos: empty result: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
+          }
           return result.map((item) => Video.fromSearch(item)).toList();
         }
+        debugPrint('searchVideos: code=${json['code']} ${json['message']}');
+      } else {
+        debugPrint('searchVideos: HTTP ${response.statusCode}');
       }
     } catch (e) {
+      debugPrint('searchVideos error: $e');
       // 忽略錯誤
     }
     return [];

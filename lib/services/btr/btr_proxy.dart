@@ -97,13 +97,13 @@ abstract final class BtrProxy {
     return (served: source.served, nodes: source.pool.nodes);
   }
 
-  /// Sources that served data within the last 5 seconds.
+  /// Sources that served data within the last 5 minutes (also while paused).
   static List<({int served, List<BtrNode> nodes})> activeStats() {
     final now = DateTime.now();
     return [
       for (final s in _sources.values)
         if (s.lastServedAt != null &&
-            now.difference(s.lastServedAt!) < const Duration(seconds: 5))
+            now.difference(s.lastServedAt!) < const Duration(minutes: 5))
           (served: s.served, nodes: s.pool.nodes),
     ];
   }

@@ -181,7 +181,8 @@ class BaseApi {
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
-        if (json['code'] == 0 && json['data'] != null) {
+        // 未登入時 nav 回 code -101，但仍附 wbi_img，所以不檢查 code。
+        if (json['data'] != null) {
           final wbiImg = json['data']['wbi_img'];
           if (wbiImg != null) {
             final imgUrl = wbiImg['img_url'] as String? ?? '';
