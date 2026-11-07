@@ -1222,6 +1222,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
             focusedSettingIndex = 0;
           });
           break;
+        case 3:
+          setState(() {
+            settingsMenuType = SettingsMenuType.cdn;
+            focusedSettingIndex = 0;
+          });
+          break;
       }
     } else if (settingsMenuType == SettingsMenuType.danmaku) {
       if (focusedSettingIndex == 0 ||

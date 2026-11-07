@@ -1,4 +1,5 @@
-// Imports removed
+import 'package:bili_tv_app/services/btr/btr_config.dart';
+import 'package:bili_tv_app/services/btr/btr_proxy.dart';
 
 class MpdGenerator {
   /// 生成 DASH MPD 文件
@@ -28,7 +29,7 @@ class MpdGenerator {
         '    <AdaptationSet mimeType="video/mp4" contentType="video" subsegmentAlignment="true" subsegmentStartsWithSAP="1">',
       );
       for (var video in dashData['video']) {
-        _writeRepresentation(buffer, video, true);
+        await _writeRepresentation(buffer, video, true);
       }
       buffer.writeln('    </AdaptationSet>');
     }
@@ -39,7 +40,7 @@ class MpdGenerator {
         '    <AdaptationSet mimeType="audio/mp4" contentType="audio" subsegmentAlignment="true" subsegmentStartsWithSAP="1">',
       );
       for (var audio in dashData['audio']) {
-        _writeRepresentation(buffer, audio, false);
+        await _writeRepresentation(buffer, audio, false);
       }
       buffer.writeln('    </AdaptationSet>');
     }
@@ -51,11 +52,18 @@ class MpdGenerator {
     return buffer.toString();
   }
 
-  static void _writeRepresentation(
+  static String _xmlEscape(String s) => s
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&apos;');
+
+  static Future<void> _writeRepresentation(
     StringBuffer buffer,
     Map<String, dynamic> stream,
     bool isVideo,
-  ) {
+  ) async {
     // 基础信息
     final id = stream['id'];
     final codecs = stream['codecs'] ?? (isVideo ? 'avc1.64001E' : 'mp4a.40.2');
@@ -75,30 +83,29 @@ class MpdGenerator {
     }
     buffer.writeln('>');
 
-    // 基础 URL
-    // 对 URL 进行 XML 转义以防万一
-    final escapedUrl = baseUrl
-        .toString()
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&apos;');
+    // BTR 多 CDN 加速：只寫入本機代理 URL 一個 BaseURL
+    final baseUrlStr = baseUrl.toString();
+    final backups = <String>[
+      if (stream['backupUrl'] is List)
+        for (final b in stream['backupUrl'])
+          if (b is String && b.isNotEmpty) b,
+    ];
+    var proxied = false;
+    if (BtrConfig.playback && BtrProxy.isEligible(baseUrlStr)) {
+      final wrapped = await BtrProxy.wrap(baseUrlStr, backups: backups);
+      if (wrapped != baseUrlStr) {
+        buffer.writeln('        <BaseURL>${_xmlEscape(wrapped)}</BaseURL>');
+        proxied = true;
+      }
+    }
 
-    buffer.writeln('        <BaseURL>$escapedUrl</BaseURL>');
+    if (!proxied) {
+      // 基础 URL（XML 转义）
+      buffer.writeln('        <BaseURL>${_xmlEscape(baseUrlStr)}</BaseURL>');
 
-    // 备用 URL (CDN 容灾)
-    if (stream['backupUrl'] != null && stream['backupUrl'] is List) {
-      for (final backup in stream['backupUrl']) {
-        if (backup != null && backup is String && backup.isNotEmpty) {
-          final escapedBackup = backup
-              .replaceAll('&', '&amp;')
-              .replaceAll('<', '&lt;')
-              .replaceAll('>', '&gt;')
-              .replaceAll('"', '&quot;')
-              .replaceAll("'", '&apos;');
-          buffer.writeln('        <BaseURL>$escapedBackup</BaseURL>');
-        }
+      // 备用 URL (CDN 容灾)
+      for (final backup in backups) {
+        buffer.writeln('        <BaseURL>${_xmlEscape(backup)}</BaseURL>');
       }
     }
 

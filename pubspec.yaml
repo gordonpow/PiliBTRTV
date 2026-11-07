@@ -1,5 +1,5 @@
 name: bili_tv_app
-description: "BiliTV - 哔哩哔哩电视版客户端"
+description: "PiliBTRTV - 嗶哩嗶哩電視版用戶端，加上 BTR 多 CDN 播放加速"
 publish_to: 'none'
 version: 1.2.2+2
 
@@ -12,6 +12,7 @@ dependencies:
 
   # Network
   http: ^1.2.0
+  dio: ^5.9.0
   
   # Image Caching
   cached_network_image: ^3.3.0

@@ -40,6 +40,15 @@ class SettingsService {
   static const String _useHardwareDecodeKey = 'use_hardware_decode';
   static SharedPreferences? _prefs;
 
+  /// 取得 SharedPreferences（尚未 init 時拋出 StateError）
+  static SharedPreferences get prefs {
+    final p = _prefs;
+    if (p == null) {
+      throw StateError('SettingsService.init() has not been called');
+    }
+    return p;
+  }
+
   /// 初始化
   static Future<void> init() async {
     _prefs ??= await SharedPreferences.getInstance();

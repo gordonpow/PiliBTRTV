@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
-enum SettingsMenuType { main, quality, danmaku, speed }
+import '../../../services/btr/btr_config.dart';
+import 'cdn_status_view.dart';
+
+enum SettingsMenuType { main, quality, danmaku, speed, cdn }
 
 class SettingsPanel extends StatefulWidget {
   final SettingsMenuType menuType;
@@ -93,6 +96,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     if (widget.menuType == SettingsMenuType.danmaku) title = '弹幕设置';
     if (widget.menuType == SettingsMenuType.speed) title = '倍速播放';
     if (widget.menuType == SettingsMenuType.quality) title = '画质选择';
+    if (widget.menuType == SettingsMenuType.cdn) title = 'CDN 狀態';
 
     return Positioned(
       top: 0,
@@ -150,6 +154,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
         return _buildDanmakuSettingsList();
       case SettingsMenuType.speed:
         return _buildSpeedSettingsList();
+      case SettingsMenuType.cdn:
+        return const CdnStatusView();
       case SettingsMenuType.main:
       default:
         return _buildMainSettingsList();
@@ -180,6 +186,13 @@ class _SettingsPanelState extends State<SettingsPanel> {
           title: '播放速度',
           value: '${widget.playbackSpeed}x',
           onTap: () => widget.onNavigate(SettingsMenuType.speed, 0),
+        ),
+        _buildSettingItem(
+          index: 3,
+          icon: Icons.cloud,
+          title: 'CDN 狀態',
+          value: BtrConfig.playback ? 'BTR' : '直連',
+          onTap: () => widget.onNavigate(SettingsMenuType.cdn, 0),
         ),
       ],
     );

@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -76,6 +77,12 @@ class _SplashScreenState extends State<SplashScreen> {
       SettingsService.init(),
       UpdateService.init(),
     ]);
+
+    try {
+      BtrConfig.applyLocaleDefault();
+    } catch (e) {
+      debugPrint('BTR applyLocaleDefault failed: $e');
+    }
 
     // 4. 如果已登录，更新一下用户信息 (获取最新 VIP 状态)
     // 不 await，让它在后台跑，或者如果很快完成也没关系

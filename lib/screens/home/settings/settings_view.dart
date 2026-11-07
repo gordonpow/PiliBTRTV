@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/auth_service.dart';
 import 'tabs/playback_settings.dart';
+import 'tabs/btr_settings.dart';
 import 'tabs/interface_settings.dart';
 import 'tabs/plugins_settings.dart';
 import 'tabs/storage_settings.dart';
@@ -12,6 +13,7 @@ import '../../../widgets/vip_avatar_badge.dart';
 /// 设置分类枚举
 enum SettingsCategory {
   playback('播放设置'),
+  btr('線程撕裂者'),
   interface_('界面设置'),
   plugins('插件中心'),
   storage('其他设置'),
@@ -345,6 +347,11 @@ class SettingsViewState extends State<SettingsView> {
     switch (SettingsCategory.values[_selectedCategoryIndex]) {
       case SettingsCategory.playback:
         return PlaybackSettings(
+          onMoveUp: moveToCurrentTab,
+          sidebarFocusNode: widget.sidebarFocusNode,
+        );
+      case SettingsCategory.btr:
+        return BtrSettings(
           onMoveUp: moveToCurrentTab,
           sidebarFocusNode: widget.sidebarFocusNode,
         );

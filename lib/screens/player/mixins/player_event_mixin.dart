@@ -19,8 +19,10 @@ mixin PlayerEventMixin on PlayerActionMixin {
     if (showSettingsPanel) {
       if (settingsMenuType != SettingsMenuType.main) {
         setState(() {
+          focusedSettingIndex = settingsMenuType == SettingsMenuType.cdn
+              ? 3
+              : 0;
           settingsMenuType = SettingsMenuType.main;
-          focusedSettingIndex = 0;
         });
         return;
       }
@@ -119,8 +121,10 @@ mixin PlayerEventMixin on PlayerActionMixin {
         backKeyJustHandled = true;
         if (settingsMenuType != SettingsMenuType.main) {
           setState(() {
+            focusedSettingIndex = settingsMenuType == SettingsMenuType.cdn
+                ? 3
+                : 0;
             settingsMenuType = SettingsMenuType.main;
-            focusedSettingIndex = 0;
           });
         } else {
           setState(() {
@@ -389,6 +393,11 @@ mixin PlayerEventMixin on PlayerActionMixin {
         adjustDanmakuSetting(-1);
       } else if (settingsMenuType == SettingsMenuType.speed) {
         setState(() => settingsMenuType = SettingsMenuType.main);
+      } else if (settingsMenuType == SettingsMenuType.cdn) {
+        setState(() {
+          settingsMenuType = SettingsMenuType.main;
+          focusedSettingIndex = 3;
+        });
       }
       return KeyEventResult.handled;
     }
@@ -403,6 +412,11 @@ mixin PlayerEventMixin on PlayerActionMixin {
         } else if (focusedSettingIndex == 2) {
           setState(() {
             settingsMenuType = SettingsMenuType.speed;
+            focusedSettingIndex = 0;
+          });
+        } else if (focusedSettingIndex == 3) {
+          setState(() {
+            settingsMenuType = SettingsMenuType.cdn;
             focusedSettingIndex = 0;
           });
         }
@@ -426,8 +440,10 @@ mixin PlayerEventMixin on PlayerActionMixin {
         startHideTimer();
       } else {
         setState(() {
+          focusedSettingIndex = settingsMenuType == SettingsMenuType.cdn
+              ? 3
+              : 0;
           settingsMenuType = SettingsMenuType.main;
-          focusedSettingIndex = 0;
         });
       }
       return KeyEventResult.handled;
@@ -440,7 +456,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
   int _getSettingsMaxIndex() {
     switch (settingsMenuType) {
       case SettingsMenuType.main:
-        return 2;
+        return 3;
       case SettingsMenuType.danmaku:
         return 6;
       case SettingsMenuType.speed:

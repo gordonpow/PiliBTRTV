@@ -1,3 +1,26 @@
+# PiliBTRTV
+
+基於 [BiliTV](https://github.com/Hyper-Beast/BiliTV)（Android TV 版第三方 B站用戶端，Flutter）修改，加上「線程撕裂者」（Bilibili Thread Ripper，BTR）多 CDN 播放加速。
+
+## BTR 播放加速
+
+- 播放時，影音資料經由 App 內的本機代理（`127.0.0.1`）取得。代理把播放器的每個 Range 請求切成小塊，同時交給多個 B站 CDN 節點下載，再依序交回播放器，減少單一節點慢造成的卡頓。
+- CDN 模式：大陸、海外、自定義（最多 32 個節點）。首次啟動依系統語言預設：繁體中文或台灣、香港、澳門用「海外」，其他中文用「大陸」。
+- 執行緒數：自動（播放用 8）或手動 4、8、16、32、64、128。
+- 容錯：同一檔案中，節點連續兩次回傳 0 bytes 即停用；全部停用時重新啟用。
+- 播放器設定選單的「CDN 狀態」顯示各節點速度與流量。
+- 設定位置：設定 → 線程撕裂者。關閉「播放加速」即回到原版行為。
+
+## 來源與授權
+
+- BiliTV：https://github.com/Hyper-Beast/BiliTV
+- BTR 實作移植自 [PiliBTR](https://github.com/gordonpow/PiliBTR)（GPL v3），行為參考 [Bilibili-thread-ripper-desktop](https://github.com/MrTangLuyao/Bilibili-thread-ripper-desktop)（MIT）。
+- 可與原版 BiliTV 同時安裝（applicationId：`com.gordonpow.pilibtrtv`）。
+
+---
+
+以下為原版 BiliTV 的說明。
+
 ## 原生 Android TV 版本（繁体中文支持）
 
 后续会专注于优化原生版
