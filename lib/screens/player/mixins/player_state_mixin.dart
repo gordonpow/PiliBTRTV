@@ -123,6 +123,12 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   int precachedSpriteIndex = -1; // 已預快取的雪碧圖最大索引 (滑動視窗)
   bool hasShownVideoshotFailToast = false; // 是否已顯示過預覽圖失敗提示
   bool hasHandledVideoComplete = false; // 防止重複觸發影片完成回撥
+  int seekPressCount = 0; // 連續快進/快退計數
+  DateTime? lastSeekPressTime; // 上次按下快進/快退時間
+  bool? lastSeekDirection; // 上次快進方向 (true: forward, false: backward)
+  Timer? autoSeekTimer; // 1.5 秒無操作自動跳轉計時器
+  Duration? originalSeekPosition; // 快進前原播放位置 (供取消預覽使用)
+  bool wasPlayingBeforeSeek = false; // 快進前是否正在播放
 
   // 獲取編解碼器簡稱
   String get _codecLabel {

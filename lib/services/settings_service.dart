@@ -394,7 +394,7 @@ class SettingsService {
 
   /// 是否開啟快進預覽模式 (顯示縮圖)
   static bool get seekPreviewMode {
-    return _prefs?.getBool(_seekPreviewModeKey) ?? false; // 預設關閉
+    return _prefs?.getBool(_seekPreviewModeKey) ?? true; // 預設開啟
   }
 
   /// 設定快進預覽模式

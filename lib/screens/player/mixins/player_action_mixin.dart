@@ -728,6 +728,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     cancelPlayerListeners();
     seekIndicatorTimer?.cancel();
+    autoSeekTimer?.cancel();
     onlineCountTimer?.cancel(); // 取消線上人數定時器
     _clearSpritesFromMemory(); // 清理雪碧圖記憶體快取
 
@@ -1030,143 +1031,129 @@ mixin PlayerActionMixin on PlayerStateMixin {
     setState(() {});
   }
 
-  void seekForward() {
+  /// 計算連按快進/快退每次移動秒數 (AC-B2)
+  int _calculateSeekStep(bool forward) {
+    final now = DateTime.now();
+    if (lastSeekPressTime != null &&
+        now.difference(lastSeekPressTime!) < const Duration(milliseconds: 800) &&
+        lastSeekDirection == forward) {
+      seekPressCount++;
+    } else {
+      seekPressCount = 1;
+      lastSeekDirection = forward;
+    }
+    lastSeekPressTime = now;
+
+    if (seekPressCount > 8) {
+      return 60;
+    } else if (seekPressCount > 3) {
+      return 30;
+    } else {
+      return 10;
+    }
+  }
+
+  /// 執行快退/快進操作（Netflix 式進度預覽，不立即跳轉）
+  void _performSeek(bool forward) {
     if (videoController == null) return;
-    final current = videoController!.value.position;
+
+    if (!isSeekPreviewMode) {
+      originalSeekPosition = videoController!.value.position;
+      wasPlayingBeforeSeek = videoController!.value.isPlaying;
+      videoController!.pause(); // 跳轉時影片暫停預覽 (AC-B4)
+      previewPosition = originalSeekPosition;
+      isSeekPreviewMode = true;
+    }
+
+    final step = _calculateSeekStep(forward);
+    final currentPreview =
+        previewPosition ?? originalSeekPosition ?? Duration.zero;
     final total = videoController!.value.duration;
-    final newPos = current + const Duration(seconds: 10);
-    final target = newPos < total ? newPos : total;
 
-    // 檢查是否開啟預覽模式且有快照資料
-    if (SettingsService.seekPreviewMode && videoshotData != null) {
-      // 預覽模式: 暫停影片，只更新預覽位置
-      videoController?.pause();
+    var target = forward
+        ? currentPreview + Duration(seconds: step)
+        : currentPreview - Duration(seconds: step);
 
-      // 時間吸附
-      final alignedTarget = videoshotData!.getClosestTimestamp(target);
+    if (target < Duration.zero) target = Duration.zero;
+    if (target > total) target = total;
 
-      setState(() {
-        isSeekPreviewMode = true;
-        previewPosition = alignedTarget;
-      });
-      _showSeekIndicator();
-    } else {
-      // 直接跳轉模式 (預設)
-      // 如果使用者開啟了預覽模式但雪碧圖載入失敗，顯示提示
-      if (SettingsService.seekPreviewMode && !hasShownVideoshotFailToast) {
-        hasShownVideoshotFailToast = true;
-        showZhToast(msg: '預覽圖載入失敗，已切換到預設快進模式', toastLength: Toast.LENGTH_SHORT);
+    // 時間吸附（有雪碧圖時）
+    if (videoshotData != null) {
+      final aligned = videoshotData!.getClosestTimestamp(target);
+      if (forward && aligned <= currentPreview && target < total) {
+        target = videoshotData!.getClosestTimestamp(
+          target + const Duration(seconds: 1),
+        );
+      } else if (!forward &&
+          aligned >= currentPreview &&
+          target > Duration.zero) {
+        target = videoshotData!.getClosestTimestamp(
+          target - const Duration(seconds: 1),
+        );
+      } else {
+        target = aligned;
       }
-      videoController!.seekTo(target);
-      resetDanmakuIndex(target);
-      _showSeekIndicator();
     }
+
+    setState(() {
+      previewPosition = target;
+    });
+
+    _showSeekIndicator();
+
+    // 1.5 秒內沒有再按方向鍵也自動跳轉 (AC-B3)
+    autoSeekTimer?.cancel();
+    autoSeekTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted && isSeekPreviewMode) {
+        confirmPreviewSeek();
+      }
+    });
   }
 
-  void seekBackward() {
-    if (videoController == null) return;
-    final current = videoController!.value.position;
-    final newPos = current - const Duration(seconds: 10);
-    final target = newPos > Duration.zero ? newPos : Duration.zero;
+  void seekForward() => _performSeek(true);
 
-    // 檢查是否開啟預覽模式且有快照資料
-    if (SettingsService.seekPreviewMode && videoshotData != null) {
-      // 預覽模式: 暫停影片，只更新預覽位置
-      videoController?.pause();
-
-      // 時間吸附
-      final alignedTarget = videoshotData!.getClosestTimestamp(target);
-
-      setState(() {
-        isSeekPreviewMode = true;
-        previewPosition = alignedTarget;
-      });
-      _showSeekIndicator();
-    } else {
-      // 直接跳轉模式 (預設)
-      // 如果使用者開啟了預覽模式但雪碧圖載入失敗，顯示提示
-      if (SettingsService.seekPreviewMode && !hasShownVideoshotFailToast) {
-        hasShownVideoshotFailToast = true;
-        showZhToast(msg: '預覽圖載入失敗，已切換到預設快進模式', toastLength: Toast.LENGTH_SHORT);
-      }
-      videoController!.seekTo(target);
-      resetDanmakuIndex(target);
-      _showSeekIndicator();
-    }
-  }
+  void seekBackward() => _performSeek(false);
 
   /// 預覽模式下繼續快進/快退
-  void seekPreviewForward() {
-    if (videoController == null || previewPosition == null) return;
-    final total = videoController!.value.duration;
+  void seekPreviewForward() => _performSeek(true);
 
-    // 基於當前預覽位置增加
-    final nextPos = previewPosition! + const Duration(seconds: 10);
-    var target = nextPos < total ? nextPos : total;
+  void seekPreviewBackward() => _performSeek(false);
 
-    // 時間吸附
-    if (videoshotData != null) {
-      // 如果有時間戳，確保每次切換到下一個關鍵幀
-      // 這裡簡單地對新位置進行吸附
-      target = videoshotData!.getClosestTimestamp(target);
-
-      // 如果吸附後時間沒變（因為間隔大），強制移動到下一幀
-      if (target <= previewPosition! && target < total) {
-        target =
-            previewPosition! + const Duration(seconds: 1); // 增加一點再吸附，嘗試找到下一幀
-        target = videoshotData!.getClosestTimestamp(target);
-      }
-    }
-
-    setState(() {
-      previewPosition = target;
-    });
-    _showSeekIndicator();
-  }
-
-  void seekPreviewBackward() {
-    if (videoController == null || previewPosition == null) return;
-
-    final nextPos = previewPosition! - const Duration(seconds: 10);
-    var target = nextPos > Duration.zero ? nextPos : Duration.zero;
-
-    // 時間吸附
-    if (videoshotData != null) {
-      target = videoshotData!.getClosestTimestamp(target);
-
-      // 如果吸附後時間沒變，強制移動到上一幀
-      if (target >= previewPosition! && target > Duration.zero) {
-        target = previewPosition! - const Duration(seconds: 1);
-        target = videoshotData!.getClosestTimestamp(target);
-      }
-    }
-
-    setState(() {
-      previewPosition = target;
-    });
-    _showSeekIndicator();
-  }
-
-  /// 確認預覽跳轉
+  /// 確認預覽跳轉 (AC-B3, AC-B4)
   void confirmPreviewSeek() {
+    autoSeekTimer?.cancel();
+    seekPressCount = 0;
+    lastSeekPressTime = null;
     if (previewPosition != null && videoController != null) {
-      videoController!.seekTo(previewPosition!);
-      videoController!.play(); // 確認後恢復播放
-      resetDanmakuIndex(previewPosition!);
+      final target = previewPosition!;
+      videoController!.seekTo(target);
+      resetDanmakuIndex(target);
+      if (wasPlayingBeforeSeek) {
+        videoController!.play(); // 跳轉後恢復播放
+      }
     }
     _endPreviewMode();
   }
 
-  /// 取消預覽跳轉
+  /// 取消預覽跳轉 (AC-B3, AC-B4)
   void cancelPreviewSeek() {
-    // 取消預覽，恢復播放 (根據使用者習慣，通常取消預覽意味著繼續觀看)
-    if (videoController != null && !videoController!.value.isPlaying) {
-      videoController!.play();
+    autoSeekTimer?.cancel();
+    seekPressCount = 0;
+    lastSeekPressTime = null;
+    if (originalSeekPosition != null && videoController != null) {
+      videoController!.seekTo(originalSeekPosition!);
+      resetDanmakuIndex(originalSeekPosition!);
+      if (wasPlayingBeforeSeek) {
+        videoController!.play(); // 恢復播放
+      }
     }
     _endPreviewMode();
   }
 
   void _endPreviewMode() {
+    autoSeekTimer?.cancel();
+    seekPressCount = 0;
+    lastSeekPressTime = null;
     setState(() {
       isSeekPreviewMode = false;
       previewPosition = null;
