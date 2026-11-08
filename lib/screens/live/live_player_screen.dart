@@ -794,7 +794,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
             children: [
               // Video Player
               Center(
-                child: _isLoading
+                child: (_isLoading || _controller == null)
                     ? Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
