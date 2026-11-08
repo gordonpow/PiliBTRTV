@@ -60,6 +60,7 @@ abstract final class BtrProxy {
   static Future<String> wrap(
     String url, {
     List<String> backups = const [],
+    int bandwidth = 0,
   }) async {
     try {
       if (!BtrConfig.playback || !isEligible(url)) return url;
@@ -70,10 +71,11 @@ abstract final class BtrProxy {
       if (existing != null) {
         // LRU: move the reused source to the end.
         _sources[id!] = existing;
+        if (bandwidth > existing.bandwidth) existing.bandwidth = bandwidth;
       } else {
         id = (++_seq).toString();
         _idByUrl[src] = id;
-        _sources[id] = _BtrSource(src, backups);
+        _sources[id] = _BtrSource(src, backups)..bandwidth = bandwidth;
         while (_sources.length > _maxSources) {
           final oldest = _sources.keys.first;
           final evicted = _sources.remove(oldest)!;
@@ -152,6 +154,14 @@ class _BtrSource {
 
   final String url;
   final BtrNodePool pool;
+
+  /// Stream bandwidth in bits per second (0 = unknown).
+  int bandwidth = 0;
+
+  /// Threads per player request: high-bitrate streams use 16 in auto mode.
+  int get threads => BtrConfig.autoThreads && bandwidth >= 8000000
+      ? 16
+      : BtrConfig.playbackThreads;
 
   /// Bytes written to the player's responses.
   int served = 0;
@@ -271,7 +281,7 @@ class _BtrSource {
         'BTR: play ${Uri.parse(url).pathSegments.last} '
         'host=${Uri.parse(url).host} os=${Uri.parse(url).queryParameters['os']} '
         'total=$_total '
-        'nodes=${pool.nodes.length} threads=${BtrConfig.playbackThreads}',
+        'nodes=${pool.nodes.length} threads=$threads',
       );
     }
   }
@@ -476,7 +486,7 @@ class _Pump {
   Future<void> run() async {
     res.done.then((_) => _stop(), onError: (_) => _stop());
 
-    final threads = BtrConfig.playbackThreads;
+    final threads = source.threads;
     final pieceSize = (threads > 32 ? 256 : 512) * 1024;
     final window = math.min(
       threads,

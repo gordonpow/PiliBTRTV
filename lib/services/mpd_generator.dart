@@ -92,7 +92,11 @@ class MpdGenerator {
     ];
     var proxied = false;
     if (BtrConfig.playback && BtrProxy.isEligible(baseUrlStr)) {
-      final wrapped = await BtrProxy.wrap(baseUrlStr, backups: backups);
+      final wrapped = await BtrProxy.wrap(
+        baseUrlStr,
+        backups: backups,
+        bandwidth: int.tryParse(bandwidth.toString()) ?? 0,
+      );
       if (wrapped != baseUrlStr) {
         buffer.writeln('        <BaseURL>${_xmlEscape(wrapped)}</BaseURL>');
         proxied = true;
