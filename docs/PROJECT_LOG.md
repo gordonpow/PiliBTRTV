@@ -47,8 +47,13 @@
 | `5f21da3` | 番劇大會員集改播試看片段（durl）並顯示「此集為大會員專屬，目前僅提供試看」，試看結束不自動連播 |
 | `e9ac2cd` | 模擬器測試報告與截圖（`docs/work/player-fixes/test-report.md`、`fix-report.md`） |
 | （本次） | 開機動畫改為 PiliBTR 風格：粉紫光線匯聚後浮現圖示，無文字，2.4 秒（`tool/gen_splash.py` 產生） |
+| `3a9ec8d` | 修正播放 -351：改用 `x/player/wbi/playurl` 並帶防風控參數，-351／-352 時重試一次 |
+| `aa0a0a5` | 搜尋後關閉系統鍵盤，避免進影片時鍵盤殘留而當機（規格：`docs/work/search-crash-seek/`） |
+| `baf859a` | 快退快進改為 Netflix 式縮圖列，停 400ms 後中間改為串流抽出的清晰畫面 |
+| `2de58b7` | 閃退後詢問回報；錯誤報告改為手機網頁查看（複製、下載、預填 GitHub issue），移除上傳（規格：`docs/work/error-report-lan/`） |
+| `82adf29` | 手機輔助登入（密碼、簡訊、Cookie，需同一個 Wi-Fi）；修正登入頁焦點（規格：`docs/work/phone-login/`） |
 
-版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.3`（pubspec `1.2.2+3`）。發布：v1.2.2-btr.2（2026-11-07，附 release APK 57.6MB）；v1.2.2-btr.3（2026-11-08，分 64 位元 arm64-v8a 21.3MB 與 32 位元 armeabi-v7a 19.2MB 兩個 APK）。
+版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.4`（pubspec `1.2.2+4`）。發布：v1.2.2-btr.2（2026-11-07，附 release APK 57.6MB）；v1.2.2-btr.3（2026-11-08，分 64 位元 arm64-v8a 21.3MB 與 32 位元 armeabi-v7a 19.2MB 兩個 APK）；v1.2.2-btr.4（2026-11-08，arm64-v8a 21.6MB、armeabi-v7a 19.5MB）。
 
 ### 已實作、尚未 commit
 
@@ -121,3 +126,11 @@
 | 建置與安裝驗證 | `flutter build apk --debug` 成功，以 adb 安裝至 `emulator-5554` 成功 |
 | 番劇大會員集無法切換 | 改播試看片段並顯示提示；commit `5f21da3`，模擬器驗證 PASS（`e9ac2cd`） |
 | 確認進度並發布 64／32 位元版本 | 確認工作皆已 commit；`flutter analyze` 無問題、`flutter test` 8 項通過；版本升至 `v1.2.2-btr.3`，以 `--split-per-abi` 建置 arm64-v8a 與 armeabi-v7a release APK，發布 GitHub Release `v1.2.2-btr.3`（App 內更新會依裝置 ABI 選檔） |
+| 搜尋後點影片容易當機（鍵盤殘留）、閃退時詢問上傳錯誤報告、快退快進改成 Netflix 式縮圖列 | agy 調查：B 站雪碧圖最大 160x90；使用者選混合式（停 400ms 後換成從 480P AVC 串流抽出的畫面）。agy 規格審查 5 條、diff 審查 5 條皆採用；`flutter analyze` 無問題、15 項測試通過、debug APK 建置成功；功能待實機測試 |
+| 內建 VPN 是否更好 | 說明 VPN 不會加速，只能解地區限制；使用者決定先不做 |
+| 看影片出現 -351、錯誤報告上傳 HTTP 400、增加登入方式（同 PiliBTR） | -351 改用 wbi/playurl 與防風控參數；上傳加 bytebin 備援與詳細錯誤；使用者選手機輔助登入、同意新增 `encrypt` 與區網 HTTP 風險；Explore 整理 PiliPlus 登入流程、Sonnet 審查規格 13 條全採用、Sonnet 實作；畫面註明需同一個 Wi-Fi。`flutter analyze` 無問題、22 項測試通過、debug APK 建置成功；未實機測試 |
+| 模擬器上錯誤報告仍上傳失敗 | 三個貼文服務都擋 App；使用者選「手機開網頁複製」，Sonnet 實作，26 項測試通過，已裝到模擬器 |
+| 關閉上傳或改推 GitHub issue | 不在 App 內放 GitHub token（可被拆出濫用）；移除上傳，手機報告網頁加「在 GitHub 回報」開啟預填的 issue（先複製完整報告，log 過長時截斷）；已裝到模擬器 |
+| 請自己在模擬器驗證報告網頁 | 用 adb 操作驗證：發現並修正兩個 bug——登入頁按右鍵焦點進不去（`LoginTab.focusFirstCategory` 未處理登入頁，新增 `LoginViewState.focusDefault`）、報告網頁 JS 字串含實際換行導致整個 script 語法錯誤（改用 `NL`）。驗證：`/report` 200、錯誤代碼 403、`no-store`／`no-referrer`、實際網頁 JS 通過 `node --check`、報告 318 行不含 Cookie／token、GitHub issue 網址 6942 字元並正確截斷；手機登入頁 JS 語法也通過 |
+| 按「在 GitHub 回報」出現 GitHub「Whoops, something went wrong!」 | 網址太長：curl 實測 GitHub issues/new 約 7000 字元以上回 500、更長回 414，登入後 Cookie 也占請求標頭；上限從 7000 降為 3500，實際報告產生 3434 字元網址，GitHub 回 302 正常 |
+| commit 並發布 64／32 位元版本 | 分 5 個功能 commit、版本升至 `v1.2.2-btr.4`；`flutter analyze` 無問題、26 項測試通過；`--split-per-abi` 建置並發布 GitHub Release `v1.2.2-btr.4` |
