@@ -21,9 +21,13 @@ class LoginTabState extends State<LoginTab> {
   /// 是否顯示登入畫面（未登入時由設定頁的「登入」按鈕觸發）
   bool _showLogin = false;
 
+  final GlobalKey<LoginViewState> _loginKey = GlobalKey<LoginViewState>();
+
   /// 請求第一個分類標籤的焦點（用於從側邊欄導航）
   void focusFirstCategory() {
-    if (!_showLogin) {
+    if (_showLogin && !AuthService.isLoggedIn) {
+      _loginKey.currentState?.focusDefault();
+    } else {
       _settingsKey.currentState?.focusFirstCategory();
     }
   }
@@ -54,6 +58,7 @@ class LoginTabState extends State<LoginTab> {
   Widget build(BuildContext context) {
     if (_showLogin && !AuthService.isLoggedIn) {
       return LoginView(
+        key: _loginKey,
         sidebarFocusNode: widget.sidebarFocusNode,
         onLoginSuccess: _handleLoginSuccess,
       );

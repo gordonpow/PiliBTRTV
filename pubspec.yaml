@@ -35,6 +35,9 @@ dependencies:
   
   # Crypto for MD5 signing
   crypto: ^3.0.3
+
+  # RSA encryption for phone-assisted login
+  encrypt: ^5.0.3
   
   # Video Player - ExoPlayer (via video_player) for H.265 HW Decode
   # 升级到 2.10.0+ 以支持 VideoViewType.platformView (SurfaceView 渲染模式)

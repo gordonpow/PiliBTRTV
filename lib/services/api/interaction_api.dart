@@ -60,7 +60,7 @@ class InteractionApi {
     try {
       final accessKey = AuthService.accessToken;
       if (accessKey == null || accessKey.isEmpty) {
-        return 'Access Token 為空';
+        return 'Cookie 登入不支援投幣，請改用掃碼或密碼登入';
       }
 
       final params = {

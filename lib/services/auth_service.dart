@@ -94,6 +94,27 @@ class AuthService {
     }
   }
 
+  /// 儲存 Cookie 登入憑證（只有 cookie，沒有 access_token）
+  static Future<void> saveCookieLogin(Map<String, String> cookies) async {
+    final sessdata = cookies['SESSDATA'] ?? '';
+    final biliJct = cookies['bili_jct'] ?? '';
+    final mid = int.tryParse(cookies['DedeUserID'] ?? '');
+    if (sessdata.isEmpty || biliJct.isEmpty || mid == null) {
+      throw ArgumentError('Cookie 不完整');
+    }
+    _accessToken = null;
+    _refreshToken = null;
+    _sessdata = sessdata;
+    _biliJct = biliJct;
+    _mid = mid;
+
+    await _prefs?.remove(_keyAccessToken);
+    await _prefs?.remove(_keyRefreshToken);
+    await _prefs?.setString(_keySessdata, sessdata);
+    await _prefs?.setString(_keyBiliJct, biliJct);
+    await _prefs?.setInt(_keyMid, mid);
+  }
+
   /// 儲存使用者資訊 (從 nav 介面獲取)
   static Future<void> saveUserInfo({
     required String face,

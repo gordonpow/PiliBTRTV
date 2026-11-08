@@ -5,6 +5,10 @@ import 'package:flutter/foundation.dart';
 import '../plugins/ad_filter_plugin.dart';
 import '../plugins/danmaku_enhance_plugin.dart';
 import '../core/plugin/plugin_manager.dart';
+import 'phone_login_page.dart';
+import 'phone_login_service.dart';
+import 'report_page.dart';
+import 'report_share_service.dart';
 
 /// 全域性 HTTP 服務
 ///
@@ -29,6 +33,11 @@ class LocalServer {
 
   /// 獲取服務地址 (用於顯示)
   String? get address => _localIp != null ? 'http://$_localIp:$port' : null;
+
+  /// 重新抓取區網 IP（登入頁開啟時呼叫，網路可能在啟動後才連上）
+  Future<void> refreshAddress() async {
+    _localIp = await _getLocalIp();
+  }
 
   /// 獲取 MPD 播放地址
   String get mpdUrl => 'http://127.0.0.1:$port/video.mpd';
@@ -106,6 +115,19 @@ class LocalServer {
 
   /// 處理 HTTP 請求
   Future<void> _handleRequest(HttpRequest request) async {
+    final reqPath = request.uri.path;
+    // 手機登入：不加 CORS 標頭，也不放行 OPTIONS
+    if (reqPath == '/login' || reqPath.startsWith('/api/login/')) {
+      await _handlePhoneLogin(request);
+      return;
+    }
+
+    // 手機查看錯誤報告：同樣不加 CORS 標頭
+    if (reqPath == '/report' || reqPath == '/api/report') {
+      await _handleReport(request);
+      return;
+    }
+
     // CORS 頭
     request.response.headers.add('Access-Control-Allow-Origin', '*');
     request.response.headers.add(
@@ -150,6 +172,145 @@ class LocalServer {
     }
 
     await request.response.close();
+  }
+
+  /// 手機登入路由（/login 與 /api/login/*）
+  Future<void> _handlePhoneLogin(HttpRequest request) async {
+    final res = request.response;
+    res.headers.set('Cache-Control', 'no-store');
+    res.headers.set('Referrer-Policy', 'no-referrer');
+    try {
+      final service = PhoneLoginService.instance;
+      final path = request.uri.path;
+      final method = request.method;
+      if (method != 'GET' && method != 'POST') {
+        _loginJson(res, {'error': 'method not allowed'}, 405);
+      } else if (!service.checkToken(
+        request.uri.queryParameters['t'],
+        write: method == 'POST',
+      )) {
+        _loginJson(res, {'error': 'forbidden'}, 403);
+      } else if (method == 'GET' && path == '/login') {
+        res.headers.contentType = ContentType.html;
+        res.write(phoneLoginPageHtml);
+      } else if (method == 'GET' && path == '/api/login/state') {
+        _loginJson(res, service.stateJson());
+      } else if (method == 'POST') {
+        final body = await _readLimitedJson(request);
+        if (body == null) {
+          _loginJson(res, {'error': 'bad request'}, 400);
+        } else {
+          String str(String k) {
+            final v = body[k];
+            return v is String ? v : '';
+          }
+
+          Map<String, dynamic>? out;
+          switch (path) {
+            case '/api/login/password':
+              out = await service.submitPassword(
+                str('username'),
+                str('password'),
+              );
+            case '/api/login/sms/send':
+              final cid = body['cid'];
+              out = await service.sendSms(
+                cid is int ? cid : (int.tryParse(cid?.toString() ?? '') ?? 0),
+                str('tel'),
+              );
+            case '/api/login/sms/login':
+              out = await service.smsLogin(str('code'));
+            case '/api/login/captcha':
+              out = await service.submitCaptcha(
+                str('challenge'),
+                str('validate'),
+                str('seccode'),
+              );
+            case '/api/login/risk/verify':
+              out = await service.riskVerify(str('code'));
+            case '/api/login/cookie':
+              out = await service.submitCookie(str('cookie'));
+          }
+          if (out == null) {
+            _loginJson(res, {'error': 'not found'}, 404);
+          } else {
+            _loginJson(res, out);
+          }
+        }
+      } else {
+        _loginJson(res, {'error': 'not found'}, 404);
+      }
+    } catch (_) {
+      // 只回固定訊息，不回傳例外內容
+      try {
+        _loginJson(res, {'error': 'server error'}, 500);
+      } catch (_) {}
+    }
+    try {
+      await res.close();
+    } catch (_) {}
+  }
+
+  /// 錯誤報告路由（/report 與 /api/report）
+  Future<void> _handleReport(HttpRequest request) async {
+    final res = request.response;
+    res.headers.set('Cache-Control', 'no-store');
+    res.headers.set('Referrer-Policy', 'no-referrer');
+    try {
+      final service = ReportShareService.instance;
+      if (request.method != 'GET') {
+        res.statusCode = 405;
+        res.write('method not allowed');
+      } else if (!service.checkToken(request.uri.queryParameters['t'])) {
+        res.statusCode = 403;
+        res.write('forbidden');
+      } else if (request.uri.path == '/report') {
+        res.headers.contentType = ContentType.html;
+        res.write(reportPageHtml);
+      } else {
+        res.headers.contentType = ContentType(
+          'text',
+          'plain',
+          charset: 'utf-8',
+        );
+        res.write(service.text);
+      }
+    } catch (_) {
+      try {
+        res.statusCode = 500;
+        res.write('server error');
+      } catch (_) {}
+    }
+    try {
+      await res.close();
+    } catch (_) {}
+  }
+
+  void _loginJson(
+    HttpResponse res,
+    Map<String, dynamic> data, [
+    int code = 200,
+  ]) {
+    res.statusCode = code;
+    res.headers.contentType = ContentType.json;
+    res.write(jsonEncode(data));
+  }
+
+  /// 讀取最多 8KB 的 JSON 物件；超過或格式不對回傳 null
+  Future<Map<String, dynamic>?> _readLimitedJson(HttpRequest request) async {
+    const limit = 8 * 1024;
+    if (request.contentLength > limit) return null;
+    final bytes = <int>[];
+    try {
+      await for (final chunk in request) {
+        bytes.addAll(chunk);
+        if (bytes.length > limit) return null;
+      }
+      final decoded = jsonDecode(utf8.decode(bytes));
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// 提供 MPD 檔案
