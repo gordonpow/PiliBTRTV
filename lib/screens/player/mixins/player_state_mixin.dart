@@ -48,6 +48,9 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   // 當前播放的音訊 URL (DASH 模式)
   String? currentAudioUrl;
 
+  // 當前抽幀預覽使用的影片 URL (480P AVC)
+  String? previewFrameUrl;
+
   // 播放器流訂閱
   List<StreamSubscription> playerSubscriptions = [];
 

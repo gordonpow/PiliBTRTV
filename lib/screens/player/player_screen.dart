@@ -15,7 +15,8 @@ import 'widgets/action_buttons.dart';
 import 'widgets/up_panel.dart';
 import 'widgets/related_panel.dart';
 import 'widgets/mini_progress_bar.dart';
-import 'widgets/seek_preview_thumbnail.dart';
+import 'widgets/seek_thumbnail_strip.dart';
+import '../../services/frame_service.dart';
 import '../../widgets/time_display.dart';
 import 'mixins/player_state_mixin.dart';
 import 'mixins/player_action_mixin.dart';
@@ -40,6 +41,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    SystemChannels.textInput.invokeMethod('TextInput.hide');
     WidgetsBinding.instance.addObserver(this);
     // 保持螢幕常亮，防止電視待機
     WakelockPlus.enable();
@@ -67,6 +69,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     // 退出時上報進度
     reportPlaybackProgress();
 
+    FrameService.release();
+
     // 通過 mixin 方法銷燬播放器
     disposePlayer();
     super.dispose();
@@ -79,6 +83,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       onPopInvokedWithResult: onPopInvoked,
       child: Scaffold(
         backgroundColor: Colors.black,
+        resizeToAvoidBottomInset: false,
         body: Focus(
           autofocus: true,
           onKeyEvent: handleGlobalKeyEvent,
@@ -463,178 +468,13 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
   }
 
-  /// Netflix 式快退快進進度條與預覽卡片 (AC-B1)
+  /// Netflix 式快退快進進度條與縮圖列
   Widget _buildNetflixSeekOverlay() {
-    final duration = videoController!.value.duration;
-    final pos = previewPosition ?? videoController!.value.position;
-    final totalMs = duration.inMilliseconds;
-    final posMs = pos.inMilliseconds;
-    final progress = totalMs > 0 ? (posMs / totalMs).clamp(0.0, 1.0) : 0.0;
-
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 0,
-      child: Container(
-        padding: const EdgeInsets.only(top: 40, bottom: 28),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0.9),
-              Colors.black.withValues(alpha: 0.55),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.7, 1.0],
-          ),
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            const horizontalPadding = 60.0;
-            final availableWidth =
-                constraints.maxWidth - (horizontalPadding * 2);
-            final thumbX = horizontalPadding + (availableWidth * progress);
-
-            // 預覽卡片寬度與高度
-            const cardWidth = 240.0;
-            const cardHeight = 135.0;
-            final cardLeft = (thumbX - cardWidth / 2).clamp(
-              horizontalPadding,
-              constraints.maxWidth - horizontalPadding - cardWidth,
-            );
-
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 預覽卡片 (進度條上方)
-                Padding(
-                  padding: EdgeInsets.only(left: cardLeft, bottom: 16),
-                  child: Container(
-                    width: cardWidth,
-                    height: cardHeight,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.7),
-                          blurRadius: 16,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          if (videoshotData != null)
-                            SeekPreviewThumbnail(
-                              videoshotData: videoshotData!,
-                              previewPosition: pos,
-                              scale: 1.5,
-                            )
-                          else
-                            const Icon(
-                              Icons.play_circle_outline,
-                              color: Colors.white38,
-                              size: 48,
-                            ),
-                          // 卡片底部時間標籤
-                          Positioned(
-                            bottom: 6,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 3,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.75),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                _formatSeekTime(pos),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                // 進度條
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: horizontalPadding),
-                  child: Stack(
-                    alignment: Alignment.centerLeft,
-                    children: [
-                      // 背景軌道
-                      Container(
-                        height: 6,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.25),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                      // 填充進度
-                      FractionallySizedBox(
-                        widthFactor: progress,
-                        child: Container(
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFfb7299),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // 時間與操作提示文字
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: horizontalPadding),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${_formatSeekTime(pos)} / ${_formatSeekTime(duration)}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const Text(
-                        '按確認鍵立即跳轉，按返回鍵取消',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
+    return SeekThumbnailStrip(
+      videoshotData: videoshotData,
+      previewPosition: previewPosition ?? videoController!.value.position,
+      duration: videoController!.value.duration,
+      previewFrameUrl: previewFrameUrl,
     );
   }
 }

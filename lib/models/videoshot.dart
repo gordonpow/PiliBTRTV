@@ -45,6 +45,41 @@ class VideoshotData {
     _frameTimestamps = timestamps;
   }
 
+  /// 總幀數
+  int get frameCount {
+    if (_frameTimestamps != null && _frameTimestamps!.isNotEmpty) {
+      final count = _frameTimestamps!.length - 1;
+      return count > 0 ? count : 0;
+    }
+    return images.length * framesPerImage;
+  }
+
+  /// 依播放位置獲取幀索引 (等同 getIndex)
+  /// 尚未載入 pvdata 時間戳時，依 [total] 均勻換算（[total] 未提供則回傳 0）。
+  int indexAt(Duration pos, [Duration? total]) {
+    if (_frameTimestamps != null && _frameTimestamps!.isNotEmpty) {
+      return getIndex(pos);
+    }
+    final count = frameCount;
+    if (count <= 0 || total == null || total <= Duration.zero) return 0;
+    final k = (pos.inMilliseconds * count / total.inMilliseconds).floor();
+    return k.clamp(0, count - 1);
+  }
+
+  /// 依幀索引計算對應的影片時間
+  Duration timeOfIndex(int k, Duration total) {
+    if (frameCount == 0 || total <= Duration.zero) {
+      return Duration.zero;
+    }
+    final clampedK = k.clamp(0, frameCount - 1);
+    if (_frameTimestamps != null && _frameTimestamps!.length > 1) {
+      return Duration(seconds: _frameTimestamps![clampedK + 1]);
+    }
+    return Duration(
+      milliseconds: (total.inMilliseconds * clampedK / frameCount).round(),
+    );
+  }
+
   /// 1. 還原 getIndex 演算法
   /// 對應 JS: getIndex = function(t) { ... i = o - 1; ... return i >= 0 && i || 0; }
   int getIndex(Duration position) {
@@ -68,31 +103,18 @@ class VideoshotData {
     return resultIdx >= 0 ? resultIdx : 0;
   }
 
-  /// 2. 還原座標計算邏輯
-  /// 對應 JS: d = r % l % i * a; (X座標)
-  /// 對應 JS: u = Math.floor(r % l / n) * s; (Y座標)
-  FrameInfo? getFrameAt(Duration position) {
-    if (images.isEmpty) return null;
+  /// 2. 依幀索引計算雪碧圖位置
+  FrameInfo? frameAtIndex(int k) {
+    if (images.isEmpty || k < 0 || k >= frameCount) return null;
 
-    // 獲取幀索引 r
-    final int r = getIndex(position);
-
-    // 每張大圖的總幀數 l
     final int l = framesPerImage;
+    if (l <= 0 || imgXLen <= 0) return null;
 
-    // 計算在大圖列表中的圖片索引 (第幾張大圖)
-    // 對應 JS: c = t[Math.floor(r / l)]
-    int imageIndex = (r / l).floor();
+    int imageIndex = k ~/ l;
     if (imageIndex >= images.length) imageIndex = images.length - 1;
 
-    // 計算在單張大圖內部的偏移
-    // 對應 JS X座標: d = r % l % i * a
-    // i 是 imgXLen (列數), a 是 imgXSize (寬)
-    final int x = (r % l % imgXLen) * imgXSize;
-
-    // Y座標: 標準行主序佈局，除以列數 (xLen)
-    // Python: y = math.floor((r % l) / self.x_len) * self.per_img_h
-    final int y = ((r % l) ~/ imgXLen) * imgYSize;
+    final int x = (k % l % imgXLen) * imgXSize;
+    final int y = ((k % l) ~/ imgXLen) * imgYSize;
 
     return FrameInfo(
       imageUrl: images[imageIndex],
@@ -101,6 +123,11 @@ class VideoshotData {
       width: imgXSize,
       height: imgYSize,
     );
+  }
+
+  /// 獲取指定播放位置的快照資訊
+  FrameInfo? getFrameAt(Duration position) {
+    return frameAtIndex(indexAt(position));
   }
 
   /// 獲取最接近給定位置的幀時間戳

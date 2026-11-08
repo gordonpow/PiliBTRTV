@@ -22,6 +22,7 @@ import '../../../core/plugin/plugin_manager.dart';
 import '../../../core/plugin/plugin_types.dart';
 import '../../../services/playback_progress_cache.dart';
 import '../../../services/btr/btr_proxy.dart';
+import '../../../services/frame_service.dart';
 
 /// 播放器邏輯 Mixin
 mixin PlayerActionMixin on PlayerStateMixin {
@@ -270,6 +271,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         currentQuality = playInfo['currentQuality'] ?? 80;
         currentCodec = playInfo['codec'] ?? '';
         currentAudioUrl = playInfo['audioUrl'];
+        previewFrameUrl = playInfo['previewUrl'] as String?;
 
         String? playUrl;
 
@@ -577,6 +579,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       currentQuality = playInfo['currentQuality'] ?? currentQuality;
       currentCodec = playInfo['codec'] ?? 'avc';
       currentAudioUrl = playInfo['audioUrl'];
+      previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
 
       String? playUrl;
@@ -759,6 +762,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
     autoSeekTimer?.cancel();
     onlineCountTimer?.cancel(); // 取消線上人數定時器
     _clearSpritesFromMemory(); // 清理雪碧圖記憶體快取
+    previewFrameUrl = null;
+    FrameService.release();
 
     // 通知外掛影片結束
     final plugins = PluginManager().getEnabledPlugins<PlayerPlugin>();
@@ -1093,34 +1098,26 @@ mixin PlayerActionMixin on PlayerStateMixin {
       isSeekPreviewMode = true;
     }
 
-    final step = _calculateSeekStep(forward);
     final currentPreview =
         previewPosition ?? originalSeekPosition ?? Duration.zero;
     final total = videoController!.value.duration;
 
-    var target = forward
-        ? currentPreview + Duration(seconds: step)
-        : currentPreview - Duration(seconds: step);
+    Duration target;
+    if (videoshotData != null && videoshotData!.frameCount > 1) {
+      // 有縮圖資料：每次按鍵移動一幀 (AC-C5)
+      final currentK = videoshotData!.indexAt(currentPreview, total);
+      final nextK = forward ? currentK + 1 : currentK - 1;
+      final clampedK = nextK.clamp(0, videoshotData!.frameCount - 1);
+      target = videoshotData!.timeOfIndex(clampedK, total);
+    } else {
+      // 沒有縮圖資料：維持現有 10／30／60 秒加速 (AC-C6)
+      final step = _calculateSeekStep(forward);
+      target = forward
+          ? currentPreview + Duration(seconds: step)
+          : currentPreview - Duration(seconds: step);
 
-    if (target < Duration.zero) target = Duration.zero;
-    if (target > total) target = total;
-
-    // 時間吸附（有雪碧圖時）
-    if (videoshotData != null) {
-      final aligned = videoshotData!.getClosestTimestamp(target);
-      if (forward && aligned <= currentPreview && target < total) {
-        target = videoshotData!.getClosestTimestamp(
-          target + const Duration(seconds: 1),
-        );
-      } else if (!forward &&
-          aligned >= currentPreview &&
-          target > Duration.zero) {
-        target = videoshotData!.getClosestTimestamp(
-          target - const Duration(seconds: 1),
-        );
-      } else {
-        target = aligned;
-      }
+      if (target < Duration.zero) target = Duration.zero;
+      if (target > total) target = total;
     }
 
     setState(() {
@@ -1442,6 +1439,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       currentQuality = playInfo['currentQuality'] ?? 80;
       currentCodec = playInfo['codec'] ?? currentCodec;
       currentAudioUrl = playInfo['audioUrl'];
+      previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(
         playInfo['qualities'] ?? [],
       );
@@ -1590,6 +1588,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       currentQuality = playInfo['currentQuality'] ?? qn;
       currentCodec = playInfo['codec'] ?? currentCodec;
       currentAudioUrl = playInfo['audioUrl'];
+      previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(
         playInfo['qualities'] ?? qualities,
       );
