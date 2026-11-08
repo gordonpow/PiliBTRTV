@@ -20,6 +20,9 @@ class _LoginViewState extends State<LoginView> {
   String? _authCode;
   String _status = 'loading';
   Timer? _pollTimer;
+  String _errorText = '';
+  int _expiredCount = 0;
+  static const int _maxAutoRegenerate = 5;
 
   @override
   void initState() {
@@ -38,7 +41,7 @@ class _LoginViewState extends State<LoginView> {
     final result = await BilibiliApi.generateTvQrCode();
     if (!mounted) return;
 
-    if (result != null) {
+    if (result != null && (result['auth_code'] ?? '').isNotEmpty) {
       setState(() {
         _qrUrl = result['url'];
         _authCode = result['auth_code'];
@@ -46,8 +49,16 @@ class _LoginViewState extends State<LoginView> {
       });
       _startPolling();
     } else {
-      setState(() => _status = 'error');
+      setState(() {
+        _errorText = '載入失敗，請重試';
+        _status = 'error';
+      });
     }
+  }
+
+  void _manualRegenerate() {
+    _expiredCount = 0;
+    _generateQrCode();
   }
 
   void _startPolling() {
@@ -72,7 +83,7 @@ class _LoginViewState extends State<LoginView> {
           await AuthService.saveLoginCredentials(
             accessToken: result['access_token'] ?? '',
             refreshToken: result['refresh_token'] ?? '',
-            mid: result['mid'] ?? 0,
+            mid: (result['mid'] as int?) ?? 0,
             cookieInfo: result['cookie_info'],
           );
           // 獲取使用者資訊
@@ -82,14 +93,33 @@ class _LoginViewState extends State<LoginView> {
           widget.onLoginSuccess?.call();
           break;
         case 'scanned':
+          _expiredCount = 0;
           setState(() => _status = 'scanned');
           break;
         case 'expired':
           timer.cancel();
-          setState(() => _status = 'expired');
+          if (_expiredCount < _maxAutoRegenerate) {
+            _expiredCount++;
+            _generateQrCode();
+          } else {
+            setState(() => _status = 'expired');
+          }
+          break;
+        case 'error':
+          timer.cancel();
+          final code = result['code'];
+          final message = result['message'] ?? '';
+          setState(() {
+            _errorText = '錯誤：$message（$code）';
+            _status = 'error';
+          });
+          break;
+        case 'network':
+          setState(() => _status = 'network');
           break;
         case 'waiting':
         default:
+          if (_status == 'network') setState(() => _status = 'waiting');
           break;
       }
     });
@@ -146,11 +176,15 @@ class _LoginViewState extends State<LoginView> {
         color = Colors.white54;
         break;
       case 'waiting':
-        text = '請使用 Bilibili 手機客戶端掃描二維碼';
+        text = '等待掃描';
         color = Colors.white54;
         break;
+      case 'network':
+        text = '網路錯誤，重試中…';
+        color = Colors.orange;
+        break;
       case 'scanned':
-        text = '已掃描，請在手機上確認登入';
+        text = '已掃描，請在手機上確認';
         color = const Color(0xFF4CAF50);
         break;
       case 'success':
@@ -158,12 +192,12 @@ class _LoginViewState extends State<LoginView> {
         color = const Color(0xFF4CAF50);
         break;
       case 'expired':
-        text = '二維碼已過期，請重新整理';
+        text = 'QR Code 已過期，按確認鍵重新產生';
         color = Colors.orange;
         break;
       case 'error':
       default:
-        text = '載入失敗，請重試';
+        text = _errorText.isEmpty ? '載入失敗，請重試' : _errorText;
         color = Colors.red;
         break;
     }
@@ -191,9 +225,21 @@ class _LoginViewState extends State<LoginView> {
           ),
           const SizedBox(height: 30),
           _buildQrContent(),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          const Text(
+            '請用 B站手機 App 掃描（建議更新至最新版）',
+            style: TextStyle(color: Colors.white70, fontSize: 15),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '若手機顯示驗證頁，請按「是我的帳號，驗證登入」完成驗證',
+            style: TextStyle(color: Colors.white70, fontSize: 15),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
           _buildStatusText(),
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
           if (_status == 'expired' || _status == 'error')
             Focus(
               autofocus: true,
@@ -201,7 +247,7 @@ class _LoginViewState extends State<LoginView> {
                 if (event is KeyDownEvent &&
                     (event.logicalKey == LogicalKeyboardKey.enter ||
                         event.logicalKey == LogicalKeyboardKey.select)) {
-                  _generateQrCode();
+                  _manualRegenerate();
                   return KeyEventResult.handled;
                 }
                 if (event is KeyDownEvent &&
@@ -215,7 +261,7 @@ class _LoginViewState extends State<LoginView> {
                 builder: (context) {
                   final isFocused = Focus.of(context).hasFocus;
                   return GestureDetector(
-                    onTap: _generateQrCode,
+                    onTap: _manualRegenerate,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 30,
@@ -231,7 +277,7 @@ class _LoginViewState extends State<LoginView> {
                             : null,
                       ),
                       child: const Text(
-                        '重新整理二維碼',
+                        '重新產生 QR Code',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,

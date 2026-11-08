@@ -52,7 +52,7 @@ class AuthApi {
         '${BaseApi.passportBase}/x/passport-tv-login/qrcode/auth_code',
       ).replace(queryParameters: params);
 
-      final response = await http.post(uri);
+      final response = await http.post(uri, headers: BaseApi.getHeaders());
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
@@ -70,7 +70,7 @@ class AuthApi {
   }
 
   /// 輪詢 TV 登入狀態
-  /// 返回: {'status': 'success'|'waiting'|'scanned'|'expired', 'data': ...}
+  /// 返回: {'status': 'success'|'waiting'|'scanned'|'expired'|'error'|'network', ...}
   static Future<Map<String, dynamic>> pollTvLogin(String authCode) async {
     try {
       final params = SignUtils.signForTvLogin({
@@ -82,7 +82,7 @@ class AuthApi {
         '${BaseApi.passportBase}/x/passport-tv-login/qrcode/poll',
       ).replace(queryParameters: params);
 
-      final response = await http.post(uri);
+      final response = await http.post(uri, headers: BaseApi.getHeaders());
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
@@ -95,7 +95,7 @@ class AuthApi {
               'status': 'success',
               'access_token': data['access_token'] ?? '',
               'refresh_token': data['refresh_token'] ?? '',
-              'mid': data['mid'] ?? 0,
+              'mid': BaseApi.toInt(data['mid']),
               'cookie_info': data['cookie_info'],
             };
           case 86039:
@@ -105,12 +105,21 @@ class AuthApi {
           case 86038:
             return {'status': 'expired'};
           default:
-            return {'status': 'error', 'message': json['message'] ?? ''};
+            return {
+              'status': 'error',
+              'code': code,
+              'message': json['message'] ?? '',
+            };
         }
       }
+      return {
+        'status': 'error',
+        'code': response.statusCode,
+        'message': 'HTTP ${response.statusCode}',
+      };
     } catch (e) {
-      // ignore
+      // 網路錯誤，呼叫端會繼續輪詢
+      return {'status': 'network'};
     }
-    return {'status': 'error'};
   }
 }
