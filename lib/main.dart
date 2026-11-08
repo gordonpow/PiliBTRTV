@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'screens/splash_screen.dart'; // 引入 Splash Screen
@@ -7,11 +9,18 @@ import 'package:bili_tv_app/plugins/ad_filter_plugin.dart';
 import 'package:bili_tv_app/plugins/danmaku_enhance_plugin.dart';
 import 'services/auth_service.dart';
 import 'services/local_server.dart';
+import 'services/log_service.dart';
 import 'services/settings_service.dart';
 import 'utils/zh_convert.dart';
 
 Future<void> main() async {
+  // 整個啟動流程放在同一個 zone，未捕捉的非同步錯誤會寫入 log
+  await runZonedGuarded(_main, LogService.recordError);
+}
+
+Future<void> _main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LogService.init();
 
   // 語言設定需要 SharedPreferences，先初始化再載入繁簡轉換表
   await SettingsService.init();

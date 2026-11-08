@@ -3,6 +3,7 @@ import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../../services/settings_service.dart';
 import '../../../../services/update_service.dart';
+import '../../../../widgets/error_report_dialog.dart';
 import '../widgets/setting_action_row.dart';
 import '../widgets/setting_dropdown_row.dart';
 import '../widgets/setting_toggle_row.dart';
@@ -104,7 +105,14 @@ class _AboutSettingsState extends State<AboutSettings> {
           itemLabel: _intervalLabel,
           onChanged: _setInterval,
           sidebarFocusNode: widget.sidebarFocusNode,
+        ),
+        SettingActionRow(
+          label: '回報問題',
+          value: '上傳去除個人資訊的錯誤報告',
+          buttonLabel: '回報',
           isLast: true,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onTap: () => showErrorReportDialog(context),
         ),
       ],
     );

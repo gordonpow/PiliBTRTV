@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../services/auth_service.dart';
+import '../../../widgets/error_report_dialog.dart';
 
 class LoginView extends StatefulWidget {
   final FocusNode? sidebarFocusNode;
@@ -209,6 +210,59 @@ class _LoginViewState extends State<LoginView> {
     );
   }
 
+  Widget _buildButton(
+    String label,
+    VoidCallback onPressed, {
+    bool autofocus = false,
+  }) {
+    return Focus(
+      autofocus: autofocus,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.select)) {
+          onPressed();
+          return KeyEventResult.handled;
+        }
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+            !node.focusInDirection(TraversalDirection.left)) {
+          widget.sidebarFocusNode?.requestFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (context) {
+          final isFocused = Focus.of(context).hasFocus;
+          return GestureDetector(
+            onTap: onPressed,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+              decoration: BoxDecoration(
+                color: isFocused
+                    ? const Color(0xFFfb7299)
+                    : const Color(0xFFfb7299).withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: isFocused
+                    ? Border.all(color: Colors.white, width: 2)
+                    : null,
+              ),
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -240,55 +294,24 @@ class _LoginViewState extends State<LoginView> {
           const SizedBox(height: 16),
           _buildStatusText(),
           const SizedBox(height: 20),
-          if (_status == 'expired' || _status == 'error')
-            Focus(
-              autofocus: true,
-              onKeyEvent: (node, event) {
-                if (event is KeyDownEvent &&
-                    (event.logicalKey == LogicalKeyboardKey.enter ||
-                        event.logicalKey == LogicalKeyboardKey.select)) {
-                  _manualRegenerate();
-                  return KeyEventResult.handled;
-                }
-                if (event is KeyDownEvent &&
-                    event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                  widget.sidebarFocusNode?.requestFocus();
-                  return KeyEventResult.handled;
-                }
-                return KeyEventResult.ignored;
-              },
-              child: Builder(
-                builder: (context) {
-                  final isFocused = Focus.of(context).hasFocus;
-                  return GestureDetector(
-                    onTap: _manualRegenerate,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 30,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isFocused
-                            ? const Color(0xFFfb7299)
-                            : const Color(0xFFfb7299).withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(8),
-                        border: isFocused
-                            ? Border.all(color: Colors.white, width: 2)
-                            : null,
-                      ),
-                      child: const Text(
-                        '重新產生 QR Code',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_status == 'expired' || _status == 'error') ...[
+                _buildButton(
+                  '重新產生 QR Code',
+                  _manualRegenerate,
+                  autofocus: true,
+                ),
+                const SizedBox(width: 16),
+              ],
+              _buildButton(
+                '回報問題',
+                () => showErrorReportDialog(context),
+                autofocus: !(_status == 'expired' || _status == 'error'),
               ),
-            ),
+            ],
+          ),
         ],
       ),
     );

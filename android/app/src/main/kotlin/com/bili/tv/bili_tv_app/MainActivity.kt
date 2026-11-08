@@ -37,6 +37,18 @@ class MainActivity : FlutterActivity() {
                 "getSupportedAbis" -> {
                     result.success(Build.SUPPORTED_ABIS.toList())
                 }
+                "getDeviceInfo" -> {
+                    // 錯誤報告用：只回傳裝置硬體與系統版本，不含任何個人資訊
+                    result.success(
+                        mapOf(
+                            "manufacturer" to Build.MANUFACTURER,
+                            "model" to Build.MODEL,
+                            "release" to Build.VERSION.RELEASE,
+                            "sdk" to Build.VERSION.SDK_INT,
+                            "abis" to Build.SUPPORTED_ABIS.toList()
+                        )
+                    )
+                }
                 "restart" -> {
                     // 啟動新的 task，再結束目前程序，讓所有 Dart 狀態重新開始
                     val launch = packageManager.getLaunchIntentForPackage(packageName)
