@@ -13,6 +13,22 @@ class ErrorReportService {
 
   static const MethodChannel _channel = MethodChannel('com.bili.tv/update');
 
+  /// 裝置摘要（給回報用）：device 為「廠牌 型號」，android 為「版本 (SDK n)」。
+  static Future<Map<String, String>> deviceSummary() async {
+    try {
+      final info = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'getDeviceInfo',
+      );
+      if (info != null) {
+        return {
+          'device': '${info['manufacturer']} ${info['model']}',
+          'android': '${info['release']} (SDK ${info['sdk']})',
+        };
+      }
+    } catch (_) {}
+    return {'device': '', 'android': ''};
+  }
+
   static Future<String> buildReport({String? crashSection}) async {
     final b = StringBuffer();
     if (crashSection != null && crashSection.trim().isNotEmpty) {

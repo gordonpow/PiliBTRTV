@@ -1,4 +1,5 @@
 import 'package:bili_tv_app/services/error_report_service.dart';
+import 'package:bili_tv_app/services/report_send_service.dart';
 import 'package:bili_tv_app/services/report_share_service.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
@@ -15,7 +16,7 @@ Future<void> showErrorReportDialog(
   );
 }
 
-enum _Stage { confirm, share }
+enum _Stage { select, sending, sent, failed, confirm, share }
 
 class _ErrorReportDialog extends StatefulWidget {
   final String? crashSection;
@@ -27,7 +28,12 @@ class _ErrorReportDialog extends StatefulWidget {
 }
 
 class _ErrorReportDialogState extends State<_ErrorReportDialog> {
-  _Stage _stage = _Stage.confirm;
+  late _Stage _stage = ReportSendService.enabled
+      ? _Stage.select
+      : _Stage.confirm;
+  String _sentId = '';
+  String _failMessage = '';
+  ReportCategory? _lastCategory;
   String? _shareUrl;
   bool _shareReady = false;
 
@@ -54,6 +60,40 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
     setState(() {
       _shareUrl = url;
       _shareReady = true;
+    });
+  }
+
+  Future<void> _send(ReportCategory category) async {
+    if (_stage == _Stage.sending) return;
+    setState(() {
+      _stage = _Stage.sending;
+      _lastCategory = category;
+    });
+    String text;
+    try {
+      text = await ErrorReportService.buildReport(
+        crashSection: widget.crashSection,
+      );
+    } catch (e) {
+      final dev = await ErrorReportService.deviceSummary();
+      text =
+          '（報告產生失敗：${e.runtimeType}）\n'
+          '裝置: ${dev['device']}\n'
+          'Android: ${dev['android']}';
+    }
+    final result = await ReportSendService.send(
+      category: category,
+      report: text,
+    );
+    if (!mounted) return;
+    setState(() {
+      if (result.ok) {
+        _sentId = result.id;
+        _stage = _Stage.sent;
+      } else {
+        _failMessage = result.message;
+        _stage = _Stage.failed;
+      }
     });
   }
 
@@ -140,8 +180,9 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
     VoidCallback? onPressed, {
     bool primary = false,
     bool autofocus = false,
+    bool wide = false,
   }) {
-    return TextButton(
+    final button = TextButton(
       autofocus: autofocus,
       onPressed: onPressed,
       style: ButtonStyle(
@@ -159,6 +200,7 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
         ),
       ),
     );
+    return wide ? SizedBox(width: double.infinity, child: button) : button;
   }
 
   @override
@@ -168,6 +210,78 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
     final List<Widget> actions;
 
     switch (_stage) {
+      case _Stage.select:
+        final defaultCat = _hasCrash
+            ? ReportCategory.crash
+            : ReportCategory.values.first;
+        content = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('請選擇問題類型，按下後會立即送出報告給開發者（Email）：', style: body),
+            const SizedBox(height: 8),
+            for (final c in ReportCategory.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: _btn(
+                  c.label,
+                  () => _send(c),
+                  primary: true,
+                  autofocus: c == defaultCat,
+                  wide: true,
+                ),
+              ),
+            const SizedBox(height: 8),
+            const Text('報告包含：', style: body),
+            if (_hasCrash) const Text('・上次閃退的原因與堆疊', style: body),
+            const Text('・App 版本、Android 版本、裝置型號、CPU 架構、螢幕解析度、語言', style: body),
+            const Text('・BTR 與畫質等設定摘要、是否已登入', style: body),
+            const Text('・App 最近的執行紀錄（log），用來找出哪裡出錯', style: body),
+            const Text('・匿名安裝 ID（用來限制回報次數，不含帳號資訊）', style: body),
+            const SizedBox(height: 8),
+            const Text('不包含：帳號、UID、Cookie、登入憑證、觀看與搜尋紀錄、IP 位址。', style: body),
+          ],
+        );
+        actions = [
+          _btn('改用手機查看', _share),
+          _btn('取消', () => Navigator.of(context).pop()),
+        ];
+      case _Stage.sending:
+        content = const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+            SizedBox(width: 16),
+            Text('正在送出…', style: TextStyle(color: Colors.white70)),
+          ],
+        );
+        actions = [_btn('送出中…', null)];
+      case _Stage.sent:
+        content = Text('已送出，回報編號 $_sentId。開發者會透過 Email 收到這份報告。', style: body);
+        actions = [
+          _btn(
+            '完成',
+            () => Navigator.of(context).pop(),
+            primary: true,
+            autofocus: true,
+          ),
+        ];
+      case _Stage.failed:
+        content = Text(_failMessage, style: body);
+        actions = [
+          _btn(
+            '重試',
+            () => _send(_lastCategory ?? ReportCategory.other),
+            primary: true,
+            autofocus: true,
+          ),
+          _btn('改用手機查看', _share),
+          _btn('關閉', () => Navigator.of(context).pop()),
+        ];
       case _Stage.confirm:
         content = Column(
           mainAxisSize: MainAxisSize.min,
@@ -210,14 +324,17 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
       titleText = '回報問題';
     }
 
-    return AlertDialog(
-      backgroundColor: const Color(0xFF2A2A2A),
-      title: Text(titleText, style: const TextStyle(color: Colors.white)),
-      content: SizedBox(
-        width: 560,
-        child: SingleChildScrollView(child: content),
+    return PopScope(
+      canPop: _stage != _Stage.sending,
+      child: AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: Text(titleText, style: const TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(child: content),
+        ),
+        actions: actions,
       ),
-      actions: actions,
     );
   }
 }
