@@ -23,6 +23,7 @@ import '../../../core/plugin/plugin_types.dart';
 import '../../../services/playback_progress_cache.dart';
 import '../../../services/btr/btr_proxy.dart';
 import '../../../services/frame_service.dart';
+import '../../../services/api/pgc_api.dart';
 
 /// 播放器邏輯 Mixin
 mixin PlayerActionMixin on PlayerStateMixin {
@@ -62,10 +63,46 @@ mixin PlayerActionMixin on PlayerStateMixin {
     });
 
     try {
+      // 只有 epId 沒有 seasonId：先以 epId 查出 seasonId 再轉向番劇模式
+      if (widget.video.seasonId == 0 && widget.video.epId > 0) {
+        final season = await BilibiliApi.getPgcSeason(epId: widget.video.epId);
+        final sid = season['seasonId'] as int? ?? 0;
+        if (season['error'] == null && sid > 0) {
+          _redirectToPgc(sid, widget.video.epId);
+          return;
+        }
+        if (!mounted) return;
+        setState(() {
+          errorMessage = season['error'] ?? '此番劇目前沒有可播放的集數';
+          isLoading = false;
+        });
+        return;
+      }
+
       // 番劇不走 UGC 的 view API，改由季資訊取得集數
       final videoInfo = isPgc
           ? null
           : await BilibiliApi.getVideoInfo(widget.video.bvid);
+
+      // UGC 影片其實是番劇時（view API 帶 redirect_url），轉向番劇播放
+      final redirectUrl = videoInfo?['redirect_url'];
+      if (redirectUrl is String && redirectUrl.isNotEmpty) {
+        final target = PgcApi.parseBangumiUrl(redirectUrl);
+        if (target != null) {
+          var sid = target.seasonId;
+          if (sid == 0) {
+            final season = await BilibiliApi.getPgcSeason(epId: target.epId);
+            if (season['error'] == null) {
+              sid = season['seasonId'] as int? ?? 0;
+            }
+          }
+          if (sid > 0) {
+            _redirectToPgc(sid, target.epId);
+            return;
+          }
+          // 查不到 season：繼續原本的 UGC 流程
+        }
+      }
 
       // 🔥 預先獲取本地快取（在 setState 外部執行 async 操作）
       final cachedRecord = await PlaybackProgressCache.getCachedRecord(
@@ -457,11 +494,34 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
+  /// 轉向番劇播放：以新的 PlayerScreen 取代目前頁面（尚未建立 videoController）。
+  void _redirectToPgc(int seasonId, int epId) {
+    debugPrint('🎬 [PGC] redirect to season=$seasonId ep=$epId');
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(
+          video: models.Video(
+            bvid: '',
+            title: widget.video.title,
+            pic: widget.video.pic,
+            seasonId: seasonId,
+            epId: epId,
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 番劇：載入季資訊，設定集數、起始集與續播進度。失敗時顯示錯誤並回傳 false。
   Future<bool> _setupPgcSeason(({int cid, int progress})? cachedRecord) async {
-    final season = await BilibiliApi.getPgcSeason(
+    var season = await BilibiliApi.getPgcSeason(
       seasonId: widget.video.seasonId,
     );
+    // seasonId 查不到（例如 kid 不是 season_id）時，以 epId 再查一次
+    if (season['error'] != null && widget.video.epId > 0) {
+      season = await BilibiliApi.getPgcSeason(epId: widget.video.epId);
+    }
     if (!mounted) return false;
     final eps = (season['episodes'] as List?) ?? [];
     if (season['error'] != null || eps.isEmpty) {

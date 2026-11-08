@@ -143,8 +143,10 @@ class BilibiliApi {
       PgcApi.getBangumiIndex(page: page);
 
   /// 番劇季資訊
-  static Future<Map<String, dynamic>> getPgcSeason({required int seasonId}) =>
-      PgcApi.getSeason(seasonId: seasonId);
+  static Future<Map<String, dynamic>> getPgcSeason({
+    int seasonId = 0,
+    int epId = 0,
+  }) => PgcApi.getSeason(seasonId: seasonId, epId: epId);
 
   /// 獲取影片線上觀看人數
   static Future<Map<String, String>?> getOnlineCount({

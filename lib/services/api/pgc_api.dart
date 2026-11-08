@@ -45,15 +45,33 @@ class PgcApi {
     return [];
   }
 
+  /// 解析番劇網址 `/bangumi/play/ss<id>` 或 `/bangumi/play/ep<id>`，其他回傳 null。
+  static ({int seasonId, int epId})? parseBangumiUrl(String url) {
+    final m = RegExp(r'/bangumi/play/(ss|ep)(\d+)').firstMatch(url);
+    if (m == null) return null;
+    final id = int.tryParse(m.group(2)!) ?? 0;
+    if (id <= 0) return null;
+    return m.group(1) == 'ss'
+        ? (seasonId: id, epId: 0)
+        : (seasonId: 0, epId: id);
+  }
+
   /// 季資訊。回傳：
   /// {'seasonId', 'title', 'episodes': List<Map>, 'lastEpId', 'lastTime'}
   /// 失敗時回傳 {'error': 訊息}。
   /// episodes 的 key 與 UGC 分 P 對齊：cid、part、page，另帶 ep_id、bvid、aid、badge、is_pgc。
-  static Future<Map<String, dynamic>> getSeason({required int seasonId}) async {
+  static Future<Map<String, dynamic>> getSeason({
+    int seasonId = 0,
+    int epId = 0,
+  }) async {
     try {
       final uri = Uri.parse(
         '${BaseApi.apiBase}/pgc/view/web/season',
-      ).replace(queryParameters: {'season_id': seasonId.toString()});
+      ).replace(
+        queryParameters: seasonId > 0
+            ? {'season_id': seasonId.toString()}
+            : {'ep_id': epId.toString()},
+      );
       final response = await http.get(
         uri,
         headers: BaseApi.getHeaders(withCookie: true),

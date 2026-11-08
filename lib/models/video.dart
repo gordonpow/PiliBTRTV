@@ -123,8 +123,14 @@ class Video {
     final videos = json['videos'] ?? 0;
     final duration = json['duration'] ?? 0;
 
+    // 番劇歷史：kid 為 season_id，history.epid 為集 ID
+    final isPgcHistory = history['business'] == 'pgc';
+
     return Video(
       bvid: history['bvid'] ?? '',
+      seasonId: isPgcHistory ? _toInt(json['kid']) : 0,
+      epId: isPgcHistory ? _toInt(history['epid']) : 0,
+      epIndexText: isPgcHistory ? (json['show_title'] ?? '').toString() : '',
       title: json['title'] ?? '',
       pic: _fixPicUrl(cover),
       ownerName: json['author_name'] ?? '',
