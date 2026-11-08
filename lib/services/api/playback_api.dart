@@ -196,12 +196,50 @@ class PlaybackApi {
 
               dynamic selectedVideo;
 
-              // 獲取硬體解碼器支援列表 (若已自動降級到 AVC 則排除 HEVC/AV1)
-              final hwDecoders = await CodecService.getHardwareDecoders();
               final fallbackToAvc = SettingsService.codecFallbackAvc;
-              final hasAv1Hw = !fallbackToAvc && hwDecoders.contains('av1');
-              final hasHevcHw = !fallbackToAvc && hwDecoders.contains('hevc');
-              final hasAvcHw = hwDecoders.contains('avc');
+
+              // 解析度／幀率是否有硬體解碼器可用
+              Future<bool> hwOk(dynamic v) async {
+                final family = CodecService.codecFamily(
+                  v['codecs'] as String? ?? '',
+                );
+                if (family == null) return false;
+                final w = (v['width'] as num?)?.toInt() ?? 0;
+                final h = (v['height'] as num?)?.toInt() ?? 0;
+                final fps = CodecService.parseFps(
+                  v['frameRate'] ?? v['frame_rate'],
+                );
+                return CodecService.canHwDecode(family, w, h, fps);
+              }
+
+              // 允許的編碼家族內，可硬解的最大畫質 id
+              Future<int?> maxQn() async {
+                final VideoCodec? limit =
+                    (forceCodec != null && forceCodec != VideoCodec.auto)
+                    ? forceCodec
+                    : (forceCodec == null &&
+                          SettingsService.preferredCodec != VideoCodec.auto)
+                    ? SettingsService.preferredCodec
+                    : null;
+                final allowed = limit != null
+                    ? {limit.name}
+                    : fallbackToAvc
+                    ? {'avc'}
+                    : {'avc', 'hevc', 'av1'};
+                final hdr = await CodecService.isHdrDisplay();
+                int? best;
+                for (final v in videos) {
+                  final id = v['id'] as int? ?? 0;
+                  if (!hdr && (id == 125 || id == 126)) continue;
+                  if (best != null && id <= best) continue;
+                  final family = CodecService.codecFamily(
+                    v['codecs'] as String? ?? '',
+                  );
+                  if (family == null || !allowed.contains(family)) continue;
+                  if (await hwOk(v)) best = id;
+                }
+                return best;
+              }
 
               // 1. 如果指定了 forceCodec（失敗回退時），優先使用
               if (forceCodec != null && forceCodec != VideoCodec.auto) {
@@ -236,31 +274,28 @@ class PlaybackApi {
                   }, orElse: () => null);
                 } else {
                   // 使用者設定是"自動"，智慧選硬解最優: AV1 > HEVC > AVC
-                  if (hasAv1Hw) {
-                    selectedVideo = candidateVideos.firstWhere((v) {
-                      final codecs = (v['codecs'] as String? ?? '')
-                          .toLowerCase();
-                      return codecs.startsWith('av01') ||
-                          codecs.startsWith('av1');
-                    }, orElse: () => null);
+                  final order = fallbackToAvc
+                      ? const ['avc']
+                      : const ['av1', 'hevc', 'avc'];
+                  for (final family in order) {
+                    for (final v in candidateVideos) {
+                      if (CodecService.codecFamily(
+                                v['codecs'] as String? ?? '',
+                              ) ==
+                              family &&
+                          await hwOk(v)) {
+                        selectedVideo = v;
+                        break;
+                      }
+                    }
+                    if (selectedVideo != null) break;
                   }
 
-                  if (selectedVideo == null && hasHevcHw) {
-                    selectedVideo = candidateVideos.firstWhere((v) {
-                      final codecs = (v['codecs'] as String? ?? '')
-                          .toLowerCase();
-                      return codecs.startsWith('hev') ||
-                          codecs.startsWith('hvc');
-                    }, orElse: () => null);
-                  }
-
-                  if (selectedVideo == null && hasAvcHw) {
-                    selectedVideo = candidateVideos.firstWhere((v) {
-                      final codecs = (v['codecs'] as String? ?? '')
-                          .toLowerCase();
-                      return codecs.startsWith('avc');
-                    }, orElse: () => null);
-                  }
+                  // 都不能硬解：先選該畫質的 AVC
+                  selectedVideo ??= candidateVideos.firstWhere((v) {
+                    final codecs = (v['codecs'] as String? ?? '').toLowerCase();
+                    return codecs.startsWith('avc');
+                  }, orElse: () => null);
                 }
               }
 
@@ -338,8 +373,14 @@ class PlaybackApi {
                   'currentQuality': data['quality'] ?? qn,
                   'isDash': isDash,
                   'codec': parsedCodec,
-                  'dashData': data['dash'],
+                  // MPD 只放選定的影片串流，避免 ExoPlayer 自行選到無法硬解的軌
+                  'dashData': {
+                    ...(data['dash'] as Map<String, dynamic>),
+                    'video': [selectedVideo],
+                  },
                   'previewUrl': previewUrl,
+                  'hwDecodable': await hwOk(selectedVideo),
+                  'maxDecodableQn': await maxQn(),
                 };
               }
             }
@@ -369,6 +410,8 @@ class PlaybackApi {
                   'codec': 'avc',
                   'dashData': null,
                   'previewUrl': videoUrl,
+                  'hwDecodable': true,
+                  'maxDecodableQn': null,
                 };
               }
             }

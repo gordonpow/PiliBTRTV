@@ -1,6 +1,7 @@
 package com.bili.tv.bili_tv_app
 
 import android.content.Intent
+import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.content.ActivityNotFoundException
 import android.net.Uri
@@ -85,11 +86,76 @@ class MainActivity : FlutterActivity() {
                         result.error("CODEC_ERROR", e.message, null)
                     }
                 }
+                "canHwDecode" -> {
+                    val codec = call.argument<String>("codec") ?: ""
+                    val w = call.argument<Int>("width") ?: 0
+                    val h = call.argument<Int>("height") ?: 0
+                    val fps = call.argument<Double>("fps") ?: 0.0
+                    result.success(canHwDecode(codec, w, h, fps))
+                }
+                "isHdrDisplay" -> result.success(isHdrDisplay())
                 else -> result.notImplemented()
             }
         }
     }
-    
+
+    // 共用硬體判斷：API 29 以上用系統旗標，以下用名稱規則
+    private fun isHardwareCodec(info: MediaCodecInfo): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return info.isHardwareAccelerated
+        }
+        val name = info.name.lowercase()
+        return !name.contains("google") &&
+            !name.contains("software") &&
+            !name.contains("sw") &&
+            !name.startsWith("c2.android")
+    }
+
+    // 同一個硬體解碼器需同時支援該 MIME、解析度與幀率；例外時回 true（不阻擋）
+    private fun canHwDecode(codec: String, width: Int, height: Int, fps: Double): Boolean {
+        return try {
+            val mime = when (codec) {
+                "avc" -> "video/avc"
+                "hevc" -> "video/hevc"
+                "av1" -> "video/av01"
+                else -> return true
+            }
+            for (info in MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos) {
+                if (info.isEncoder) continue
+                if (info.name.lowercase().endsWith(".secure")) continue
+                if (!isHardwareCodec(info)) continue
+                if (info.supportedTypes.none { it.equals(mime, ignoreCase = true) }) continue
+                val vc = info.getCapabilitiesForType(mime).videoCapabilities ?: continue
+                val ok = if (fps > 0) {
+                    vc.areSizeAndRateSupported(width, height, fps)
+                } else {
+                    vc.isSizeSupported(width, height)
+                }
+                if (ok) return true
+            }
+            false
+        } catch (e: Exception) {
+            true
+        }
+    }
+
+    // 顯示器是否支援 HDR（API 24 以上）
+    private fun isHdrDisplay(): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
+            val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                this.display
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay
+            }
+            val types = display?.hdrCapabilities?.supportedHdrTypes
+            types != null && types.isNotEmpty()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     // 获取硬件解码器支持的格式
     private fun getHardwareDecoders(): List<String> {
         val supportedFormats = mutableSetOf<String>()
@@ -100,13 +166,7 @@ class MainActivity : FlutterActivity() {
             if (info.isEncoder) continue
             
             // 检查是否是硬件解码器 (不包含 google/software)
-            val name = info.name.lowercase()
-            val isHardware = !name.contains("google") && 
-                            !name.contains("software") &&
-                            !name.contains("sw") &&
-                            !name.startsWith("c2.android")
-            
-            if (isHardware) {
+            if (isHardwareCodec(info)) {
                 for (type in info.supportedTypes) {
                     when {
                         type.equals("video/avc", ignoreCase = true) -> supportedFormats.add("avc")

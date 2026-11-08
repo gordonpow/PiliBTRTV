@@ -23,6 +23,7 @@ import '../../../core/plugin/plugin_types.dart';
 import '../../../services/playback_progress_cache.dart';
 import '../../../services/btr/btr_proxy.dart';
 import '../../../services/frame_service.dart';
+import '../../../services/codec_service.dart';
 import '../../../services/api/pgc_api.dart';
 
 /// 播放器邏輯 Mixin
@@ -249,8 +250,16 @@ mixin PlayerActionMixin on PlayerStateMixin {
             // 獲取該影片支援的最高畫質
             // qualities 是 List<Map<String, dynamic>>, 需提取 qn 並排序
             final supportedQns = qualities.map((e) => e['qn'] as int).toList();
-            if (supportedQns.isNotEmpty) {
-              final maxQn = supportedQns.reduce(
+            // 解碼上限（缺少時不限制）與 HDR 顯示限制
+            final cap = playInfo['maxDecodableQn'] as int?;
+            final hdrOk = await CodecService.isHdrDisplay();
+            final allowedQns = supportedQns.where(
+              (q) =>
+                  (cap == null || q <= cap) &&
+                  (hdrOk || (q != 125 && q != 126)),
+            );
+            if (allowedQns.isNotEmpty) {
+              final maxQn = allowedQns.reduce(
                 (curr, next) => curr > next ? curr : next,
               );
               final currentQn = playInfo['currentQuality'] as int? ?? 0;
@@ -272,6 +281,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
                 // 如果升級請求成功，使用新資料（若指定 tryCodec 則升級結果不可偏離所要求編碼）
                 if (upgradePlayInfo != null &&
+                    upgradePlayInfo['hwDecodable'] == false) {
+                  debugPrint('🎬 [SmartQuality] 升級後的串流無法硬體解碼，沿用 $currentQn');
+                } else if (upgradePlayInfo != null &&
                     upgradePlayInfo['error'] == null &&
                     (tryCodec == null ||
                         (upgradePlayInfo['codec'] as String? ?? '')
@@ -322,7 +334,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
         } else {
           // 回退到直接 URL (mp4/flv)
           final rawUrl = playInfo['url'] as String? ?? '';
-          final backups = (playInfo['backupUrls'] as List?)
+          final backups =
+              (playInfo['backupUrls'] as List?)
                   ?.map((e) => e.toString())
                   .toList() ??
               const <String>[];
@@ -649,7 +662,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
         playUrl = LocalServer.instance.mpdUrl;
       } else {
         final rawUrl = playInfo['url'] as String? ?? '';
-        final backups = (playInfo['backupUrls'] as List?)
+        final backups =
+            (playInfo['backupUrls'] as List?)
                 ?.map((e) => e.toString())
                 .toList() ??
             const <String>[];
@@ -1128,7 +1142,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
   int _calculateSeekStep(bool forward) {
     final now = DateTime.now();
     if (lastSeekPressTime != null &&
-        now.difference(lastSeekPressTime!) < const Duration(milliseconds: 800) &&
+        now.difference(lastSeekPressTime!) <
+            const Duration(milliseconds: 800) &&
         lastSeekDirection == forward) {
       seekPressCount++;
     } else {
@@ -1500,9 +1515,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       currentCodec = playInfo['codec'] ?? currentCodec;
       currentAudioUrl = playInfo['audioUrl'];
       previewFrameUrl = playInfo['previewUrl'] as String?;
-      qualities = List<Map<String, dynamic>>.from(
-        playInfo['qualities'] ?? [],
-      );
+      qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
 
       String? playUrl;
 
@@ -1513,7 +1526,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
         playUrl = LocalServer.instance.mpdUrl;
       } else {
         final rawUrl = playInfo['url'] as String? ?? '';
-        final backups = (playInfo['backupUrls'] as List?)
+        final backups =
+            (playInfo['backupUrls'] as List?)
                 ?.map((e) => e.toString())
                 .toList() ??
             const <String>[];
@@ -1618,7 +1632,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     setState(() => isLoading = true);
 
     try {
-      final playInfo = await BilibiliApi.getVideoPlayUrl(
+      var playInfo = await BilibiliApi.getVideoPlayUrl(
         bvid: playingBvid,
         cid: cid!,
         qn: qn,
@@ -1635,6 +1649,41 @@ mixin PlayerActionMixin on PlayerStateMixin {
         return;
       }
 
+      // 此裝置硬體解碼能力不足時，嘗試降到可解碼的最高畫質
+      var chosenQn = qn;
+      if (playInfo['hwDecodable'] == false) {
+        String qnDesc(int q, Map<String, dynamic> info) {
+          final list = (info['qualities'] as List?) ?? qualities;
+          for (final item in list) {
+            if (item is Map && item['qn'] == q && item['desc'] != null) {
+              return item['desc'].toString();
+            }
+          }
+          return '${q}P';
+        }
+
+        final cap = playInfo['maxDecodableQn'] as int?;
+        String? toastMsg;
+        if (cap != null && cap < qn) {
+          final retry = await BilibiliApi.getVideoPlayUrl(
+            bvid: playingBvid,
+            cid: cid!,
+            qn: cap,
+            forceCodec:
+                SettingsService.codecFallbackAvc ? VideoCodec.avc : null,
+            epId: isPgc ? currentEpId : null,
+          );
+          if (retry != null && retry['error'] == null) {
+            toastMsg =
+                '此電視無法順暢播放 ${qnDesc(qn, playInfo)}，已改用 ${qnDesc(cap, retry)}';
+            playInfo = retry;
+            chosenQn = cap;
+          }
+        }
+        toastMsg ??= '此電視可能無法順暢播放 ${qnDesc(qn, playInfo)}';
+        showZhToast(msg: toastMsg, toastLength: Toast.LENGTH_LONG);
+      }
+
       // 清理舊播放器
       cancelPlayerListeners();
       await videoController?.dispose();
@@ -1645,7 +1694,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       if (isPreview) {
         showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
       }
-      currentQuality = playInfo['currentQuality'] ?? qn;
+      currentQuality = playInfo['currentQuality'] ?? chosenQn;
       currentCodec = playInfo['codec'] ?? currentCodec;
       currentAudioUrl = playInfo['audioUrl'];
       previewFrameUrl = playInfo['previewUrl'] as String?;
@@ -1662,7 +1711,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
         playUrl = LocalServer.instance.mpdUrl;
       } else {
         final rawUrl = playInfo['url'] as String? ?? '';
-        final backups = (playInfo['backupUrls'] as List?)
+        final backups =
+            (playInfo['backupUrls'] as List?)
                 ?.map((e) => e.toString())
                 .toList() ??
             const <String>[];

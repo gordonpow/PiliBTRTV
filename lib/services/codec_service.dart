@@ -38,4 +38,71 @@ class CodecService {
 
   /// 檢查是否支援 AV1 硬解
   static Future<bool> hasAv1Hardware() => hasHardwareDecoder('av1');
+
+  // 快取解析度／幀率檢查結果
+  static final Map<String, bool> _hwDecodeCache = {};
+  static bool? _hdrDisplay;
+
+  /// 檢查是否有同一個硬體解碼器支援指定編碼、解析度與幀率
+  /// [codec]: avc / hevc / av1；[fps] <= 0 表示不檢查幀率。失敗時回 true（不阻擋）
+  static Future<bool> canHwDecode(
+    String codec,
+    int width,
+    int height,
+    double fps,
+  ) async {
+    final key = '$codec:$width:$height:$fps';
+    final cached = _hwDecodeCache[key];
+    if (cached != null) return cached;
+    try {
+      final result = await _channel.invokeMethod<bool>('canHwDecode', {
+        'codec': codec,
+        'width': width,
+        'height': height,
+        'fps': fps,
+      });
+      return _hwDecodeCache[key] = result ?? true;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  /// 顯示器是否支援 HDR；失敗時回 false
+  static Future<bool> isHdrDisplay() async {
+    final cached = _hdrDisplay;
+    if (cached != null) return cached;
+    try {
+      final result = await _channel.invokeMethod<bool>('isHdrDisplay');
+      return _hdrDisplay = result ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// 由 codecs 字串判斷編碼家族：avc / hevc / av1，其他回 null
+  static String? codecFamily(String codecs) {
+    final c = codecs.toLowerCase();
+    if (c.startsWith('avc')) return 'avc';
+    if (c.startsWith('hev') || c.startsWith('hvc') || c.startsWith('dvh')) {
+      return 'hevc';
+    }
+    if (c.startsWith('av01') || c.startsWith('av1')) return 'av1';
+    return null;
+  }
+
+  /// 解析幀率：接受 num 或字串（"29.970"、"30000/1001"），失敗回 0
+  static double parseFps(dynamic v) {
+    if (v is num) return v.toDouble();
+    if (v is! String) return 0;
+    final s = v.trim();
+    if (s.isEmpty) return 0;
+    if (s.contains('/')) {
+      final parts = s.split('/');
+      final n = double.tryParse(parts[0].trim());
+      final d = double.tryParse(parts[1].trim());
+      if (n == null || d == null || d == 0) return 0;
+      return n / d;
+    }
+    return double.tryParse(s) ?? 0;
+  }
 }
