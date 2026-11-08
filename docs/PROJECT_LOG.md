@@ -52,8 +52,11 @@
 | `baf859a` | 快退快進改為 Netflix 式縮圖列，停 400ms 後中間改為串流抽出的清晰畫面 |
 | `2de58b7` | 閃退後詢問回報；錯誤報告改為手機網頁查看（複製、下載、預填 GitHub issue），移除上傳（規格：`docs/work/error-report-lan/`） |
 | `82adf29` | 手機輔助登入（密碼、簡訊、Cookie，需同一個 Wi-Fi）；修正登入頁焦點（規格：`docs/work/phone-login/`） |
+| `085029f` | 官方授權番劇（銀魂等）從歷史紀錄或一般入口開啟時改以番劇模式播放，修正「獲取影片資訊失敗」（規格：`docs/work/pgc-redirect-4k/`） |
+| `88f6412` | 4K 低 FPS：MPD 只放選定串流；依硬體解碼器的解析度／幀率能力選編碼與畫質上限；手動選畫質無法硬解時改用可硬解畫質並提示 |
+| `d71e072` | BTR 自動執行緒在碼率 ≥ 8 Mbps 時使用 16 個 |
 
-版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.4`（pubspec `1.2.2+4`）。發布：v1.2.2-btr.2（2026-11-07，附 release APK 57.6MB）；v1.2.2-btr.3（2026-11-08，分 64 位元 arm64-v8a 21.3MB 與 32 位元 armeabi-v7a 19.2MB 兩個 APK）；v1.2.2-btr.4（2026-11-08，arm64-v8a 21.6MB、armeabi-v7a 19.5MB）。
+版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.5`（pubspec `1.2.2+5`）。發布：v1.2.2-btr.2（2026-11-07，附 release APK 57.6MB）；v1.2.2-btr.3（2026-11-08，分 64 位元 arm64-v8a 21.3MB 與 32 位元 armeabi-v7a 19.2MB 兩個 APK）；v1.2.2-btr.4（2026-11-08，arm64-v8a 21.6MB、armeabi-v7a 19.5MB）；v1.2.2-btr.5（2026-11-08）。
 
 ### 已實作、尚未 commit
 
@@ -134,3 +137,5 @@
 | 請自己在模擬器驗證報告網頁 | 用 adb 操作驗證：發現並修正兩個 bug——登入頁按右鍵焦點進不去（`LoginTab.focusFirstCategory` 未處理登入頁，新增 `LoginViewState.focusDefault`）、報告網頁 JS 字串含實際換行導致整個 script 語法錯誤（改用 `NL`）。驗證：`/report` 200、錯誤代碼 403、`no-store`／`no-referrer`、實際網頁 JS 通過 `node --check`、報告 318 行不含 Cookie／token、GitHub issue 網址 6942 字元並正確截斷；手機登入頁 JS 語法也通過 |
 | 按「在 GitHub 回報」出現 GitHub「Whoops, something went wrong!」 | 網址太長：curl 實測 GitHub issues/new 約 7000 字元以上回 500、更長回 414，登入後 Cookie 也占請求標頭；上限從 7000 降為 3500，實際報告產生 3434 字元網址，GitHub 回 302 正常 |
 | commit 並發布 64／32 位元版本 | 分 5 個功能 commit、版本升至 `v1.2.2-btr.4`；`flutter analyze` 無問題、26 項測試通過；`--split-per-abi` 建置並發布 GitHub Release `v1.2.2-btr.4` |
+| 官方授權影片（銀魂）「獲取影片資訊失敗」、4K 很卡 | curl 確認銀魂 view API 回 `redirect_url` 指向番劇、`season?ep_id=` 可查季；原因為歷史紀錄未處理 `business=='pgc'`、UGC 路徑未轉向。使用者選兩種卡頓原因都修、大會員升級上限為裝置可硬解畫質。Sonnet 審查規格 8 條（採用 6 條半），兩個 Sonnet 平行實作；`flutter analyze` 無問題、10 項新測試通過、release APK 建置成功 |
+| 4K 卡頓是 FPS 很低，官方 App 很順（Sony BRAVIA 4K VH22、Android TV 12）；先補手動選 4K 的處理再發布 | 找到根因：MPD 把所有畫質與編碼的串流交給 ExoPlayer 自行選軌，可能選到無法硬解的 4K 而改用軟體解碼；改為只放選定串流（T-6），手動選畫質無法硬解時改用可硬解畫質並提示（T-7，Sonnet）。先前被使用者拒絕的 `git stash` 其實已執行，從 stash 還原並重新套用 T-6／T-7，無資料遺失。`flutter analyze` 無問題、36 項測試通過；分 5 個 commit，發布 `v1.2.2-btr.5`；未實機測試 |
