@@ -77,6 +77,11 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   List<Map<String, dynamic>> qualities = [];
   int currentQuality = 80;
   String currentCodec = ''; // 當前編解碼器 (avc/hev/av01)
+  bool isFallingBackToAvc = false; // 是否正在自動降級為 AVC
+  Duration lastPlaybackPosition = Duration.zero; // 記錄最近播放進度 (供解碼失敗回退使用)
+
+  /// 當前編碼是否為 AVC
+  bool get isCurrentCodecAvc => currentCodec.toLowerCase().startsWith('avc');
 
   // 雙擊返回
   DateTime? lastBackPressed;

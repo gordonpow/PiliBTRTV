@@ -183,6 +183,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
       // 嘗試每個編碼器
       codecLoop:
       for (final tryCodec in uniqueCodecs) {
+        // 若已觸發自動降級到 AVC，略過非 AVC 選項
+        if (SettingsService.codecFallbackAvc &&
+            tryCodec != null &&
+            tryCodec != VideoCodec.avc) {
+          continue codecLoop;
+        }
+
         // 1. 首次請求: 使用預設畫質(80)或當前設定畫質
         // 這樣可以獲取到影片實際支援的 accept_quality 列表，而不是盲猜
         var playInfo = await BilibiliApi.getVideoPlayUrl(
@@ -224,9 +231,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
                   epId: isPgc ? currentEpId : null,
                 );
 
-                // 如果升級請求成功，使用新資料
+                // 如果升級請求成功，使用新資料（若指定 tryCodec 則升級結果不可偏離所要求編碼）
                 if (upgradePlayInfo != null &&
-                    upgradePlayInfo['error'] == null) {
+                    upgradePlayInfo['error'] == null &&
+                    (tryCodec == null ||
+                        (upgradePlayInfo['codec'] as String? ?? '')
+                            .toLowerCase()
+                            .startsWith(tryCodec.prefix))) {
                   playInfo = upgradePlayInfo;
                 }
               }
@@ -299,6 +310,18 @@ mixin PlayerActionMixin on PlayerStateMixin {
             // 清理失敗的控制器
             await videoController?.dispose();
             videoController = null;
+
+            // 解碼器失敗 (MediaCodec / Decoder) 且非 AVC：直接改用 AVC，不浪費時間重試同編碼
+            if (_isDecoderError(e) && !isCurrentCodecAvc) {
+              debugPrint('🎬 [Codec] Decoder error during initialize: $e');
+              await SettingsService.setCodecFallbackAvc(true);
+              showZhToast(
+                msg: '此裝置無法解碼 H.265／AV1，已改用 H.264',
+                toastLength: Toast.LENGTH_LONG,
+              );
+              lastError = '播放器初始化失敗: $e';
+              continue codecLoop;
+            }
 
             if (attempt < maxRetries) {
               // 還有重試機會，等待後重試
@@ -480,6 +503,113 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
+  /// 檢查錯誤是否為硬體解碼器失敗 (MediaCodec / Decoder)
+  bool _isDecoderError(Object? error) {
+    if (error == null) return false;
+    final msg = error.toString().toLowerCase();
+    return msg.contains('mediacodec') || msg.contains('decoder');
+  }
+
+  /// 解碼失敗時自動降級改用 AVC (H.264)
+  Future<void> _fallbackToAvc({
+    Duration? resumePosition,
+    String? originalError,
+  }) async {
+    if (isFallingBackToAvc) return;
+    isFallingBackToAvc = true;
+
+    debugPrint(
+      '🎬 [CodecFallback] Decoder error, falling back to AVC. pos=$resumePosition err=$originalError',
+    );
+    await SettingsService.setCodecFallbackAvc(true);
+    showZhToast(
+      msg: '此裝置無法解碼 H.265／AV1，已改用 H.264',
+      toastLength: Toast.LENGTH_LONG,
+    );
+
+    final resume = resumePosition ?? lastPlaybackPosition;
+
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+    }
+
+    cancelPlayerListeners();
+    await videoController?.dispose();
+    videoController = null;
+    LocalServer.instance.clearMpdContent();
+
+    try {
+      final playInfo = await BilibiliApi.getVideoPlayUrl(
+        bvid: playingBvid,
+        cid: cid!,
+        qn: currentQuality,
+        forceCodec: VideoCodec.avc,
+        epId: isPgc ? currentEpId : null,
+      );
+
+      if (playInfo == null || playInfo['error'] != null) {
+        throw Exception(
+          playInfo?['error'] ?? originalError ?? '獲取 AVC 播放地址失敗',
+        );
+      }
+
+      if (!mounted) return;
+      currentQuality = playInfo['currentQuality'] ?? currentQuality;
+      currentCodec = playInfo['codec'] ?? 'avc';
+      currentAudioUrl = playInfo['audioUrl'];
+      qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
+
+      String? playUrl;
+      if (playInfo['dashData'] != null) {
+        final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
+        LocalServer.instance.setMpdContent(mpdContent);
+        playUrl = LocalServer.instance.mpdUrl;
+      } else {
+        playUrl = playInfo['url'];
+      }
+
+      videoController = VideoPlayerController.networkUrl(
+        Uri.parse(playUrl!),
+        httpHeaders: {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+          'Referer': 'https://www.bilibili.com/',
+          'Origin': 'https://www.bilibili.com',
+          if (BaseApi.cookieHeader != null) 'Cookie': BaseApi.cookieHeader!,
+        },
+        viewType: VideoViewType.platformView,
+      );
+
+      await videoController!.initialize();
+      if (resume > Duration.zero) {
+        await videoController!.seekTo(resume);
+      }
+      _setupPlayerListeners();
+      await videoController!.play();
+      videoController?.setPlaybackSpeed(playbackSpeed);
+
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          isFallingBackToAvc = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('🎬 [CodecFallback] AVC playback also failed: $e');
+      if (mounted) {
+        setState(() {
+          // AVC 也失敗時顯示原本的錯誤訊息 (AC-A3)
+          errorMessage = originalError ?? '播放器初始化失敗: $e';
+          isLoading = false;
+          isFallingBackToAvc = false;
+        });
+      }
+    }
+  }
+
   /// 設定播放器監聽器
   void _setupPlayerListeners() {
     if (videoController == null) return;
@@ -491,6 +621,21 @@ mixin PlayerActionMixin on PlayerStateMixin {
     if (videoController == null || !mounted) return;
 
     final value = videoController!.value;
+    if (value.position > Duration.zero) {
+      lastPlaybackPosition = value.position;
+    }
+
+    // 播放中解碼器錯誤 (AC-A1)
+    if (value.hasError) {
+      final err = value.errorDescription ?? '';
+      if (!isFallingBackToAvc && _isDecoderError(err) && !isCurrentCodecAvc) {
+        _fallbackToAvc(
+          resumePosition: lastPlaybackPosition,
+          originalError: err,
+        );
+        return;
+      }
+    }
 
     // 同步彈幕
     if (danmakuEnabled && danmakuController != null) {
@@ -1255,6 +1400,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         bvid: playingBvid,
         cid: cid!,
         qn: currentQuality,
+        forceCodec: SettingsService.codecFallbackAvc ? VideoCodec.avc : null,
         epId: isPgc ? currentEpId : null,
       );
 
@@ -1269,6 +1415,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
           showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
         }
         currentQuality = playInfo['currentQuality'] ?? 80;
+        currentCodec = playInfo['codec'] ?? currentCodec;
         currentAudioUrl = playInfo['audioUrl'];
         qualities = List<Map<String, dynamic>>.from(
           playInfo['qualities'] ?? [],
@@ -1321,6 +1468,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
         throw Exception('獲取播放地址失敗');
       }
     } catch (e) {
+      if (_isDecoderError(e) && !isCurrentCodecAvc) {
+        await _fallbackToAvc(originalError: e.toString());
+        return;
+      }
       if (mounted) {
         setState(() {
           errorMessage = '切換失敗: $e';
@@ -1379,6 +1530,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         bvid: playingBvid,
         cid: cid!,
         qn: qn,
+        forceCodec: SettingsService.codecFallbackAvc ? VideoCodec.avc : null,
         epId: isPgc ? currentEpId : null,
       );
 
@@ -1398,6 +1550,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       LocalServer.instance.clearMpdContent();
 
       currentQuality = playInfo['currentQuality'] ?? qn;
+      currentCodec = playInfo['codec'] ?? currentCodec;
       currentAudioUrl = playInfo['audioUrl'];
 
       String? playUrl;
@@ -1438,6 +1591,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
       showZhToast(msg: '已切換到 $currentQualityDesc');
     } catch (e) {
+      if (_isDecoderError(e) && !isCurrentCodecAvc) {
+        await _fallbackToAvc(
+          resumePosition: position,
+          originalError: e.toString(),
+        );
+        return;
+      }
       setState(() {
         errorMessage = '切換失敗: $e';
         isLoading = false;

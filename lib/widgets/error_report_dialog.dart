@@ -104,8 +104,8 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
         );
         actions = [
           _btn('預覽內容', _preview),
-          _btn('取消', () => Navigator.of(context).pop()),
-          _btn('同意並上傳', _upload, primary: true, autofocus: true),
+          _btn('取消', () => Navigator.of(context).pop(), autofocus: true),
+          _btn('同意並上傳', _upload, primary: true),
         ];
       case _Stage.uploading:
         content = const Row(

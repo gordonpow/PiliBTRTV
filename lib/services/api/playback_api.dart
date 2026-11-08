@@ -171,16 +171,24 @@ class PlaybackApi {
 
               dynamic selectedVideo;
 
-              // 獲取硬體解碼器支援列表
+              // 獲取硬體解碼器支援列表 (若已自動降級到 AVC 則排除 HEVC/AV1)
               final hwDecoders = await CodecService.getHardwareDecoders();
-              final hasAv1Hw = hwDecoders.contains('av1');
-              final hasHevcHw = hwDecoders.contains('hevc');
+              final fallbackToAvc = SettingsService.codecFallbackAvc;
+              final hasAv1Hw = !fallbackToAvc && hwDecoders.contains('av1');
+              final hasHevcHw = !fallbackToAvc && hwDecoders.contains('hevc');
               final hasAvcHw = hwDecoders.contains('avc');
 
               // 1. 如果指定了 forceCodec（失敗回退時），優先使用
               if (forceCodec != null && forceCodec != VideoCodec.auto) {
                 selectedVideo = candidateVideos.firstWhere((v) {
-                  final codecs = v['codecs'] as String? ?? '';
+                  final codecs = (v['codecs'] as String? ?? '').toLowerCase();
+                  return codecs.startsWith(forceCodec.prefix);
+                }, orElse: () => null);
+
+                // 若當前畫質沒有該編碼（如 4K 只有 HEVC/AV1，但強制要求 AVC）：
+                // 向下在其他畫質尋找符合 forceCodec 的串流
+                selectedVideo ??= videos.firstWhere((v) {
+                  final codecs = (v['codecs'] as String? ?? '').toLowerCase();
                   return codecs.startsWith(forceCodec.prefix);
                 }, orElse: () => null);
               }
@@ -192,21 +200,30 @@ class PlaybackApi {
                 if (userCodec != VideoCodec.auto) {
                   // 使用者指定了具體編碼器
                   selectedVideo = candidateVideos.firstWhere((v) {
-                    final codecs = v['codecs'] as String? ?? '';
+                    final codecs = (v['codecs'] as String? ?? '').toLowerCase();
+                    return codecs.startsWith(userCodec.prefix);
+                  }, orElse: () => null);
+
+                  // 若當前畫質沒有該編碼，在所有畫質尋找
+                  selectedVideo ??= videos.firstWhere((v) {
+                    final codecs = (v['codecs'] as String? ?? '').toLowerCase();
                     return codecs.startsWith(userCodec.prefix);
                   }, orElse: () => null);
                 } else {
                   // 使用者設定是"自動"，智慧選硬解最優: AV1 > HEVC > AVC
                   if (hasAv1Hw) {
                     selectedVideo = candidateVideos.firstWhere((v) {
-                      final codecs = v['codecs'] as String? ?? '';
-                      return codecs.startsWith('av01');
+                      final codecs =
+                          (v['codecs'] as String? ?? '').toLowerCase();
+                      return codecs.startsWith('av01') ||
+                          codecs.startsWith('av1');
                     }, orElse: () => null);
                   }
 
                   if (selectedVideo == null && hasHevcHw) {
                     selectedVideo = candidateVideos.firstWhere((v) {
-                      final codecs = v['codecs'] as String? ?? '';
+                      final codecs =
+                          (v['codecs'] as String? ?? '').toLowerCase();
                       return codecs.startsWith('hev') ||
                           codecs.startsWith('hvc');
                     }, orElse: () => null);
@@ -214,7 +231,8 @@ class PlaybackApi {
 
                   if (selectedVideo == null && hasAvcHw) {
                     selectedVideo = candidateVideos.firstWhere((v) {
-                      final codecs = v['codecs'] as String? ?? '';
+                      final codecs =
+                          (v['codecs'] as String? ?? '').toLowerCase();
                       return codecs.startsWith('avc');
                     }, orElse: () => null);
                   }
@@ -225,7 +243,17 @@ class PlaybackApi {
               selectedVideo ??= candidateVideos.first;
 
               videoUrl = selectedVideo['baseUrl'] ?? selectedVideo['base_url'];
-              final selectedCodec = selectedVideo['codecs'] as String? ?? '';
+              final selectedCodec =
+                  (selectedVideo['codecs'] as String? ?? '').toLowerCase();
+              final parsedCodec = selectedCodec.startsWith('avc')
+                  ? 'avc'
+                  : (selectedCodec.startsWith('hev') ||
+                          selectedCodec.startsWith('hvc'))
+                      ? 'hev'
+                      : (selectedCodec.startsWith('av01') ||
+                              selectedCodec.startsWith('av1'))
+                          ? 'av01'
+                          : selectedCodec;
 
               if (audios.isNotEmpty) {
                 var sortedAudios = List.from(audios);
@@ -251,7 +279,7 @@ class PlaybackApi {
                   'qualities': qualities,
                   'currentQuality': data['quality'] ?? qn,
                   'isDash': isDash,
-                  'codec': selectedCodec,
+                  'codec': parsedCodec,
                   'dashData': data['dash'],
                 };
               }

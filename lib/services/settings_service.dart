@@ -215,17 +215,36 @@ class SettingsService {
 
   // 首選編解碼器設定
   static const String _preferredCodecKey = 'preferred_codec';
+  static const String _codecFallbackAvcKey = 'codec_fallback_avc';
 
-  /// 獲取首選編解碼器
-  static VideoCodec get preferredCodec {
+  /// 當前是否已因解碼失敗自動降級改用 AVC
+  static bool get codecFallbackAvc =>
+      _prefs?.getBool(_codecFallbackAvcKey) ?? false;
+
+  /// 設定是否自動降級改用 AVC
+  static Future<void> setCodecFallbackAvc(bool value) async {
+    await init();
+    await _prefs!.setBool(_codecFallbackAvcKey, value);
+  }
+
+  /// 獲取未套用自動降級的首選編解碼器（供設定頁顯示）
+  static VideoCodec get rawPreferredCodec {
     final index = _prefs?.getInt(_preferredCodecKey) ?? 0; // 預設自動 (index 0)
     return VideoCodec.values[index.clamp(0, VideoCodec.values.length - 1)];
+  }
+
+  /// 獲取首選編解碼器（若已自動降級則回傳 AVC）
+  static VideoCodec get preferredCodec {
+    if (codecFallbackAvc) return VideoCodec.avc;
+    return rawPreferredCodec;
   }
 
   /// 設定首選編解碼器
   static Future<void> setPreferredCodec(VideoCodec codec) async {
     await init();
     await _prefs!.setInt(_preferredCodecKey, codec.index);
+    // 使用者手動設定時，清除自動降級標記
+    await setCodecFallbackAvc(false);
   }
 
   // 迷你進度條設定
