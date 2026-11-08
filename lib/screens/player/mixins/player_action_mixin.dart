@@ -21,6 +21,7 @@ import 'player_state_mixin.dart';
 import '../../../core/plugin/plugin_manager.dart';
 import '../../../core/plugin/plugin_types.dart';
 import '../../../services/playback_progress_cache.dart';
+import '../../../services/btr/btr_proxy.dart';
 
 /// 播放器邏輯 Mixin
 mixin PlayerActionMixin on PlayerStateMixin {
@@ -246,7 +247,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         }
 
         if (playInfo == null) {
-          lastError = '解析播放地址失敗';
+          lastError = '無法取得播放網址，請稍後再試';
           continue codecLoop;
         }
 
@@ -281,7 +282,19 @@ mixin PlayerActionMixin on PlayerStateMixin {
           playUrl = LocalServer.instance.mpdUrl;
         } else {
           // 回退到直接 URL (mp4/flv)
-          playUrl = playInfo['url'];
+          final rawUrl = playInfo['url'] as String? ?? '';
+          final backups = (playInfo['backupUrls'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              const <String>[];
+          playUrl = rawUrl.isNotEmpty
+              ? await BtrProxy.wrap(rawUrl, backups: backups)
+              : null;
+        }
+
+        if (playUrl == null || playUrl.isEmpty) {
+          lastError = '無法取得播放網址，請稍後再試';
+          continue codecLoop;
         }
 
         // 建立 VideoPlayerController (帶重試邏輯)
@@ -291,7 +304,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
           try {
             videoController = VideoPlayerController.networkUrl(
-              Uri.parse(playUrl!),
+              Uri.parse(playUrl),
               httpHeaders: {
                 'User-Agent':
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
@@ -431,7 +444,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       } // codecLoop 結束
 
       // 所有編碼器都失敗了
-      throw Exception(lastError ?? '影片載入失敗');
+      throw Exception(lastError ?? '無法取得播放網址，請稍後再試');
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -552,11 +565,15 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
       if (playInfo == null || playInfo['error'] != null) {
         throw Exception(
-          playInfo?['error'] ?? originalError ?? '獲取 AVC 播放地址失敗',
+          playInfo?['error'] ?? originalError ?? '無法取得播放網址，請稍後再試',
         );
       }
 
       if (!mounted) return;
+      isPreview = playInfo['isPreview'] == true;
+      if (isPreview) {
+        showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
+      }
       currentQuality = playInfo['currentQuality'] ?? currentQuality;
       currentCodec = playInfo['codec'] ?? 'avc';
       currentAudioUrl = playInfo['audioUrl'];
@@ -568,11 +585,22 @@ mixin PlayerActionMixin on PlayerStateMixin {
         LocalServer.instance.setMpdContent(mpdContent);
         playUrl = LocalServer.instance.mpdUrl;
       } else {
-        playUrl = playInfo['url'];
+        final rawUrl = playInfo['url'] as String? ?? '';
+        final backups = (playInfo['backupUrls'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const <String>[];
+        playUrl = rawUrl.isNotEmpty
+            ? await BtrProxy.wrap(rawUrl, backups: backups)
+            : null;
+      }
+
+      if (playUrl == null || playUrl.isEmpty) {
+        throw Exception('無法取得播放網址，請稍後再試');
       }
 
       videoController = VideoPlayerController.networkUrl(
-        Uri.parse(playUrl!),
+        Uri.parse(playUrl),
         httpHeaders: {
           'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
@@ -1391,69 +1419,87 @@ mixin PlayerActionMixin on PlayerStateMixin {
         epId: isPgc ? currentEpId : null,
       );
 
-      if (playInfo != null && playInfo['error'] != null) {
+      if (playInfo == null) {
+        if (mounted) {
+          setState(() {
+            errorMessage = '無法取得播放網址，請稍後再試';
+            isLoading = false;
+          });
+          showZhToast(msg: '無法取得播放網址，請稍後再試');
+        }
+        return;
+      }
+
+      if (playInfo['error'] != null) {
         throw Exception(playInfo['error']);
       }
 
-      if (playInfo != null) {
-        if (!mounted) return;
-        isPreview = playInfo['isPreview'] == true;
-        if (isPreview) {
-          showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
-        }
-        currentQuality = playInfo['currentQuality'] ?? 80;
-        currentCodec = playInfo['codec'] ?? currentCodec;
-        currentAudioUrl = playInfo['audioUrl'];
-        qualities = List<Map<String, dynamic>>.from(
-          playInfo['qualities'] ?? [],
-        );
-
-        String? playUrl;
-
-        if (playInfo['dashData'] != null) {
-          final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
-
-          LocalServer.instance.setMpdContent(mpdContent);
-          playUrl = LocalServer.instance.mpdUrl;
-        } else {
-          playUrl = playInfo['url'];
-        }
-
-        // 建立新播放器
-        videoController = VideoPlayerController.networkUrl(
-          Uri.parse(playUrl!),
-          httpHeaders: {
-            'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
-            'Referer': 'https://www.bilibili.com/',
-            'Origin': 'https://www.bilibili.com',
-            if (BaseApi.cookieHeader != null) 'Cookie': BaseApi.cookieHeader!,
-          },
-          viewType: VideoViewType.platformView,
-        );
-
-        await videoController!.initialize();
-
-        _setupPlayerListeners();
-        await videoController!.play();
-
-        setState(() => isLoading = false);
-
-        startHideTimer();
-        await loadDanmaku();
-
-        // 🔥 重新載入當前 P 的雪碧圖資料
-        _clearSpritesFromMemory();
-        loadVideoshot();
-
-        final idx = episodes.indexWhere((e) => e['cid'] == cid);
-        if (idx != -1) setState(() => focusedEpisodeIndex = idx);
-
-        // 恢復倍速
-        videoController?.setPlaybackSpeed(playbackSpeed);
-      } else {
-        throw Exception('獲取播放地址失敗');
+      if (!mounted) return;
+      isPreview = playInfo['isPreview'] == true;
+      if (isPreview) {
+        showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
       }
+      currentQuality = playInfo['currentQuality'] ?? 80;
+      currentCodec = playInfo['codec'] ?? currentCodec;
+      currentAudioUrl = playInfo['audioUrl'];
+      qualities = List<Map<String, dynamic>>.from(
+        playInfo['qualities'] ?? [],
+      );
+
+      String? playUrl;
+
+      if (playInfo['dashData'] != null) {
+        final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
+
+        LocalServer.instance.setMpdContent(mpdContent);
+        playUrl = LocalServer.instance.mpdUrl;
+      } else {
+        final rawUrl = playInfo['url'] as String? ?? '';
+        final backups = (playInfo['backupUrls'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const <String>[];
+        playUrl = rawUrl.isNotEmpty
+            ? await BtrProxy.wrap(rawUrl, backups: backups)
+            : null;
+      }
+
+      if (playUrl == null || playUrl.isEmpty) {
+        throw Exception('無法取得播放網址，請稍後再試');
+      }
+
+      // 建立新播放器
+      videoController = VideoPlayerController.networkUrl(
+        Uri.parse(playUrl),
+        httpHeaders: {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+          'Referer': 'https://www.bilibili.com/',
+          'Origin': 'https://www.bilibili.com',
+          if (BaseApi.cookieHeader != null) 'Cookie': BaseApi.cookieHeader!,
+        },
+        viewType: VideoViewType.platformView,
+      );
+
+      await videoController!.initialize();
+
+      _setupPlayerListeners();
+      await videoController!.play();
+
+      setState(() => isLoading = false);
+
+      startHideTimer();
+      await loadDanmaku();
+
+      // 🔥 重新載入當前 P 的雪碧圖資料
+      _clearSpritesFromMemory();
+      loadVideoshot();
+
+      final idx = episodes.indexWhere((e) => e['cid'] == cid);
+      if (idx != -1) setState(() => focusedEpisodeIndex = idx);
+
+      // 恢復倍速
+      videoController?.setPlaybackSpeed(playbackSpeed);
     } catch (e) {
       if (_isDecoderError(e) && !isCurrentCodecAvc) {
         await _fallbackToAvc(originalError: e.toString());
@@ -1461,7 +1507,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
       }
       if (mounted) {
         setState(() {
-          errorMessage = '切換失敗: $e';
+          final errStr = e.toString().replaceFirst('Exception: ', '');
+          errorMessage = '切換失敗: $errStr';
           isLoading = false;
         });
       }
@@ -1522,11 +1569,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
       );
 
       if (playInfo == null || playInfo['error'] != null) {
-        showZhToast(
-          msg: playInfo?['error'] != null
-              ? '切換畫質失敗：${playInfo!['error']}'
-              : '切換畫質失敗',
-        );
+        final msg = playInfo == null
+            ? '無法取得播放網址，請稍後再試'
+            : '切換畫質失敗：${playInfo['error']}';
+        showZhToast(msg: msg);
         setState(() => isLoading = false);
         return;
       }
@@ -1536,9 +1582,17 @@ mixin PlayerActionMixin on PlayerStateMixin {
       await videoController?.dispose();
       LocalServer.instance.clearMpdContent();
 
+      if (!mounted) return;
+      isPreview = playInfo['isPreview'] == true;
+      if (isPreview) {
+        showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
+      }
       currentQuality = playInfo['currentQuality'] ?? qn;
       currentCodec = playInfo['codec'] ?? currentCodec;
       currentAudioUrl = playInfo['audioUrl'];
+      qualities = List<Map<String, dynamic>>.from(
+        playInfo['qualities'] ?? qualities,
+      );
 
       String? playUrl;
 
@@ -1548,12 +1602,23 @@ mixin PlayerActionMixin on PlayerStateMixin {
         LocalServer.instance.setMpdContent(mpdContent);
         playUrl = LocalServer.instance.mpdUrl;
       } else {
-        playUrl = playInfo['url'];
+        final rawUrl = playInfo['url'] as String? ?? '';
+        final backups = (playInfo['backupUrls'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const <String>[];
+        playUrl = rawUrl.isNotEmpty
+            ? await BtrProxy.wrap(rawUrl, backups: backups)
+            : null;
+      }
+
+      if (playUrl == null || playUrl.isEmpty) {
+        throw Exception('無法取得播放網址，請稍後再試');
       }
 
       // 建立新播放器
       videoController = VideoPlayerController.networkUrl(
-        Uri.parse(playUrl!),
+        Uri.parse(playUrl),
         httpHeaders: {
           'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
@@ -1586,7 +1651,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
         return;
       }
       setState(() {
-        errorMessage = '切換失敗: $e';
+        final errStr = e.toString().replaceFirst('Exception: ', '');
+        errorMessage = '切換失敗: $errStr';
         isLoading = false;
       });
     }

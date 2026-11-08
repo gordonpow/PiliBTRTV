@@ -119,7 +119,9 @@ class PlaybackApi {
         if (isPgc && (json['code'] != 0 || rawData == null)) {
           // 番劇錯誤 (如 -10403 地區限制)：直接回傳 B站訊息，標記為 API 錯誤，不再換編碼器重試
           return {
-            'error': '${json['message'] ?? '未知錯誤'}（${json['code']}）',
+            'error': json['code'] != 0
+                ? '${json['message'] ?? '未知錯誤'}（${json['code']}）'
+                : '此集需要大會員或無法播放（${json['code']}）',
             'apiError': true,
           };
         }
@@ -285,10 +287,39 @@ class PlaybackApi {
               }
             }
           } else if (data['durl'] != null) {
-            final durls = data['durl'] as List;
+            final durls = data['durl'] as List? ?? [];
             if (durls.isNotEmpty) {
-              videoUrl = durls[0]['url'];
+              final firstDurl = durls[0] as Map;
+              videoUrl = firstDurl['url'] as String?;
+              final backupUrls = (firstDurl['backup_url'] as List? ?? [])
+                  .map((e) => e.toString())
+                  .where((e) => e.isNotEmpty)
+                  .toList();
+              final isPreview = isPgc ||
+                  data['is_preview'] == 1 ||
+                  acceptDesc.any((d) => d.toString().contains('试看'));
+
+              if (videoUrl != null && videoUrl.isNotEmpty) {
+                return {
+                  'isPreview': isPreview,
+                  'url': videoUrl,
+                  'backupUrls': backupUrls,
+                  'audioUrl': null,
+                  'qualities': qualities,
+                  'currentQuality': data['quality'] ?? qn,
+                  'isDash': false,
+                  'codec': 'avc',
+                  'dashData': null,
+                };
+              }
             }
+          }
+
+          if (isPgc) {
+            return {
+              'error': '此集需要大會員或無法播放（${json['code']}）',
+              'apiError': true,
+            };
           }
         } else {
           // API 返回錯誤碼
