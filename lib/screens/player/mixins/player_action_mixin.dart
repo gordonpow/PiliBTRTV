@@ -510,7 +510,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
   /// 轉向番劇播放：以新的 PlayerScreen 取代目前頁面（尚未建立 videoController）。
   void _redirectToPgc(int seasonId, int epId) {
     debugPrint('🎬 [PGC] redirect to season=$seasonId ep=$epId');
-    if (!mounted) return;
+    if (!mounted || upSpaceOpen) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => PlayerScreen(
@@ -942,6 +942,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     // 檢查是否開啟自動連播
     if (!SettingsService.autoPlay) return;
+
+    // UP主頁面開啟中不自動連播／跳轉
+    if (upSpaceOpen) return;
 
     // 暫停當前影片
     if (videoController != null && videoController!.value.isPlaying) {
@@ -1669,8 +1672,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
             bvid: playingBvid,
             cid: cid!,
             qn: cap,
-            forceCodec:
-                SettingsService.codecFallbackAvc ? VideoCodec.avc : null,
+            forceCodec: SettingsService.codecFallbackAvc
+                ? VideoCodec.avc
+                : null,
             epId: isPgc ? currentEpId : null,
           );
           if (retry != null && retry['error'] == null) {

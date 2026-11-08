@@ -266,6 +266,56 @@ class VideoApi {
     return [];
   }
 
+  /// 從動態項目解析影片；非影片動態或解析失敗回傳 null。
+  ///
+  /// [includeForward] 為 true 時，轉發動態（DYNAMIC_TYPE_FORWARD）取其 orig 內的影片。
+  static Video? archiveFromDynamicItem(
+    Map<String, dynamic> item, {
+    bool includeForward = true,
+  }) {
+    try {
+      if (item['visible'] != true) return null;
+
+      var source = item;
+      if (item['type'] == 'DYNAMIC_TYPE_FORWARD') {
+        if (!includeForward) return null;
+        final orig = item['orig'];
+        if (orig is! Map) return null;
+        source = Map<String, dynamic>.from(orig);
+      }
+
+      final modules = source['modules'] as Map<String, dynamic>? ?? {};
+      final dynamicModule =
+          modules['module_dynamic'] as Map<String, dynamic>? ?? {};
+      final major = dynamicModule['major'] as Map<String, dynamic>? ?? {};
+      if (major['type'] != 'MAJOR_TYPE_ARCHIVE') return null;
+
+      final archive = major['archive'] as Map<String, dynamic>? ?? {};
+      final author = modules['module_author'] as Map<String, dynamic>? ?? {};
+      final stat = archive['stat'] as Map<String, dynamic>? ?? {};
+
+      final viewValue = stat['play'] ?? stat['view'] ?? 0;
+      final danmakuValue = stat['danmaku'] ?? 0;
+
+      return Video(
+        bvid: archive['bvid'] ?? '',
+        title: archive['title'] ?? '',
+        pic: BaseApi.fixPicUrl(archive['cover'] ?? ''),
+        ownerName: author['name'] ?? '',
+        ownerFace: BaseApi.fixPicUrl(author['face'] ?? ''),
+        ownerMid: BaseApi.toInt(author['mid']),
+        view: BaseApi.toInt(viewValue),
+        danmaku: BaseApi.toInt(danmakuValue),
+        duration: BaseApi.parseDuration(archive['duration_text'] ?? ''),
+        pubdate: BaseApi.toInt(author['pub_ts']),
+        badge: (archive['badge'] as Map<String, dynamic>?)?['text'] ?? '',
+      );
+    } catch (e) {
+      debugPrint('archiveFromDynamicItem error: $e');
+      return null;
+    }
+  }
+
   /// 獲取動態影片列表
   static Future<DynamicFeed> getDynamicFeed({String offset = ''}) async {
     try {
@@ -289,48 +339,9 @@ class VideoApi {
           final videos = <Video>[];
 
           for (final item in items) {
-            try {
-              if (item['visible'] != true) continue;
-
-              final modules = item['modules'] as Map<String, dynamic>? ?? {};
-              final dynamicModule =
-                  modules['module_dynamic'] as Map<String, dynamic>? ?? {};
-              final major =
-                  dynamicModule['major'] as Map<String, dynamic>? ?? {};
-
-              if (major['type'] != 'MAJOR_TYPE_ARCHIVE') continue;
-
-              final archive = major['archive'] as Map<String, dynamic>? ?? {};
-              final author =
-                  modules['module_author'] as Map<String, dynamic>? ?? {};
-              final stat = archive['stat'] as Map<String, dynamic>? ?? {};
-
-              final viewValue = stat['play'] ?? stat['view'] ?? 0;
-              final danmakuValue = stat['danmaku'] ?? 0;
-
-              videos.add(
-                Video(
-                  bvid: archive['bvid'] ?? '',
-                  title: archive['title'] ?? '',
-                  pic: BaseApi.fixPicUrl(archive['cover'] ?? ''),
-                  ownerName: author['name'] ?? '',
-                  ownerFace: BaseApi.fixPicUrl(author['face'] ?? ''),
-                  ownerMid: BaseApi.toInt(author['mid']),
-                  view: BaseApi.toInt(viewValue),
-                  danmaku: BaseApi.toInt(danmakuValue),
-                  duration: BaseApi.parseDuration(
-                    archive['duration_text'] ?? '',
-                  ),
-                  pubdate: BaseApi.toInt(author['pub_ts']),
-                  badge:
-                      (archive['badge'] as Map<String, dynamic>?)?['text'] ??
-                      '',
-                ),
-              );
-            } catch (e) {
-              debugPrint('getDynamicFeed item error: $e');
-              continue;
-            }
+            if (item is! Map<String, dynamic>) continue;
+            final video = archiveFromDynamicItem(item, includeForward: false);
+            if (video != null) videos.add(video);
           }
 
           debugPrint(
@@ -377,19 +388,31 @@ class VideoApi {
   }
 
   /// 獲取 UP主 投稿影片列表 (需要 WBI 簽名)
-  static Future<List<Video>> getSpaceVideos({
+  ///
+  /// 失敗（例外、HTTP 非 200、code != 0）回傳 null；total 為投稿總數。
+  static Future<({List<Video> videos, int total})?> getSpaceVideos({
     required int mid,
     int page = 1,
     String order = 'pubdate',
+    bool riskRetried = false,
   }) async {
     try {
       await BaseApi.ensureWbiKeys();
 
+      // 帶上風控參數（同 PiliPlus searchArchive），避免首次請求被 -352
       Map<String, String> params = {
         'mid': mid.toString(),
         'pn': page.toString(),
         'ps': '30',
+        'tid': '0',
         'order': order,
+        'platform': 'web',
+        'web_location': '333.1387',
+        'order_avoided': 'true',
+        'dm_img_list': '[]',
+        'dm_img_str': BaseApi.randomBase64(16, 64),
+        'dm_cover_img_str': BaseApi.randomBase64(32, 128),
+        'dm_img_inter': '{"ds":[],"wh":[0,0,0],"of":[0,0,0]}',
       };
 
       if (BaseApi.imgKey != null && BaseApi.subKey != null) {
@@ -403,22 +426,72 @@ class VideoApi {
       final uri = Uri.parse(
         '${BaseApi.apiBase}/x/space/wbi/arc/search',
       ).replace(queryParameters: params);
+      final headers = BaseApi.getHeaders(withCookie: true);
+      headers['Referer'] = 'https://space.bilibili.com/$mid';
+      headers['Origin'] = 'https://space.bilibili.com';
+      final response = await http.get(uri, headers: headers);
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final code = json['code'];
+        if (code == 0 && json['data'] != null) {
+          final list = json['data']['list']?['vlist'] as List? ?? [];
+          final total = (json['data']['page']?['count'] as num?)?.toInt() ?? 0;
+          return (
+            videos: list.map((item) => Video.fromSpaceVideo(item)).toList(),
+            total: total,
+          );
+        }
+        debugPrint('getSpaceVideos code=$code message=${json['message']}');
+        if ((code == -351 || code == -352) && !riskRetried) {
+          // 風控：重新取得 WBI keys 後重試一次
+          BaseApi.wbiKeysTime = null;
+          await BaseApi.ensureWbiKeys();
+          return await getSpaceVideos(
+            mid: mid,
+            page: page,
+            order: order,
+            riskRetried: true,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('getSpaceVideos error: $e');
+    }
+    return null;
+  }
+
+  /// 獲取 UP主 名片資訊（名稱、頭像、簽名、粉絲數、投稿數）。失敗回傳 null。
+  static Future<Map<String, dynamic>?> getUpCard(int mid) async {
+    try {
+      final uri = Uri.parse(
+        '${BaseApi.apiBase}/x/web-interface/card',
+      ).replace(queryParameters: {'mid': mid.toString(), 'photo': 'false'});
       final response = await http.get(
         uri,
         headers: BaseApi.getHeaders(withCookie: true),
       );
-
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         if (json['code'] == 0 && json['data'] != null) {
-          final list = json['data']['list']?['vlist'] as List? ?? [];
-          return list.map((item) => Video.fromSpaceVideo(item)).toList();
+          final data = json['data'];
+          final card = data['card'] as Map? ?? {};
+          return {
+            'name': card['name']?.toString() ?? '',
+            'face': card['face']?.toString() ?? '',
+            'sign': card['sign']?.toString() ?? '',
+            'fans':
+                (data['follower'] as num?)?.toInt() ??
+                (card['fans'] as num?)?.toInt() ??
+                0,
+            'archiveCount': (data['archive_count'] as num?)?.toInt() ?? 0,
+          };
         }
       }
     } catch (e) {
-      // 忽略錯誤
+      debugPrint('getUpCard error: $e');
     }
-    return [];
+    return null;
   }
 }
 

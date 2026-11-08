@@ -12,7 +12,6 @@ import 'widgets/settings_panel.dart';
 import 'widgets/episode_panel.dart';
 import 'widgets/pause_indicator.dart';
 import 'widgets/action_buttons.dart';
-import 'widgets/up_panel.dart';
 import 'widgets/related_panel.dart';
 import 'widgets/mini_progress_bar.dart';
 import 'widgets/seek_thumbnail_strip.dart';
@@ -73,6 +72,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     // 通過 mixin 方法銷燬播放器
     disposePlayer();
+    playerFocusNode.dispose();
     super.dispose();
   }
 
@@ -85,6 +85,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         backgroundColor: Colors.black,
         resizeToAvoidBottomInset: false,
         body: Focus(
+          focusNode: playerFocusNode,
           autofocus: true,
           onKeyEvent: handleGlobalKeyEvent,
           child: Stack(
@@ -269,29 +270,6 @@ class _PlayerScreenState extends State<PlayerScreen>
                     });
                   },
                   onQualityPicker: showQualityPicker,
-                ),
-
-              // UP主面板
-              if (showUpPanel)
-                UpPanel(
-                  upName: widget.video.ownerName,
-                  upFace: widget.video.ownerFace,
-                  upMid: widget.video.ownerMid,
-                  onVideoSelect: (video) {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PlayerScreen(video: video),
-                      ),
-                    );
-                  },
-                  onClose: () {
-                    setState(() {
-                      showUpPanel = false;
-                      showControls = true;
-                    });
-                    startHideTimer();
-                  },
                 ),
 
               // 更多影片面板

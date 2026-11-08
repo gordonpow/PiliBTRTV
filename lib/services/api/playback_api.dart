@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'base_api.dart';
@@ -11,17 +10,6 @@ import '../settings_service.dart';
 
 /// 播放相關 API (影片詳情、播放地址、彈幕、進度上報)
 class PlaybackApi {
-  static final Random _rand = Random();
-
-  /// 長度介於 [min, max] 的隨機位元組做 base64，去掉最後兩個字元（同 PiliPlus）
-  static String _randomBase64(int min, int max) {
-    final len = min + _rand.nextInt(max - min + 1);
-    final b64 = base64.encode(
-      List<int>.generate(len, (_) => _rand.nextInt(256)),
-    );
-    return b64.substring(0, b64.length - 2);
-  }
-
   /// 獲取影片詳情（包含分P資訊和播放歷史）
   static Future<Map<String, dynamic>?> getVideoInfo(String bvid) async {
     try {
@@ -97,8 +85,8 @@ class PlaybackApi {
         'web_location': '1315873',
         if (!AuthService.isLoggedIn) 'try_look': '1', // 未登入也可看 1080P
         'dm_img_list': '[]',
-        'dm_img_str': _randomBase64(16, 64),
-        'dm_cover_img_str': _randomBase64(32, 128),
+        'dm_img_str': BaseApi.randomBase64(16, 64),
+        'dm_cover_img_str': BaseApi.randomBase64(32, 128),
         'dm_img_inter': '{"ds":[],"wh":[0,0,0],"of":[0,0,0]}',
       };
 

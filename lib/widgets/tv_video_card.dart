@@ -21,6 +21,9 @@ class TvVideoCard extends StatelessWidget {
   final FocusNode? focusNode;
   final int? staggerIndex;
 
+  /// 是否在播放數旁顯示彈幕數（預設不顯示，其他頁面外觀不變）
+  final bool showDanmaku;
+
   const TvVideoCard({
     super.key,
     required this.video,
@@ -35,6 +38,7 @@ class TvVideoCard extends StatelessWidget {
     this.disableCache = false,
     this.focusNode,
     this.staggerIndex,
+    this.showDanmaku = false,
   });
 
   String get _durationText => video.durationFormatted;
@@ -112,6 +116,19 @@ class TvVideoCard extends StatelessWidget {
                     video.viewFormatted,
                     style: const TextStyle(color: Colors.white, fontSize: 11),
                   ),
+                if (showDanmaku && !video.isPgc && video.danmaku > 0) ...[
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.subtitles_outlined,
+                    size: 13,
+                    color: Colors.white70,
+                  ),
+                  const SizedBox(width: 2),
+                  Text(
+                    video.danmakuFormatted,
+                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                  ),
+                ],
                 const Spacer(),
                 Text(
                   video.isPgc ? video.epIndexText : _durationText,

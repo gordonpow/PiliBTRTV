@@ -18,7 +18,9 @@ import 'api/playback_api.dart';
 import 'api/interaction_api.dart';
 import 'api/videoshot_api.dart';
 import 'api/pgc_api.dart';
+import 'api/space_api.dart';
 import 'settings_service.dart' show VideoCodec;
+import '../models/space_data.dart';
 import '../models/video.dart';
 import '../models/videoshot.dart';
 
@@ -87,11 +89,35 @@ class BilibiliApi {
       VideoApi.getRelatedVideos(bvid);
 
   /// 獲取 UP主 投稿影片列表
-  static Future<List<Video>> getSpaceVideos({
+  static Future<({List<Video> videos, int total})?> getSpaceVideos({
     required int mid,
     int page = 1,
     String order = 'pubdate',
   }) => VideoApi.getSpaceVideos(mid: mid, page: page, order: order);
+
+  /// 獲取 UP主 名片資訊（失敗回傳 null）
+  static Future<Map<String, dynamic>?> getUpCard(int mid) =>
+      VideoApi.getUpCard(mid);
+
+  /// UP主 空間總覽（失敗回傳 null）
+  static Future<SpaceData?> getSpace(int mid) => SpaceApi.getSpace(mid);
+
+  /// UP主 投稿影片（App API 游標分頁，失敗回傳 null）
+  static Future<({List<Video> videos, bool hasMore, String nextCursor})?>
+  getArchives(int mid, {String order = 'pubdate', String cursor = ''}) =>
+      SpaceApi.getArchives(mid, order: order, cursor: cursor);
+
+  /// 合集／系列的影片（失敗回傳 null）
+  static Future<({List<Video> videos, bool hasMore})?> getCollectionVideos(
+    SpaceCollection collection, {
+    required int mid,
+    int pn = 1,
+  }) => SpaceApi.getCollectionVideos(collection, mid: mid, pn: pn);
+
+  /// UP主 動態（只含影片，失敗回傳 null）
+  static Future<({List<Video> videos, String offset, bool hasMore})?>
+  getSpaceDynamics(int mid, {String offset = ''}) =>
+      SpaceApi.getSpaceDynamics(mid, offset: offset);
 
   // ========== 播放相關 ==========
 

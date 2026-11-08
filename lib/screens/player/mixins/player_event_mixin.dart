@@ -2,6 +2,9 @@ import 'package:bili_tv_app/utils/zh_toast.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import '../../../models/video.dart';
+import '../../up_space/up_space_screen.dart';
+import '../player_screen.dart';
 import '../widgets/settings_panel.dart';
 import '../focus/player_focus_handler.dart';
 import 'player_action_mixin.dart';
@@ -38,16 +41,6 @@ mixin PlayerEventMixin on PlayerActionMixin {
     if (showEpisodePanel) {
       setState(() {
         showEpisodePanel = false;
-        showControls = true;
-      });
-      startHideTimer();
-      return;
-    }
-
-    // 關閉 UP主面板
-    if (showUpPanel) {
-      setState(() {
-        showUpPanel = false;
         showControls = true;
       });
       startHideTimer();
@@ -157,20 +150,6 @@ mixin PlayerEventMixin on PlayerActionMixin {
       }
     }
 
-    // UP主面板返回處理
-    if (showUpPanel) {
-      if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
-        backKeyJustHandled = true;
-        setState(() {
-          showUpPanel = false;
-          showControls = true;
-        });
-        startHideTimer();
-        return KeyEventResult.handled;
-      }
-      return KeyEventResult.ignored;
-    }
-
     // 相關影片面板返回處理
     if (showRelatedPanel) {
       if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
@@ -248,10 +227,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
         });
         break;
       case 1: // UP主
-        setState(() {
-          showUpPanel = true;
-          hideTimer?.cancel();
-        });
+        _openUpSpace();
         break;
       case 2: // 更多影片
         setState(() {
@@ -271,6 +247,60 @@ mixin PlayerEventMixin on PlayerActionMixin {
         });
         break;
     }
+  }
+
+  /// 開啟 UP主全螢幕頁面：暫停影片，返回後依原狀態恢復；選了影片則改播該影片。
+  Future<void> _openUpSpace() async {
+    if (upSpaceOpen) return;
+    final mid = widget.video.ownerMid;
+    if (mid == 0) {
+      showZhToast(msg: '此影片沒有 UP主資訊');
+      return;
+    }
+    upSpaceOpen = true;
+    hideTimer?.cancel();
+
+    final controller = videoController;
+    final wasPlaying =
+        controller != null &&
+        !isLoading &&
+        controller.value.isInitialized &&
+        controller.value.isPlaying;
+    if (wasPlaying) controller.pause();
+
+    Video? picked;
+    try {
+      picked = await Navigator.of(context).push<Video>(
+        MaterialPageRoute(
+          builder: (_) => UpSpaceScreen(
+            mid: mid,
+            name: widget.video.ownerName,
+            face: widget.video.ownerFace,
+          ),
+        ),
+      );
+    } finally {
+      upSpaceOpen = false;
+    }
+    if (!mounted) return;
+
+    if (picked != null) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => PlayerScreen(video: picked!)),
+      );
+      return;
+    }
+
+    final current = videoController;
+    if (wasPlaying && current != null && current.value.isInitialized) {
+      current.play();
+    }
+    backKeyJustHandled = false;
+    setState(() => showControls = true);
+    startHideTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) playerFocusNode.requestFocus();
+    });
   }
 
   /// 控制欄隱藏時的按鍵處理

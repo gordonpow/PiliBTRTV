@@ -1,3 +1,5 @@
+import '../utils/format_count.dart';
+
 /// 影片資料模型
 class Video {
   final String bvid;
@@ -198,11 +200,24 @@ class Video {
     );
   }
 
+  /// 從 app.bilibili.com/x/v2/space 系列 API 的影片項目解析
+  factory Video.fromSpaceApp(Map<String, dynamic> json, {int ownerMid = 0}) {
+    return Video(
+      bvid: json['bvid']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      pic: _fixPicUrl(json['cover']?.toString() ?? ''),
+      ownerName: json['author']?.toString() ?? '',
+      ownerMid: ownerMid,
+      view: _toInt(json['play']),
+      danmaku: _toInt(json['danmaku']),
+      duration: _parseDuration(json['duration']),
+      pubdate: _toInt(json['ctime']),
+    );
+  }
+
   /// 格式化播放量
   String get viewFormatted {
-    if (view >= 100000000) return '${(view / 100000000).toStringAsFixed(1)}億';
-    if (view >= 10000) return '${(view / 10000).toStringAsFixed(1)}萬';
-    return view.toString();
+    return formatCount(view);
   }
 
   /// 格式化彈幕數

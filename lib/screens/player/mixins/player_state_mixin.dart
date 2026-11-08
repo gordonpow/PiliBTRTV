@@ -99,7 +99,7 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   int lastDanmakuIndex = 0;
 
   // 新面板
-  bool showUpPanel = false;
+  bool upSpaceOpen = false; // UP主全螢幕頁面開啟中（禁止播放器自行導航、防重入）
   bool showRelatedPanel = false;
   bool showActionButtons = false;
 
@@ -112,6 +112,9 @@ mixin PlayerStateMixin on State<PlayerScreen> {
 
   // 相關影片 (用於自動連播)
   List<dynamic> relatedVideos = [];
+
+  // 播放器根 Focus 節點（從 UP主頁面返回後用來恢復焦點）
+  final FocusNode playerFocusNode = FocusNode();
 
   // 返回鍵處理標誌 - 防止 handleGlobalKeyEvent 和 onPopInvoked 重複處理
   bool backKeyJustHandled = false;

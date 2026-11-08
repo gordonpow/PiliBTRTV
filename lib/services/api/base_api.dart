@@ -9,6 +9,17 @@ class BaseApi {
   static const String apiBase = 'https://api.bilibili.com';
   static const String passportBase = 'https://passport.bilibili.com';
 
+  static final Random _rand = Random();
+
+  /// 長度介於 [min, max] 的隨機位元組做 base64，去掉最後兩個字元（同 PiliPlus）
+  static String randomBase64(int min, int max) {
+    final len = min + _rand.nextInt(max - min + 1);
+    final b64 = base64.encode(
+      List<int>.generate(len, (_) => _rand.nextInt(256)),
+    );
+    return b64.substring(0, b64.length - 2);
+  }
+
   // WBI keys 快取
   static String? imgKey;
   static String? subKey;
