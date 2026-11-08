@@ -283,6 +283,7 @@ class PhoneLoginService {
   }
 
   void _fail(String message, {String step = 'error'}) {
+    debugPrint('PhoneLogin: 失敗 step=$step pending=$_pending msg=$message');
     _setStep(step, message, tvText: message);
     if (step == 'error') _clearSecrets();
   }
@@ -295,6 +296,7 @@ class PhoneLoginService {
     try {
       await body();
     } catch (e) {
+      debugPrint('PhoneLogin: 例外 ${_safeErr(e)}');
       if (_valid(id)) {
         final net =
             e is TimeoutException ||
@@ -304,6 +306,22 @@ class PhoneLoginService {
       }
     }
     return stateJson();
+  }
+
+  /// 例外描述：只留型別與去掉 query 的訊息，避免洩漏 tmp_code 等參數
+  static String _safeErr(Object e) {
+    final text = e.toString().replaceAll(RegExp(r'\?[^\s)]*'), '?…');
+    return '${e.runtimeType}: $text';
+  }
+
+  /// 記錄 B 站回應中非 0 的 code 與 message（只記路徑，不記 query）
+  static void _logRes(String url, int httpStatus, Map<String, dynamic> j) {
+    final code = j['code'];
+    if (httpStatus == 200 && code == 0) return;
+    final path = Uri.tryParse(url)?.path ?? '';
+    debugPrint(
+      'PhoneLogin: $path HTTP $httpStatus code=$code message=${j['message']}',
+    );
   }
 
   static String _msg(Map res, String fallback) {
@@ -822,6 +840,10 @@ class PhoneLoginService {
     final tokenInfo = data['token_info'];
     final cookieInfo = data['cookie_info'];
     if (tokenInfo is! Map || cookieInfo is! Map) {
+      debugPrint(
+        'PhoneLogin: 回應缺少 token_info/cookie_info '
+        '(token_info=${tokenInfo.runtimeType}, cookie_info=${cookieInfo.runtimeType})',
+      );
       _fail('登入異常，介面未返回身份資訊，可能是帳號風控，請改用其他登入方式', step: recoverStep);
       return;
     }
@@ -839,9 +861,11 @@ class PhoneLoginService {
       }
     }
     if (!hasSess || mid == 0) {
+      debugPrint('PhoneLogin: 缺少 SESSDATA 或 mid (hasSess=$hasSess)');
       _fail('登入異常，介面未返回身份資訊，請改用其他登入方式', step: recoverStep);
       return;
     }
+    debugPrint('PhoneLogin: 儲存登入憑證 mid有效=${mid != 0}');
     await AuthService.saveLoginCredentials(
       accessToken: (tokenInfo['access_token'] ?? '').toString(),
       refreshToken: (tokenInfo['refresh_token'] ?? '').toString(),
@@ -919,6 +943,7 @@ class PhoneLoginService {
     );
     final d = res['data'];
     if (res['code'] != 0 || d is! Map || d['key'] is! String) {
+      debugPrint('PhoneLogin: 取得 web key 失敗 code=${res['code']}');
       throw StateError('web key');
     }
     return (key: d['key'] as String, hash: (d['hash'] ?? '').toString());
@@ -932,7 +957,7 @@ class PhoneLoginService {
     final res = await http
         .get(Uri.parse(url), headers: headers)
         .timeout(const Duration(seconds: 15));
-    return _decode(res.body);
+    return _decodeLogged(url, res);
   }
 
   Future<Map<String, dynamic>> _postJson(
@@ -950,7 +975,20 @@ class PhoneLoginService {
           body: data.map((k, v) => MapEntry(k, v.toString())),
         )
         .timeout(const Duration(seconds: 15));
-    return _decode(res.body);
+    return _decodeLogged(url, res);
+  }
+
+  static Map<String, dynamic> _decodeLogged(String url, http.Response res) {
+    try {
+      final j = _decode(res.body);
+      _logRes(url, res.statusCode, j);
+      return j;
+    } catch (_) {
+      debugPrint(
+        'PhoneLogin: ${Uri.tryParse(url)?.path} HTTP ${res.statusCode} 回應不是 JSON',
+      );
+      rethrow;
+    }
   }
 
   static Map<String, dynamic> _decode(String body) {

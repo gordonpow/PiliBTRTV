@@ -1,7 +1,8 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'app_sign.dart';
 import 'base_api.dart';
-import 'sign_utils.dart';
 import '../auth_service.dart';
 
 /// 認證相關 API
@@ -36,23 +37,42 @@ class AuthApi {
               isVip: isVip,
             );
           }
+        } else {
+          debugPrint(
+            'TvLogin: 取得使用者資訊失敗 code=${json['code']} message=${json['message']}',
+          );
         }
+      } else {
+        debugPrint('TvLogin: 取得使用者資訊失敗 HTTP ${response.statusCode}');
       }
     } catch (e) {
-      // 忽略錯誤
+      debugPrint('TvLogin: 取得使用者資訊例外 ${e.runtimeType}');
     }
   }
+
+  /// TV 掃碼登入用的 android_hd User-Agent（與 PiliBTR 一致）
+  static const String _hdUserAgent =
+      'Mozilla/5.0 BiliDroid/2.0.1 (bbcallen@gmail.com) os/android model/android_hd mobi_app/android_hd build/2001100';
+
+  static Map<String, String> _hdHeaders() => {
+    ...BaseApi.getHeaders(),
+    'User-Agent': _hdUserAgent,
+  };
 
   /// 生成 TV 登入二維碼
   static Future<Map<String, String>?> generateTvQrCode() async {
     try {
-      final params = SignUtils.signForTvLogin({'local_id': '0'});
+      final params = AppSign.appSign({
+        'local_id': '0',
+        'platform': 'android',
+        'mobi_app': 'android_hd',
+      }).map((k, v) => MapEntry(k, v.toString()));
 
       final uri = Uri.parse(
         '${BaseApi.passportBase}/x/passport-tv-login/qrcode/auth_code',
       ).replace(queryParameters: params);
 
-      final response = await http.post(uri, headers: BaseApi.getHeaders());
+      final response = await http.post(uri, headers: _hdHeaders());
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
@@ -62,9 +82,14 @@ class AuthApi {
             'auth_code': json['data']['auth_code'] ?? '',
           };
         }
+        debugPrint(
+          'TvLogin: 產生 QR 失敗 code=${json['code']} message=${json['message']}',
+        );
+      } else {
+        debugPrint('TvLogin: 產生 QR 失敗 HTTP ${response.statusCode}');
       }
     } catch (e) {
-      // 忽略錯誤
+      debugPrint('TvLogin: 產生 QR 例外 ${e.runtimeType}');
     }
     return null;
   }
@@ -73,16 +98,16 @@ class AuthApi {
   /// 返回: {'status': 'success'|'waiting'|'scanned'|'expired'|'error'|'network', ...}
   static Future<Map<String, dynamic>> pollTvLogin(String authCode) async {
     try {
-      final params = SignUtils.signForTvLogin({
+      final params = AppSign.appSign({
         'auth_code': authCode,
         'local_id': '0',
-      });
+      }).map((k, v) => MapEntry(k, v.toString()));
 
       final uri = Uri.parse(
         '${BaseApi.passportBase}/x/passport-tv-login/qrcode/poll',
       ).replace(queryParameters: params);
 
-      final response = await http.post(uri, headers: BaseApi.getHeaders());
+      final response = await http.post(uri, headers: _hdHeaders());
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
@@ -105,6 +130,9 @@ class AuthApi {
           case 86038:
             return {'status': 'expired'};
           default:
+            debugPrint(
+              'TvLogin: 輪詢結果 code=$code message=${json['message']}',
+            );
             return {
               'status': 'error',
               'code': code,
@@ -112,6 +140,7 @@ class AuthApi {
             };
         }
       }
+      debugPrint('TvLogin: 輪詢失敗 HTTP ${response.statusCode}');
       return {
         'status': 'error',
         'code': response.statusCode,
@@ -119,6 +148,7 @@ class AuthApi {
       };
     } catch (e) {
       // 網路錯誤，呼叫端會繼續輪詢
+      debugPrint('TvLogin: 輪詢例外 ${e.runtimeType}');
       return {'status': 'network'};
     }
   }

@@ -104,6 +104,7 @@ class LoginViewState extends State<LoginView> {
       });
       _startPolling();
     } else {
+      debugPrint('TvLogin: QR Code 產生失敗（詳見 AuthApi 記錄）');
       setState(() {
         _errorText = '載入失敗，請重試';
         _status = 'error';
@@ -134,6 +135,10 @@ class LoginViewState extends State<LoginView> {
       switch (status) {
         case 'success':
           timer.cancel();
+          debugPrint(
+            'TvLogin: 掃碼成功，儲存憑證 mid有效=${((result['mid'] as int?) ?? 0) != 0} '
+            'hasCookie=${result['cookie_info'] != null}',
+          );
           // 儲存登入憑證
           await AuthService.saveLoginCredentials(
             accessToken: result['access_token'] ?? '',
@@ -161,6 +166,7 @@ class LoginViewState extends State<LoginView> {
           timer.cancel();
           final code = result['code'];
           final message = result['message'] ?? '';
+          debugPrint('TvLogin: 輪詢錯誤 code=$code message=$message');
           setState(() {
             _errorText = '錯誤：$message（$code）';
             _status = 'error';

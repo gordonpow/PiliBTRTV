@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'base_api.dart';
+import 'package:flutter/foundation.dart';
+import 'app_sign.dart';
 import 'sign_utils.dart';
 import '../auth_service.dart';
 
@@ -70,26 +72,39 @@ class InteractionApi {
         'select_like': '0',
       };
 
-      final signedParams = SignUtils.signForTvLogin(params);
-
-      final queryString = signedParams.entries
-          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
-          .join('&');
-
       final uri = Uri.parse('https://app.bilibili.com/x/v2/view/coin/add');
 
-      final response = await http.post(
-        uri,
-        headers: {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: queryString,
-      );
+      Future<http.Response> send(Map<String, dynamic> signed) {
+        final queryString = signed.entries
+            .map((e) => '${e.key}=${Uri.encodeComponent(e.value.toString())}')
+            .join('&');
+        return http.post(
+          uri,
+          headers: {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: queryString,
+        );
+      }
+
+      // 新登入的 token 來自 android_hd，優先用同一組 appkey 簽名
+      var response = await send(AppSign.appSign(Map.of(params)));
 
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
+        var json = jsonDecode(response.body);
+        final c = json['code'];
+        if (c == -101 || c == -663) {
+          // 舊版以 TV appkey 登入的 token，改用 TV appkey 重試一次
+          debugPrint('Coin: android_hd 簽名被拒 code=$c，改用 TV 簽名重試');
+          response = await send(SignUtils.signForTvLogin(Map.of(params)));
+          if (response.statusCode != 200) {
+            debugPrint('Coin: 重試 HTTP ${response.statusCode}');
+            return 'HTTP ${response.statusCode}';
+          }
+          json = jsonDecode(response.body);
+        }
         if (json['code'] == 0) {
           return null; // 成功
         } else {
