@@ -1,20 +1,26 @@
 import 'package:bili_tv_app/services/error_report_service.dart';
+import 'package:bili_tv_app/services/report_share_service.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-/// 顯示「回報問題」確認對話框；使用者同意後才上傳。
-Future<void> showErrorReportDialog(BuildContext context) {
+/// 顯示「回報問題」確認對話框；報告只會在同一個 Wi-Fi 的手機網頁上顯示。
+Future<void> showErrorReportDialog(
+  BuildContext context, {
+  String? crashSection,
+}) {
   return showDialog<void>(
     context: context,
-    builder: (_) => const _ErrorReportDialog(),
+    builder: (_) => _ErrorReportDialog(crashSection: crashSection),
   );
 }
 
-enum _Stage { confirm, uploading, done, failed }
+enum _Stage { confirm, share }
 
 class _ErrorReportDialog extends StatefulWidget {
-  const _ErrorReportDialog();
+  final String? crashSection;
+
+  const _ErrorReportDialog({this.crashSection});
 
   @override
   State<_ErrorReportDialog> createState() => _ErrorReportDialogState();
@@ -22,32 +28,106 @@ class _ErrorReportDialog extends StatefulWidget {
 
 class _ErrorReportDialogState extends State<_ErrorReportDialog> {
   _Stage _stage = _Stage.confirm;
-  String? _url;
-  String _error = '';
+  String? _shareUrl;
+  bool _shareReady = false;
 
   static const _pink = Color(0xFFfb7299);
 
-  Future<void> _upload() async {
-    setState(() => _stage = _Stage.uploading);
+  bool get _hasCrash =>
+      widget.crashSection != null && widget.crashSection!.trim().isNotEmpty;
+
+  @override
+  void dispose() {
+    ReportShareService.instance.stop();
+    super.dispose();
+  }
+
+  /// 產生手機查看網址；沒有區網位址時 _shareUrl 為 null
+  Future<void> _prepareShare(String text) async {
+    String? url;
     try {
-      final text = await ErrorReportService.buildReport();
-      final url = await ErrorReportService.upload(text);
-      if (!mounted) return;
-      setState(() {
-        _url = url;
-        _stage = _Stage.done;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _stage = _Stage.failed;
-      });
+      url = await ReportShareService.instance.start(text);
+    } catch (_) {
+      url = null;
     }
+    if (!mounted) return;
+    setState(() {
+      _shareUrl = url;
+      _shareReady = true;
+    });
+  }
+
+  Future<void> _share() async {
+    setState(() {
+      _stage = _Stage.share;
+      _shareReady = false;
+      _shareUrl = null;
+    });
+    final text = await ErrorReportService.buildReport(
+      crashSection: widget.crashSection,
+    );
+    if (!mounted) return;
+    await _prepareShare(text);
+  }
+
+  /// 手機查看的 QR 與提示
+  Widget _shareBody(TextStyle body) {
+    if (!_shareReady) {
+      return const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 3),
+          ),
+          SizedBox(width: 16),
+          Text('準備中…', style: TextStyle(color: Colors.white70)),
+        ],
+      );
+    }
+    final url = _shareUrl;
+    if (url == null) {
+      return Text('請把電視連上 Wi-Fi 或有線網路', style: body);
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          color: Colors.white,
+          child: QrImageView(data: url, size: 150),
+        ),
+        const SizedBox(width: 20),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('用手機掃描 QR 碼，或開啟網址：', style: body),
+              const SizedBox(height: 6),
+              Text(
+                url,
+                style: const TextStyle(
+                  color: _pink,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text('手機需與電視連接同一個 Wi-Fi。', style: body),
+              Text('網頁可複製全部或下載 .txt，30 分鐘內有效。', style: body),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _preview() async {
-    final text = await ErrorReportService.buildReport();
+    final text = await ErrorReportService.buildReport(
+      crashSection: widget.crashSection,
+    );
     if (!mounted) return;
     await showDialog<void>(
       context: context,
@@ -89,70 +169,30 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
 
     switch (_stage) {
       case _Stage.confirm:
-        content = const Column(
+        content = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('將上傳以下內容到公開的貼文服務（dpaste.com），30 天後自動刪除：', style: body),
-            SizedBox(height: 8),
-            Text('・App 版本、Android 版本、裝置型號、CPU 架構、螢幕解析度、語言', style: body),
-            Text('・BTR 與畫質等設定摘要、是否已登入', style: body),
-            Text('・App 最近的執行紀錄（log），用來找出哪裡出錯', style: body),
-            SizedBox(height: 8),
-            Text('不會上傳：帳號、UID、Cookie、登入憑證、觀看與搜尋紀錄、IP 位址。', style: body),
+            const Text(
+              '報告會顯示在電視上的網頁，只有連到同一個 Wi-Fi 的裝置才能開啟，可以複製內容或在 GitHub 回報問題。報告包含：',
+              style: body,
+            ),
+            const SizedBox(height: 8),
+            if (_hasCrash) const Text('・上次閃退的原因與堆疊', style: body),
+            const Text('・App 版本、Android 版本、裝置型號、CPU 架構、螢幕解析度、語言', style: body),
+            const Text('・BTR 與畫質等設定摘要、是否已登入', style: body),
+            const Text('・App 最近的執行紀錄（log），用來找出哪裡出錯', style: body),
+            const SizedBox(height: 8),
+            const Text('不包含：帳號、UID、Cookie、登入憑證、觀看與搜尋紀錄、IP 位址。', style: body),
           ],
         );
         actions = [
-          _btn('預覽內容', _preview),
           _btn('取消', () => Navigator.of(context).pop(), autofocus: true),
-          _btn('同意並上傳', _upload, primary: true),
+          _btn('預覽', _preview),
+          _btn('用手機查看', _share),
         ];
-      case _Stage.uploading:
-        content = const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
-            SizedBox(width: 16),
-            Text('上傳中…', style: body),
-          ],
-        );
-        actions = const [];
-      case _Stage.done:
-        content = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              color: Colors.white,
-              child: QrImageView(data: _url!, size: 150),
-            ),
-            const SizedBox(width: 20),
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('上傳完成，報告網址：', style: body),
-                  const SizedBox(height: 6),
-                  Text(
-                    _url!,
-                    style: const TextStyle(
-                      color: _pink,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text('請把網址傳給開發者（Threads 或 GitHub issue）。', style: body),
-                ],
-              ),
-            ),
-          ],
-        );
+      case _Stage.share:
+        content = _shareBody(body);
         actions = [
           _btn(
             '關閉',
@@ -161,28 +201,23 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
             autofocus: true,
           ),
         ];
-      case _Stage.failed:
-        content = Text(_error, style: body.copyWith(color: Colors.redAccent));
-        actions = [
-          _btn('關閉', () => Navigator.of(context).pop()),
-          _btn('重試', _upload, primary: true, autofocus: true),
-        ];
     }
 
-    return PopScope(
-      canPop: _stage != _Stage.uploading,
-      child: AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        title: Text(
-          _stage == _Stage.failed ? '上傳失敗' : '回報問題',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: SizedBox(
-          width: 560,
-          child: SingleChildScrollView(child: content),
-        ),
-        actions: actions,
+    final String titleText;
+    if (_hasCrash) {
+      titleText = '上次 App 異常結束，是否回報錯誤？';
+    } else {
+      titleText = '回報問題';
+    }
+
+    return AlertDialog(
+      backgroundColor: const Color(0xFF2A2A2A),
+      title: Text(titleText, style: const TextStyle(color: Colors.white)),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(child: content),
       ),
+      actions: actions,
     );
   }
 }

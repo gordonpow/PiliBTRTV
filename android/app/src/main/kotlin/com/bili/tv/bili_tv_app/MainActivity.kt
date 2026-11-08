@@ -16,9 +16,17 @@ class MainActivity : FlutterActivity() {
     private val UPDATE_CHANNEL = "com.bili.tv/update"
     private val CODEC_CHANNEL = "com.bili.tv/codec"
 
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        // 記錄未捕捉的 Java/Kotlin 例外，下次啟動時詢問是否上傳
+        CrashChannel.installHandler(applicationContext)
+        super.onCreate(savedInstanceState)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+        CrashChannel.register(flutterEngine, applicationContext)
+        FrameChannel.register(flutterEngine)
+
         // 更新安装 Channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATE_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {

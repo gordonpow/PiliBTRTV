@@ -5,18 +5,20 @@ import 'package:bili_tv_app/services/auth_service.dart';
 import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'package:bili_tv_app/services/log_service.dart';
 import 'package:bili_tv_app/services/settings_service.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 
-/// 組出去識別化的錯誤報告並上傳到公開貼文服務。
+/// 組出去識別化的錯誤報告。
 class ErrorReportService {
   ErrorReportService._();
 
   static const MethodChannel _channel = MethodChannel('com.bili.tv/update');
-  static const Duration _timeout = Duration(seconds: 15);
 
-  static Future<String> buildReport() async {
+  static Future<String> buildReport({String? crashSection}) async {
     final b = StringBuffer();
+    if (crashSection != null && crashSection.trim().isNotEmpty) {
+      b.writeln(crashSection.trim());
+      b.writeln();
+    }
     b.writeln('== App ==');
     b.writeln('版本: $btrVersion');
 
@@ -63,47 +65,5 @@ class ErrorReportService {
       b.writeln(line);
     }
     return b.toString();
-  }
-
-  /// 依序嘗試 dpaste.com、paste.rs，成功回傳網址，全部失敗則丟出例外。
-  static Future<String> upload(String text) async {
-    final dio = Dio(
-      BaseOptions(
-        connectTimeout: _timeout,
-        sendTimeout: _timeout,
-        receiveTimeout: _timeout,
-        responseType: ResponseType.plain,
-        headers: {'User-Agent': 'BiliTV-ErrorReport'},
-      ),
-    );
-    Object? lastError;
-
-    try {
-      final res = await dio.post<String>(
-        'https://dpaste.com/api/v2/',
-        data: {'content': text, 'syntax': 'text', 'expiry_days': 30},
-        options: Options(contentType: Headers.formUrlEncodedContentType),
-      );
-      final url = res.data?.trim() ?? '';
-      if (url.startsWith('http')) return url;
-      lastError = '回應格式不正確';
-    } catch (e) {
-      lastError = e;
-    }
-
-    try {
-      final res = await dio.post<String>(
-        'https://paste.rs/',
-        data: text,
-        options: Options(contentType: 'text/plain; charset=utf-8'),
-      );
-      final url = res.data?.trim() ?? '';
-      if (url.startsWith('http')) return url;
-      lastError = '回應格式不正確';
-    } catch (e) {
-      lastError = e;
-    }
-
-    throw Exception('上傳失敗：$lastError');
   }
 }

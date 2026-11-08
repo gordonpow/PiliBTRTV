@@ -14,6 +14,8 @@ import '../widgets/tv_focusable_item.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
 import '../services/update_service.dart';
+import '../services/crash_report_service.dart';
+import '../widgets/error_report_dialog.dart';
 
 /// 主頁框架 - 完全按照 animeone_tv_app 的方式
 class HomeScreen extends StatefulWidget {
@@ -71,6 +73,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // 確保 Highlight 策略正確
       FocusManager.instance.highlightStrategy =
           FocusHighlightStrategy.alwaysTraditional;
+      _checkCrashReport();
+    });
+  }
+
+  // 檢查上次是否有未確認的閃退紀錄
+  void _checkCrashReport() {
+    Future.delayed(const Duration(seconds: 2), () async {
+      if (!mounted) return;
+      final crash = await CrashReportService.lastCrash();
+      if (crash == null || !mounted) return;
+      final ts = crash['timestamp'];
+      try {
+        final crashSection = CrashReportService.format(crash);
+        await showErrorReportDialog(context, crashSection: crashSection);
+      } finally {
+        if (ts is num) {
+          await CrashReportService.ack(ts.toInt());
+        }
+      }
     });
   }
 
