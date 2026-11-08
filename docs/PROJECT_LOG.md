@@ -44,9 +44,11 @@
 | `107303c` | 修正分區影片 API，新增番劇 (PGC) 播放支援與選集連播（規格：`docs/work/bangumi-region/`） |
 | `adf063b` | 解碼器失敗自動改用 H.264（AVC）並寫入設定；錯誤報告預設焦點改為取消（規格：`docs/work/player-fixes/spec.md` A & C） |
 | `b364a91` | Netflix 式左右鍵快退快進進度條與預覽卡片，連按加速與自動確認（規格：`docs/work/player-fixes/spec.md` B） |
+| `5f21da3` | 番劇大會員集改播試看片段（durl）並顯示「此集為大會員專屬，目前僅提供試看」，試看結束不自動連播 |
+| `e9ac2cd` | 模擬器測試報告與截圖（`docs/work/player-fixes/test-report.md`、`fix-report.md`） |
 | （本次） | 開機動畫改為 PiliBTR 風格：粉紫光線匯聚後浮現圖示，無文字，2.4 秒（`tool/gen_splash.py` 產生） |
 
-版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.2`。發布：v1.2.2-btr.2（2026-11-07，附 release APK 57.6MB）。
+版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.3`（pubspec `1.2.2+3`）。發布：v1.2.2-btr.2（2026-11-07，附 release APK 57.6MB）；v1.2.2-btr.3（2026-11-08，分 64 位元 arm64-v8a 21.3MB 與 32 位元 armeabi-v7a 19.2MB 兩個 APK）。
 
 ### 已實作、尚未 commit
 
@@ -117,3 +119,5 @@
 | 解碼失敗自動改用 H.264、錯誤報告預設取消 | 偵測 MediaCodec/Decoder 錯誤自動降級 AVC 並寫入設定記錄；AVC 也失敗才顯示錯誤；錯誤報告對話框預設焦點改至「取消」；commit `adf063b` |
 | Netflix 式快退快進與預覽卡片 | 控制列隱藏時左右鍵喚出底部進度條與上方預覽卡片（雪碧圖縮圖/時間）；連按加速（10s/30s/60s）；1.5 秒無操作或按確認鍵跳轉，返回鍵取消；commit `b364a91` |
 | 建置與安裝驗證 | `flutter build apk --debug` 成功，以 adb 安裝至 `emulator-5554` 成功 |
+| 番劇大會員集無法切換 | 改播試看片段並顯示提示；commit `5f21da3`，模擬器驗證 PASS（`e9ac2cd`） |
+| 確認進度並發布 64／32 位元版本 | 確認工作皆已 commit；`flutter analyze` 無問題、`flutter test` 8 項通過；版本升至 `v1.2.2-btr.3`，以 `--split-per-abi` 建置 arm64-v8a 與 armeabi-v7a release APK，發布 GitHub Release `v1.2.2-btr.3`（App 內更新會依裝置 ABI 選檔） |
