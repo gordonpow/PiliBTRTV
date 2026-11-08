@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'base_api.dart';
@@ -10,6 +11,17 @@ import '../settings_service.dart';
 
 /// 播放相關 API (影片詳情、播放地址、彈幕、進度上報)
 class PlaybackApi {
+  static final Random _rand = Random();
+
+  /// 長度介於 [min, max] 的隨機位元組做 base64，去掉最後兩個字元（同 PiliPlus）
+  static String _randomBase64(int min, int max) {
+    final len = min + _rand.nextInt(max - min + 1);
+    final b64 = base64.encode(
+      List<int>.generate(len, (_) => _rand.nextInt(256)),
+    );
+    return b64.substring(0, b64.length - 2);
+  }
+
   /// 獲取影片詳情（包含分P資訊和播放歷史）
   static Future<Map<String, dynamic>?> getVideoInfo(String bvid) async {
     try {
@@ -65,6 +77,7 @@ class PlaybackApi {
     int qn = 80,
     VideoCodec? forceCodec,
     int? epId, // 非 null 時走番劇 (PGC) playurl
+    bool riskRetried = false, // 已因風控 (-351/-352) 重試過一次
   }) async {
     try {
       final isPgc = epId != null;
@@ -77,6 +90,16 @@ class PlaybackApi {
         'fnval': '4048', // 請求 DASH + HEVC + AV1 + HDR 等全格式
         'fnver': '0',
         'fourk': '1',
+        // 以下參數同網頁版（參考 PiliPlus），缺少時容易被風控回 -351/-352
+        'voice_balance': '0',
+        'gaia_source': 'pre-load',
+        'isGaiaAvoided': 'true',
+        'web_location': '1315873',
+        if (!AuthService.isLoggedIn) 'try_look': '1', // 未登入也可看 1080P
+        'dm_img_list': '[]',
+        'dm_img_str': _randomBase64(16, 64),
+        'dm_cover_img_str': _randomBase64(32, 128),
+        'dm_img_inter': '{"ds":[],"wh":[0,0,0],"of":[0,0,0]}',
       };
 
       String url;
@@ -103,7 +126,7 @@ class PlaybackApi {
         final queryString = signedParams.entries
             .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
             .join('&');
-        url = 'https://api.bilibili.com/x/player/playurl?$queryString';
+        url = 'https://api.bilibili.com/x/player/wbi/playurl?$queryString';
       }
 
       final response = await http.get(
@@ -215,8 +238,8 @@ class PlaybackApi {
                   // 使用者設定是"自動"，智慧選硬解最優: AV1 > HEVC > AVC
                   if (hasAv1Hw) {
                     selectedVideo = candidateVideos.firstWhere((v) {
-                      final codecs =
-                          (v['codecs'] as String? ?? '').toLowerCase();
+                      final codecs = (v['codecs'] as String? ?? '')
+                          .toLowerCase();
                       return codecs.startsWith('av01') ||
                           codecs.startsWith('av1');
                     }, orElse: () => null);
@@ -224,8 +247,8 @@ class PlaybackApi {
 
                   if (selectedVideo == null && hasHevcHw) {
                     selectedVideo = candidateVideos.firstWhere((v) {
-                      final codecs =
-                          (v['codecs'] as String? ?? '').toLowerCase();
+                      final codecs = (v['codecs'] as String? ?? '')
+                          .toLowerCase();
                       return codecs.startsWith('hev') ||
                           codecs.startsWith('hvc');
                     }, orElse: () => null);
@@ -233,8 +256,8 @@ class PlaybackApi {
 
                   if (selectedVideo == null && hasAvcHw) {
                     selectedVideo = candidateVideos.firstWhere((v) {
-                      final codecs =
-                          (v['codecs'] as String? ?? '').toLowerCase();
+                      final codecs = (v['codecs'] as String? ?? '')
+                          .toLowerCase();
                       return codecs.startsWith('avc');
                     }, orElse: () => null);
                   }
@@ -245,17 +268,17 @@ class PlaybackApi {
               selectedVideo ??= candidateVideos.first;
 
               videoUrl = selectedVideo['baseUrl'] ?? selectedVideo['base_url'];
-              final selectedCodec =
-                  (selectedVideo['codecs'] as String? ?? '').toLowerCase();
+              final selectedCodec = (selectedVideo['codecs'] as String? ?? '')
+                  .toLowerCase();
               final parsedCodec = selectedCodec.startsWith('avc')
                   ? 'avc'
                   : (selectedCodec.startsWith('hev') ||
-                          selectedCodec.startsWith('hvc'))
-                      ? 'hev'
-                      : (selectedCodec.startsWith('av01') ||
-                              selectedCodec.startsWith('av1'))
-                          ? 'av01'
-                          : selectedCodec;
+                        selectedCodec.startsWith('hvc'))
+                  ? 'hev'
+                  : (selectedCodec.startsWith('av01') ||
+                        selectedCodec.startsWith('av1'))
+                  ? 'av01'
+                  : selectedCodec;
 
               if (audios.isNotEmpty) {
                 var sortedAudios = List.from(audios);
@@ -274,6 +297,39 @@ class PlaybackApi {
                   acceptDesc.any((d) => d.toString().contains('试看'));
 
               if (videoUrl != null) {
+                // 選取抽幀預覽串流：codecs 以 avc 開頭、id 最小但 >= 32 (若無則最小 id 的 avc，再無則 videoUrl)
+                String? previewUrl;
+                final avcVideos = videos.where((v) {
+                  final codecs = (v['codecs'] as String? ?? '').toLowerCase();
+                  return codecs.startsWith('avc');
+                }).toList();
+
+                if (avcVideos.isNotEmpty) {
+                  final avcAtLeast32 = avcVideos.where((v) {
+                    final id = v['id'] as int? ?? 0;
+                    return id >= 32;
+                  }).toList();
+
+                  dynamic candidate;
+                  if (avcAtLeast32.isNotEmpty) {
+                    avcAtLeast32.sort(
+                      (a, b) => (a['id'] as int? ?? 0).compareTo(
+                        b['id'] as int? ?? 0,
+                      ),
+                    );
+                    candidate = avcAtLeast32.first;
+                  } else {
+                    avcVideos.sort(
+                      (a, b) => (a['id'] as int? ?? 0).compareTo(
+                        b['id'] as int? ?? 0,
+                      ),
+                    );
+                    candidate = avcVideos.first;
+                  }
+                  previewUrl = candidate['baseUrl'] ?? candidate['base_url'];
+                }
+                previewUrl ??= videoUrl;
+
                 return {
                   'isPreview': isPgc && isPreview,
                   'url': videoUrl,
@@ -283,6 +339,7 @@ class PlaybackApi {
                   'isDash': isDash,
                   'codec': parsedCodec,
                   'dashData': data['dash'],
+                  'previewUrl': previewUrl,
                 };
               }
             }
@@ -295,7 +352,8 @@ class PlaybackApi {
                   .map((e) => e.toString())
                   .where((e) => e.isNotEmpty)
                   .toList();
-              final isPreview = isPgc ||
+              final isPreview =
+                  isPgc ||
                   data['is_preview'] == 1 ||
                   acceptDesc.any((d) => d.toString().contains('试看'));
 
@@ -310,17 +368,29 @@ class PlaybackApi {
                   'isDash': false,
                   'codec': 'avc',
                   'dashData': null,
+                  'previewUrl': videoUrl,
                 };
               }
             }
           }
 
           if (isPgc) {
-            return {
-              'error': '此集需要大會員或無法播放（${json['code']}）',
-              'apiError': true,
-            };
+            return {'error': '此集需要大會員或無法播放（${json['code']}）', 'apiError': true};
           }
+        } else if (!isPgc &&
+            !riskRetried &&
+            (json['code'] == -351 || json['code'] == -352)) {
+          // 風控：強制更新 WBI 金鑰並換新的隨機參數，重試一次
+          debugPrint('playurl 風控 ${json['code']}，重試一次');
+          BaseApi.wbiKeysTime = null;
+          return await getVideoPlayUrl(
+            bvid: bvid,
+            cid: cid,
+            qn: qn,
+            forceCodec: forceCodec,
+            epId: epId,
+            riskRetried: true,
+          );
         } else {
           // API 返回錯誤碼
           throw Exception(
