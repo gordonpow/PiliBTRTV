@@ -22,6 +22,22 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   int? cid;
   int? aid; // 影片 aid (用於點贊/投幣/收藏)
 
+  // 番劇 (PGC) 狀態：Video 不可變，切集時更新這些可變欄位
+  String? currentBvid; // 當前集的 bvid (番劇由季資訊取得)
+  int currentEpId = 0; // 當前集的 ep_id
+  int pgcResumeProgress = 0; // 季資訊提供的續播進度 (秒)
+  bool isPreview = false; // 當前播放的是試看片段
+  String pgcSeasonTitle = ''; // 番劇季名
+
+  bool get isPgc => widget.video.isPgc;
+
+  /// 當前實際播放的 bvid (UGC 為 widget.video.bvid)
+  String get playingBvid => currentBvid ?? widget.video.bvid;
+
+  /// 進度快取的 key：番劇用 season，UGC 用 bvid
+  String get progressCacheKey =>
+      isPgc ? 'pgc_${widget.video.seasonId}' : widget.video.bvid;
+
   // 完整影片資訊 (從 API 獲取，統一資料來源)
   Map<String, dynamic>? fullVideoInfo;
 

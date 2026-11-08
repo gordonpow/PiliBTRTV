@@ -64,9 +64,11 @@ class PlaybackApi {
     required int cid,
     int qn = 80,
     VideoCodec? forceCodec,
+    int? epId, // 非 null 時走番劇 (PGC) playurl
   }) async {
     try {
-      await BaseApi.ensureWbiKeys();
+      final isPgc = epId != null;
+      if (!isPgc) await BaseApi.ensureWbiKeys();
 
       final params = {
         'bvid': bvid,
@@ -77,15 +79,32 @@ class PlaybackApi {
         'fourk': '1',
       };
 
-      final signedParams = SignUtils.signWithWbi(
-        params,
-        BaseApi.imgKey!,
-        BaseApi.subKey!,
-      );
-      final queryString = signedParams.entries
-          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
-          .join('&');
-      final url = 'https://api.bilibili.com/x/player/playurl?$queryString';
+      String url;
+      if (isPgc) {
+        // 番劇 playurl 不需要 WBI 簽名，回傳的 result.video_info 結構同 UGC 的 data
+        final pgcParams = {
+          'ep_id': epId.toString(),
+          'cid': cid.toString(),
+          'qn': qn.toString(),
+          'fnval': '4048',
+          'fnver': '0',
+          'fourk': '1',
+        };
+        final queryString = pgcParams.entries
+            .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+            .join('&');
+        url = 'https://api.bilibili.com/pgc/player/web/v2/playurl?$queryString';
+      } else {
+        final signedParams = SignUtils.signWithWbi(
+          params,
+          BaseApi.imgKey!,
+          BaseApi.subKey!,
+        );
+        final queryString = signedParams.entries
+            .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+            .join('&');
+        url = 'https://api.bilibili.com/x/player/playurl?$queryString';
+      }
 
       final response = await http.get(
         Uri.parse(url),
@@ -94,8 +113,18 @@ class PlaybackApi {
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
-        if (json['code'] == 0 && json['data'] != null) {
-          final data = json['data'];
+        final dynamic rawData = isPgc
+            ? (json['result'] is Map ? json['result']['video_info'] : null)
+            : json['data'];
+        if (isPgc && (json['code'] != 0 || rawData == null)) {
+          // 番劇錯誤 (如 -10403 地區限制)：直接回傳 B站訊息，標記為 API 錯誤，不再換編碼器重試
+          return {
+            'error': '${json['message'] ?? '未知錯誤'}（${json['code']}）',
+            'apiError': true,
+          };
+        }
+        if (json['code'] == 0 && rawData != null) {
+          final data = rawData;
 
           final qualities = <Map<String, dynamic>>[];
           final acceptQuality = data['accept_quality'] as List? ?? [];
@@ -209,8 +238,14 @@ class PlaybackApi {
                     sortedAudios.first['base_url'];
               }
 
+              // 試看：code 為 0 但只提供試看片段 (「试看」為伺服器簡體字串，保留原文)
+              final isPreview =
+                  data['is_preview'] == 1 ||
+                  acceptDesc.any((d) => d.toString().contains('试看'));
+
               if (videoUrl != null) {
                 return {
+                  'isPreview': isPgc && isPreview,
                   'url': videoUrl,
                   'audioUrl': audioUrl,
                   'qualities': qualities,
@@ -313,6 +348,8 @@ class PlaybackApi {
     required String bvid,
     required int cid,
     required int progress,
+    int? epId,
+    int? seasonId,
   }) async {
     if (!AuthService.isLoggedIn) return false;
 
@@ -325,6 +362,13 @@ class PlaybackApi {
         'real_played_time': progress.toString(),
         'start_ts': startTs.toString(),
         'csrf': AuthService.biliJct ?? '',
+        // 番劇 heartbeat 需要 epid、sid、type=4、sub_type=1
+        if (epId != null && seasonId != null) ...{
+          'epid': epId.toString(),
+          'sid': seasonId.toString(),
+          'type': '4',
+          'sub_type': '1',
+        },
       };
 
       final queryString = queryParams.entries
@@ -344,6 +388,11 @@ class PlaybackApi {
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
+        if (epId != null) {
+          debugPrint(
+            '🎬 [Heartbeat] PGC ep=$epId code=${json['code']} message=${json['message']}',
+          );
+        }
         if (json['code'] == 0) {
           return true;
         }

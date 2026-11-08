@@ -60,12 +60,20 @@ mixin PlayerActionMixin on PlayerStateMixin {
     });
 
     try {
-      final videoInfo = await BilibiliApi.getVideoInfo(widget.video.bvid);
+      // 番劇不走 UGC 的 view API，改由季資訊取得集數
+      final videoInfo = isPgc
+          ? null
+          : await BilibiliApi.getVideoInfo(widget.video.bvid);
 
       // 🔥 預先獲取本地快取（在 setState 外部執行 async 操作）
       final cachedRecord = await PlaybackProgressCache.getCachedRecord(
-        widget.video.bvid,
+        progressCacheKey,
       );
+
+      if (isPgc) {
+        final ok = await _setupPgcSeason(cachedRecord);
+        if (!ok) return;
+      }
 
       if (videoInfo != null) {
         if (mounted) {
@@ -103,7 +111,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         }
       }
 
-      cid ??= await BilibiliApi.getVideoCid(widget.video.bvid);
+      if (!isPgc) cid ??= await BilibiliApi.getVideoCid(widget.video.bvid);
 
       if (cid == null) {
         setState(() {
@@ -122,24 +130,26 @@ mixin PlayerActionMixin on PlayerStateMixin {
         if (idx != -1) focusedEpisodeIndex = idx;
       }
 
-      // 非同步載入相關影片 (用於自動連播)
-      BilibiliApi.getRelatedVideos(widget.video.bvid).then((videos) {
-        if (mounted) {
-          relatedVideos = videos
-              .map(
-                (v) => {
-                  'bvid': v.bvid,
-                  'title': v.title,
-                  'pic': v.pic,
-                  'duration': v.duration,
-                  'pubdate': v.pubdate,
-                  'owner': {'name': v.ownerName, 'face': v.ownerFace},
-                  'stat': {'view': v.view},
-                },
-              )
-              .toList();
-        }
-      });
+      // 非同步載入相關影片 (用於自動連播)；番劇不載入推薦
+      if (!isPgc) {
+        BilibiliApi.getRelatedVideos(widget.video.bvid).then((videos) {
+          if (mounted) {
+            relatedVideos = videos
+                .map(
+                  (v) => {
+                    'bvid': v.bvid,
+                    'title': v.title,
+                    'pic': v.pic,
+                    'duration': v.duration,
+                    'pubdate': v.pubdate,
+                    'owner': {'name': v.ownerName, 'face': v.ownerFace},
+                    'stat': {'view': v.view},
+                  },
+                )
+                .toList();
+          }
+        });
+      }
 
       // 編碼器回退重試列表:
       // 1. null = 使用者設定優先（自動則按硬體最優 AV1>HEVC>AVC）
@@ -176,10 +186,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
         // 1. 首次請求: 使用預設畫質(80)或當前設定畫質
         // 這樣可以獲取到影片實際支援的 accept_quality 列表，而不是盲猜
         var playInfo = await BilibiliApi.getVideoPlayUrl(
-          bvid: widget.video.bvid,
+          bvid: playingBvid,
           cid: cid!,
           qn: currentQuality,
           forceCodec: tryCodec,
+          epId: isPgc ? currentEpId : null,
         );
 
         // 2. 智慧升級 (僅針對 VIP)
@@ -206,14 +217,16 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 );
 
                 final upgradePlayInfo = await BilibiliApi.getVideoPlayUrl(
-                  bvid: widget.video.bvid,
+                  bvid: playingBvid,
                   cid: cid!,
                   qn: maxQn, // 精確請求最高畫質
                   forceCodec: tryCodec,
+                  epId: isPgc ? currentEpId : null,
                 );
 
                 // 如果升級請求成功，使用新資料
-                if (upgradePlayInfo != null) {
+                if (upgradePlayInfo != null &&
+                    upgradePlayInfo['error'] == null) {
                   playInfo = upgradePlayInfo;
                 }
               }
@@ -229,10 +242,16 @@ mixin PlayerActionMixin on PlayerStateMixin {
         // 檢查是否返回了錯誤資訊
         if (playInfo['error'] != null) {
           lastError = playInfo['error'];
+          // B站業務錯誤 (如 -10403 地區限制) 換編碼器也沒用，直接顯示訊息
+          if (playInfo['apiError'] == true) break codecLoop;
           continue codecLoop;
         }
 
         if (!mounted) return;
+        isPreview = playInfo['isPreview'] == true;
+        if (isPreview) {
+          showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
+        }
         qualities = List<Map<String, dynamic>>.from(
           playInfo['qualities'] ?? [],
         );
@@ -302,7 +321,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         // 初始化外掛
         final plugins = PluginManager().getEnabledPlugins<PlayerPlugin>();
         for (var plugin in plugins) {
-          plugin.onVideoLoad(widget.video.bvid, cid!);
+          plugin.onVideoLoad(playingBvid, cid!);
         }
 
         setState(() {
@@ -340,6 +359,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
             '🎬 [Resume] Using LOCAL CACHE: cid=${cachedRecord.cid}, progress=${cachedRecord.progress}',
           );
           historyProgress = cachedRecord.progress;
+        }
+
+        // 番劇：季資訊提供的續播進度
+        if (historyProgress == 0 && isPgc && pgcResumeProgress > 0) {
+          historyProgress = pgcResumeProgress;
+          pgcResumeProgress = 0;
         }
 
         // 3. 最後兜底：使用列表傳入的 progress（可能是舊資料）
@@ -392,6 +417,50 @@ mixin PlayerActionMixin on PlayerStateMixin {
         });
       }
     }
+  }
+
+  /// 番劇：載入季資訊，設定集數、起始集與續播進度。失敗時顯示錯誤並回傳 false。
+  Future<bool> _setupPgcSeason(({int cid, int progress})? cachedRecord) async {
+    final season = await BilibiliApi.getPgcSeason(
+      seasonId: widget.video.seasonId,
+    );
+    if (!mounted) return false;
+    final eps = (season['episodes'] as List?) ?? [];
+    if (season['error'] != null || eps.isEmpty) {
+      setState(() {
+        errorMessage = season['error'] ?? '此番劇目前沒有可播放的集數';
+        isLoading = false;
+      });
+      return false;
+    }
+
+    // 起始集：伺服器觀看紀錄 > 本地快取 > 列表帶入的 ep > 第一集
+    final lastEpId = season['lastEpId'] as int? ?? 0;
+    var startIdx = lastEpId > 0
+        ? eps.indexWhere((e) => e['ep_id'] == lastEpId)
+        : -1;
+    var resume = startIdx != -1 ? (season['lastTime'] as int? ?? 0) : 0;
+    if (startIdx == -1 && cachedRecord != null) {
+      startIdx = eps.indexWhere((e) => e['cid'] == cachedRecord.cid);
+      if (startIdx != -1) resume = cachedRecord.progress;
+    }
+    if (startIdx == -1 && widget.video.epId > 0) {
+      startIdx = eps.indexWhere((e) => e['ep_id'] == widget.video.epId);
+    }
+    if (startIdx == -1) startIdx = 0;
+
+    setState(() {
+      episodes = List<dynamic>.from(eps);
+      pgcSeasonTitle = season['title'] as String? ?? '';
+      cid = eps[startIdx]['cid'] as int;
+      pgcResumeProgress = resume;
+      fullVideoInfo = {'title': pgcSeasonTitle};
+    });
+    _applyPgcEpisode(cid!);
+    debugPrint(
+      '🎬 [PGC] season=${widget.video.seasonId} ep=$currentEpId cid=$cid resume=$resume',
+    );
+    return true;
   }
 
   Future<void> loadDanmaku() async {
@@ -502,12 +571,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
       if (currentPos > 5) {
         // 只有播放超過 5 秒才快取
         await PlaybackProgressCache.saveProgress(
-          widget.video.bvid,
+          progressCacheKey,
           cid!,
           currentPos,
         );
         debugPrint(
-          '🎬 [Cache] Saved progress: bvid=${widget.video.bvid}, cid=$cid, pos=$currentPos',
+          '🎬 [Cache] Saved progress: key=$progressCacheKey, cid=$cid, pos=$currentPos',
         );
       }
     }
@@ -542,6 +611,25 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
   /// 獲取用於顯示的影片資訊（優先使用 API 獲取的完整資訊）
   models.Video getDisplayVideo() {
+    if (isPgc) {
+      // 番劇：標題為「季名 - 第 N 話 標題」
+      var title = pgcSeasonTitle.isNotEmpty
+          ? pgcSeasonTitle
+          : widget.video.title;
+      final currentEp = episodes.firstWhere(
+        (e) => e['cid'] == cid,
+        orElse: () => {},
+      );
+      final part = currentEp['part'] as String? ?? '';
+      if (part.isNotEmpty) title = '$title - $part';
+      return models.Video(
+        bvid: playingBvid,
+        title: title,
+        pic: widget.video.pic,
+        progress: widget.video.progress,
+        viewAt: widget.video.viewAt,
+      );
+    }
     if (fullVideoInfo == null) {
       return widget.video;
     }
@@ -593,6 +681,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
     hideTimer?.cancel();
     setState(() => showControls = true);
 
+    // 試看片段播完不是真的看完：不連播、不回報完播
+    if (isPreview) {
+      showZhToast(msg: '試看結束，此集為大會員專屬');
+      return;
+    }
+
     // 檢查是否開啟自動連播
     if (!SettingsService.autoPlay) return;
 
@@ -617,6 +711,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
         switchEpisode(nextCid);
         return;
       }
+    }
+
+    // 番劇最後一集播完：不跳推薦，只回報完播
+    if (isPgc) {
+      reportPlaybackProgress(overrideProgress: -1);
+      return;
     }
 
     // 2. 所有集數播完，檢查相關影片
@@ -663,9 +763,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     // 上報到B站
     await BilibiliApi.reportProgress(
-      bvid: widget.video.bvid,
+      bvid: playingBvid,
       cid: cid!,
       progress: progress,
+      epId: isPgc ? currentEpId : null,
+      seasonId: isPgc ? widget.video.seasonId : null,
     );
   }
 
@@ -808,10 +910,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       // 如果使用者開啟了預覽模式但雪碧圖載入失敗，顯示提示
       if (SettingsService.seekPreviewMode && !hasShownVideoshotFailToast) {
         hasShownVideoshotFailToast = true;
-        showZhToast(
-          msg: '預覽圖載入失敗，已切換到預設快進模式',
-          toastLength: Toast.LENGTH_SHORT,
-        );
+        showZhToast(msg: '預覽圖載入失敗，已切換到預設快進模式', toastLength: Toast.LENGTH_SHORT);
       }
       videoController!.seekTo(target);
       resetDanmakuIndex(target);
@@ -843,10 +942,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       // 如果使用者開啟了預覽模式但雪碧圖載入失敗，顯示提示
       if (SettingsService.seekPreviewMode && !hasShownVideoshotFailToast) {
         hasShownVideoshotFailToast = true;
-        showZhToast(
-          msg: '預覽圖載入失敗，已切換到預設快進模式',
-          toastLength: Toast.LENGTH_SHORT,
-        );
+        showZhToast(msg: '預覽圖載入失敗，已切換到預設快進模式', toastLength: Toast.LENGTH_SHORT);
       }
       videoController!.seekTo(target);
       resetDanmakuIndex(target);
@@ -951,10 +1047,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
   Future<void> loadVideoshot() async {
     // 始終嘗試載入資料，以便在使用者啟用設定時能夠立即使用
     try {
-      final data = await BilibiliApi.getVideoshot(
-        bvid: widget.video.bvid,
-        cid: cid,
-      );
+      final data = await BilibiliApi.getVideoshot(bvid: playingBvid, cid: cid);
       if (mounted && data != null) {
         setState(() => videoshotData = data);
         precachedSpriteIndex = -1;
@@ -1118,11 +1211,30 @@ mixin PlayerActionMixin on PlayerStateMixin {
     });
   }
 
+  /// 依 cid 更新番劇當前集的 ep_id / bvid / aid
+  void _applyPgcEpisode(int forCid) {
+    final idx = episodes.indexWhere((e) => e['cid'] == forCid);
+    if (idx == -1) return;
+    final ep = episodes[idx];
+    currentEpId = ep['ep_id'] as int? ?? currentEpId;
+    final epBvid = ep['bvid'] as String? ?? '';
+    if (epBvid.isNotEmpty) currentBvid = epBvid;
+    final epAid = ep['aid'] as int? ?? 0;
+    if (epAid > 0) aid = epAid;
+  }
+
   Future<void> switchEpisode(int newCid) async {
     if (newCid == cid) return;
 
+    // 切集前先儲存目前這集的進度 (番劇以 season 為 key，只保留最後一集)
+    if (isPgc) {
+      await reportPlaybackProgress();
+      _applyPgcEpisode(newCid);
+    }
+
     setState(() {
       cid = newCid;
+      isPreview = false;
       isLoading = true;
       errorMessage = null;
       showEpisodePanel = false;
@@ -1140,13 +1252,22 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     try {
       final playInfo = await BilibiliApi.getVideoPlayUrl(
-        bvid: widget.video.bvid,
+        bvid: playingBvid,
         cid: cid!,
         qn: currentQuality,
+        epId: isPgc ? currentEpId : null,
       );
+
+      if (playInfo != null && playInfo['error'] != null) {
+        throw Exception(playInfo['error']);
+      }
 
       if (playInfo != null) {
         if (!mounted) return;
+        isPreview = playInfo['isPreview'] == true;
+        if (isPreview) {
+          showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
+        }
         currentQuality = playInfo['currentQuality'] ?? 80;
         currentAudioUrl = playInfo['audioUrl'];
         qualities = List<Map<String, dynamic>>.from(
@@ -1172,8 +1293,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
             'Referer': 'https://www.bilibili.com/',
             'Origin': 'https://www.bilibili.com',
-            if (BaseApi.cookieHeader != null)
-              'Cookie': BaseApi.cookieHeader!,
+            if (BaseApi.cookieHeader != null) 'Cookie': BaseApi.cookieHeader!,
           },
           viewType: VideoViewType.platformView,
         );
@@ -1256,13 +1376,18 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     try {
       final playInfo = await BilibiliApi.getVideoPlayUrl(
-        bvid: widget.video.bvid,
+        bvid: playingBvid,
         cid: cid!,
         qn: qn,
+        epId: isPgc ? currentEpId : null,
       );
 
-      if (playInfo == null) {
-        showZhToast(msg: '切換畫質失敗');
+      if (playInfo == null || playInfo['error'] != null) {
+        showZhToast(
+          msg: playInfo?['error'] != null
+              ? '切換畫質失敗：${playInfo!['error']}'
+              : '切換畫質失敗',
+        );
         setState(() => isLoading = false);
         return;
       }
@@ -1294,8 +1419,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
           'Referer': 'https://www.bilibili.com/',
           'Origin': 'https://www.bilibili.com',
-          if (BaseApi.cookieHeader != null)
-            'Cookie': BaseApi.cookieHeader!,
+          if (BaseApi.cookieHeader != null) 'Cookie': BaseApi.cookieHeader!,
         },
         viewType: VideoViewType.platformView,
       );

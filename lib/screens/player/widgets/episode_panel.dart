@@ -110,7 +110,10 @@ class _EpisodePanelState extends State<EpisodePanel> {
                   final isCurrent = episode['cid'] == widget.currentCid;
                   final partName =
                       episode['part'] ?? episode['page_part'] ?? '';
-                  final title = 'P${index + 1} $partName';
+                  // 番劇的 part 已含「第 N 話 標題」，不加 P 前綴
+                  final title = episode['is_pgc'] == true
+                      ? partName
+                      : 'P${index + 1} $partName';
 
                   return _EpisodeItem(
                     title: title,

@@ -17,6 +17,7 @@ import 'api/video_api.dart';
 import 'api/playback_api.dart';
 import 'api/interaction_api.dart';
 import 'api/videoshot_api.dart';
+import 'api/pgc_api.dart';
 import 'settings_service.dart' show VideoCodec;
 import '../models/video.dart';
 import '../models/videoshot.dart';
@@ -107,11 +108,13 @@ class BilibiliApi {
     required int cid,
     int qn = 80,
     VideoCodec? forceCodec,
+    int? epId,
   }) => PlaybackApi.getVideoPlayUrl(
     bvid: bvid,
     cid: cid,
     qn: qn,
     forceCodec: forceCodec,
+    epId: epId,
   );
 
   /// 獲取彈幕資料
@@ -123,7 +126,25 @@ class BilibiliApi {
     required String bvid,
     required int cid,
     required int progress,
-  }) => PlaybackApi.reportProgress(bvid: bvid, cid: cid, progress: progress);
+    int? epId,
+    int? seasonId,
+  }) => PlaybackApi.reportProgress(
+    bvid: bvid,
+    cid: cid,
+    progress: progress,
+    epId: epId,
+    seasonId: seasonId,
+  );
+
+  // ========== 番劇 (PGC) ==========
+
+  /// 番劇索引 (熱門排序)
+  static Future<List<Video>> getBangumiIndex({int page = 1}) =>
+      PgcApi.getBangumiIndex(page: page);
+
+  /// 番劇季資訊
+  static Future<Map<String, dynamic>> getPgcSeason({required int seasonId}) =>
+      PgcApi.getSeason(seasonId: seasonId);
 
   /// 獲取影片線上觀看人數
   static Future<Map<String, String>?> getOnlineCount({

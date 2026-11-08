@@ -107,13 +107,14 @@ class TvVideoCard extends StatelessWidget {
                   size: 14,
                   color: Colors.white70,
                 ),
-                Text(
-                  video.viewFormatted,
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
-                ),
+                if (!video.isPgc)
+                  Text(
+                    video.viewFormatted,
+                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                  ),
                 const Spacer(),
                 Text(
-                  _durationText,
+                  video.isPgc ? video.epIndexText : _durationText,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 11,

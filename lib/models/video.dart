@@ -18,6 +18,9 @@ class Video {
   final int historyVideos; // 歷史記錄中的總分P數 (多P影片 > 1)
   final String badge; // 角標 (如 "付費", "充電專屬")
   final bool isLive; // 是否是直播
+  final int seasonId; // 番劇 season_id (> 0 表示 PGC 番劇)
+  final int epId; // 番劇 ep_id (選用)
+  final String epIndexText; // 番劇集數資訊 (如 "全12話")
 
   Video({
     required this.bvid,
@@ -38,12 +41,54 @@ class Video {
     this.historyVideos = 0,
     String badge = '',
     this.isLive = false,
+    this.seasonId = 0,
+    this.epId = 0,
+    this.epIndexText = '',
   }) : badge = _filterBadge(badge);
 
   static String _filterBadge(String badge) {
     // 與伺服器回傳的簡體文字比對，保留原文
     if (badge == '投稿视频' || badge == '投稿') return '';
     return badge;
+  }
+
+  /// 是否為 PGC 番劇
+  bool get isPgc => seasonId > 0;
+
+  /// 從分區 feed (region/feed/rcmd) 的 archives 項目解析
+  factory Video.fromRegionFeed(Map<String, dynamic> json) {
+    final author = json['author'] as Map<String, dynamic>? ?? {};
+    final stat = json['stat'] as Map<String, dynamic>? ?? {};
+
+    return Video(
+      bvid: json['bvid'] ?? '',
+      title: json['title'] ?? '',
+      pic: _fixPicUrl(json['cover'] ?? json['pic'] ?? ''),
+      ownerName: author['name'] ?? '',
+      ownerFace: _fixPicUrl(author['face'] ?? ''),
+      ownerMid: _toInt(author['mid']),
+      view: _toInt(stat['view']),
+      danmaku: _toInt(stat['danmaku']),
+      duration: _toInt(json['duration']),
+      pubdate: _toInt(json['pubdate']),
+      cid: _toInt(json['cid']),
+    );
+  }
+
+  /// 從番劇索引 (pgc/season/index/result) 的 list 項目解析
+  factory Video.fromBangumiIndex(Map<String, dynamic> json) {
+    final firstEp = json['first_ep'] as Map<String, dynamic>? ?? {};
+    return Video(
+      bvid: '',
+      title: json['title'] ?? '',
+      pic: _fixPicUrl(json['cover'] ?? ''),
+      // 卡片 UP 主位置顯示追番人數 (如 "868.4万追番")
+      ownerName: (json['order'] ?? '').toString(),
+      badge: json['badge'] ?? '',
+      seasonId: _toInt(json['season_id']),
+      epId: _toInt(firstEp['ep_id']),
+      epIndexText: (json['index_show'] ?? '').toString(),
+    );
   }
 
   /// 從推薦/熱門 API 響應解析

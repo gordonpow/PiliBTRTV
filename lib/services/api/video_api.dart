@@ -74,32 +74,45 @@ class VideoApi {
     return [];
   }
 
-  /// 獲取分區影片 (按 tid)
+  /// 獲取分區影片 (按新分區 ID，使用 region/feed/rcmd)
   static Future<List<Video>> getRegionVideos({
     required int tid,
     int page = 1,
   }) async {
     try {
-      final uri = Uri.parse('${BaseApi.apiBase}/x/web-interface/dynamic/region')
-          .replace(
+      final uri =
+          Uri.parse(
+            '${BaseApi.apiBase}/x/web-interface/region/feed/rcmd',
+          ).replace(
             queryParameters: {
-              'rid': tid.toString(),
-              'pn': page.toString(),
-              'ps': '20',
+              'display_id': page.toString(),
+              'request_cnt': '20',
+              'from_region': tid.toString(),
             },
           );
 
-      final response = await http.get(uri, headers: BaseApi.getHeaders());
+      final response = await http.get(
+        uri,
+        headers: BaseApi.getHeaders(withCookie: true),
+      );
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         if (json['code'] == 0 && json['data'] != null) {
           final archives = json['data']['archives'] as List? ?? [];
-          return archives.map((item) => Video.fromRecommend(item)).toList();
+          return archives
+              .where((item) => item['bvid'] != null)
+              .map((item) => Video.fromRegionFeed(item))
+              .toList();
         }
+        debugPrint(
+          'getRegionVideos failed: code=${json['code']} message=${json['message']}',
+        );
+      } else {
+        debugPrint('getRegionVideos HTTP ${response.statusCode}');
       }
     } catch (e) {
-      // 忽略錯誤
+      debugPrint('getRegionVideos error: $e');
     }
     return [];
   }
@@ -154,7 +167,9 @@ class VideoApi {
           };
         }
       }
-      debugPrint('getHistory: HTTP ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
+      debugPrint(
+        'getHistory: HTTP ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}',
+      );
     } catch (e) {
       debugPrint('getHistory error: $e');
     }
@@ -234,7 +249,9 @@ class VideoApi {
         if (json['code'] == 0 && json['data'] != null) {
           final result = json['data']['result'] as List? ?? [];
           if (result.isEmpty) {
-            debugPrint('searchVideos: empty result: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
+            debugPrint(
+              'searchVideos: empty result: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}',
+            );
           }
           return result.map((item) => Video.fromSearch(item)).toList();
         }
@@ -316,7 +333,9 @@ class VideoApi {
             }
           }
 
-          debugPrint('getDynamicFeed: items=${items.length} videos=${videos.length} hasMore=$hasMore');
+          debugPrint(
+            'getDynamicFeed: items=${items.length} videos=${videos.length} hasMore=$hasMore',
+          );
           return DynamicFeed(
             videos: videos,
             offset: newOffset,
@@ -324,7 +343,9 @@ class VideoApi {
           );
         }
       }
-      debugPrint('getDynamicFeed: HTTP ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
+      debugPrint(
+        'getDynamicFeed: HTTP ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}',
+      );
     } catch (e) {
       debugPrint('getDynamicFeed error: $e');
     }

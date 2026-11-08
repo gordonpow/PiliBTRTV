@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import '../../models/video.dart';
 import 'package:keframe/keframe.dart';
-import '../../services/auth_service.dart';
 import '../../services/bilibili_api.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/tv_video_card.dart';
@@ -52,7 +51,10 @@ class HomeTabState extends State<HomeTab> {
     _categoryFocusNodes = List.generate(_categories.length, (_) => FocusNode());
 
     // 【最佳化核心 1】如果有預載入資料，立即填充，且標記 loading 為 false
-    if (widget.preloadedVideos != null && widget.preloadedVideos!.isNotEmpty) {
+    // 預載入的是「推薦」資料，只有第一個分類是推薦時才可使用
+    if (_categories[0] == HomeCategory.recommend &&
+        widget.preloadedVideos != null &&
+        widget.preloadedVideos!.isNotEmpty) {
       _categoryVideos[0] = widget.preloadedVideos!;
       _categoryRefreshIdx[0] = 1;
       _categoryLoading[0] = false; // 關鍵：明確標記不載入
@@ -146,6 +148,10 @@ class HomeTabState extends State<HomeTab> {
           final page = refresh ? 1 : currentPage;
           videos = await BilibiliApi.getPopularVideos(page: page);
           break;
+        case HomeCategory.anime:
+          final page = refresh ? 1 : currentPage;
+          videos = await BilibiliApi.getBangumiIndex(page: page);
+          break;
         default:
           final page = refresh ? 1 : currentPage;
           videos = await BilibiliApi.getRegionVideos(
@@ -168,9 +174,16 @@ class HomeTabState extends State<HomeTab> {
       if (refresh || page == 1) {
         _categoryVideos[categoryIndex] = filteredVideos;
       } else {
+        // 去重 (分區 feed 翻頁可能重複)
+        final existing = _categoryVideos[categoryIndex] ?? [];
+        final seen = existing
+            .map((v) => v.isPgc ? 'ss${v.seasonId}' : v.bvid)
+            .toSet();
         _categoryVideos[categoryIndex] = [
-          ...(_categoryVideos[categoryIndex] ?? []),
-          ...filteredVideos,
+          ...existing,
+          ...filteredVideos.where(
+            (v) => seen.add(v.isPgc ? 'ss${v.seasonId}' : v.bvid),
+          ),
         ];
       }
       _categoryLoading[categoryIndex] = false;
@@ -216,11 +229,6 @@ class HomeTabState extends State<HomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    // ... (Auth check logic 保持不變) ...
-    if (!AuthService.isLoggedIn) {
-      return const Center(child: Text("請先登入")); // 簡寫，保持你原有的 UI
-    }
-
     // 判斷是否是"啟動後的第一屏資料"
     // 使用穩定的標誌變數，避免 List 引用比較在 loadMore 後失效
     final bool isInitialLoad =
@@ -518,16 +526,17 @@ class _CategoryTab extends StatelessWidget {
 enum HomeCategory {
   recommend('推薦', 0),
   popular('熱門', 0),
-  anime('番劇', 13),
-  movie('影視', 181),
-  game('遊戲', 4),
-  knowledge('知識', 36),
-  tech('科技', 188),
-  music('音樂', 3),
-  dance('舞蹈', 129),
-  life('生活', 160),
-  food('美食', 211),
-  douga('動畫', 1);
+  anime('番劇', 0), // 番劇走 PGC 索引，不使用分區 ID
+  // 以下為新版分區 ID (region/feed/rcmd 的 from_region)
+  movie('影視', 1001),
+  game('遊戲', 1008),
+  knowledge('知識', 1010),
+  tech('科技', 1012),
+  music('音樂', 1003),
+  dance('舞蹈', 1004),
+  life('生活', 1030),
+  food('美食', 1020),
+  douga('動畫', 1005);
 
   const HomeCategory(this.label, this.tid);
   final String label;
