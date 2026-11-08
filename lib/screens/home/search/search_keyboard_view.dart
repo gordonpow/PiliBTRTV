@@ -106,6 +106,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
 
   @override
   void dispose() {
+    SystemChannels.textInput.invokeMethod('TextInput.hide');
     WidgetsBinding.instance.removeObserver(this);
     if (SearchImeBackGuard.imeOpen) SearchImeBackGuard.markClosed();
     _controller.removeListener(_onControllerChanged);
@@ -141,8 +142,8 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
   KeyEventResult _onTextKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (_isBackKey(event)) {
-      // 先關閉輸入狀態，不讓 HomeScreen 同時處理返回
-      SearchImeBackGuard.markClosed();
+      // 先關閉輸入狀態與系統鍵盤，不讓 HomeScreen 同時處理返回
+      _closeIme();
       _boxFocus.requestFocus();
       return KeyEventResult.handled;
     }
@@ -212,7 +213,14 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
     });
   }
 
+  void _closeIme() {
+    _textFocus.unfocus();
+    SystemChannels.textInput.invokeMethod('TextInput.hide');
+    SearchImeBackGuard.markClosed();
+  }
+
   void _submit() {
+    _closeIme();
     if (_searchText.trim().isNotEmpty) {
       SearchHistoryService.add(_searchText.trim());
     }
@@ -255,6 +263,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
   }
 
   void _selectSuggestion(String suggestion) {
+    _closeIme();
     setState(() => _setText(suggestion));
     SearchHistoryService.add(suggestion);
     widget.onSearch(suggestion);
