@@ -1,6 +1,6 @@
 # PiliBTRTV 專案紀錄
 
-最後更新：2026-11-07
+最後更新：2026-11-08
 
 本檔記錄專案介紹、新增功能與開發對話紀錄。每次對話結束或功能完成時更新。
 
@@ -41,6 +41,9 @@
 | `5d2c4e8`、`7acf7dd`、`c917280` | Cookie 加 b_nut、Referer 結尾斜線、未登入取 WBI 金鑰（修正搜尋 412／無結果）；轉換表 CRLF 造成字間空白；CDN 狀態暫停時仍顯示 |
 | `16c63e2` | 未登入也能進入設定頁（登入按鈕開 QR 登入頁，返回鍵回設定） |
 | `3e1c437` | 動態空白（mid／pub_ts 改為字串）、歷史紀錄一直轉圈（失敗時缺欄位）、登入後分頁重新載入 |
+| `107303c` | 修正分區影片 API，新增番劇 (PGC) 播放支援與選集連播（規格：`docs/work/bangumi-region/`） |
+| `adf063b` | 解碼器失敗自動改用 H.264（AVC）並寫入設定；錯誤報告預設焦點改為取消（規格：`docs/work/player-fixes/spec.md` A & C） |
+| `b364a91` | Netflix 式左右鍵快退快進進度條與預覽卡片，連按加速與自動確認（規格：`docs/work/player-fixes/spec.md` B） |
 | （本次） | 開機動畫改為 PiliBTR 風格：粉紫光線匯聚後浮現圖示，無文字，2.4 秒（`tool/gen_splash.py` 產生） |
 
 版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.2`。發布：v1.2.2-btr.2（2026-11-07，附 release APK 57.6MB）。
@@ -105,3 +108,12 @@
 | 請求 | 結果 |
 |---|---|
 | 登入失敗時可一鍵上傳去除個人資訊的錯誤報告 | 新增 `LogService`（覆寫 `debugPrint`、捕捉未處理例外、寫入 `logs/app.log` 並輪替）、`sanitizeLogLine` 去識別化、`ErrorReportService`（dpaste.com → paste.rs）、確認／預覽／結果對話框；入口在登入頁與「設定 → 關於軟體」；規格見 `docs/work/error-report/spec.md`；單元測試 `test/log_sanitize_test.dart` |
+
+### 2026-11-08：分區修正、番劇播放、解碼回退與 Netflix 式快退快進
+
+| 請求 | 結果 |
+|---|---|
+| 修正分區影片、支援番劇播放 | 分區改用新 API（`region/feed/rcmd`）並修正 ID；新增 PGC 番劇索引與季資訊，播放器支援番劇集數解析、連播、進度上報與試看/地區限制處理；commit `107303c` |
+| 解碼失敗自動改用 H.264、錯誤報告預設取消 | 偵測 MediaCodec/Decoder 錯誤自動降級 AVC 並寫入設定記錄；AVC 也失敗才顯示錯誤；錯誤報告對話框預設焦點改至「取消」；commit `adf063b` |
+| Netflix 式快退快進與預覽卡片 | 控制列隱藏時左右鍵喚出底部進度條與上方預覽卡片（雪碧圖縮圖/時間）；連按加速（10s/30s/60s）；1.5 秒無操作或按確認鍵跳轉，返回鍵取消；commit `b364a91` |
+| 建置與安裝驗證 | `flutter build apk --debug` 成功，以 adb 安裝至 `emulator-5554` 成功 |
