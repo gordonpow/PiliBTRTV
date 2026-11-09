@@ -1,14 +1,10 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/rendering.dart';
-import 'package:keframe/keframe.dart';
 import '../../services/api/live_api.dart';
-import '../../services/api/base_api.dart';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
-import '../../widgets/tv_live_card.dart';
 import '../../widgets/time_display.dart';
-import '../live/live_player_screen.dart';
+import 'live/live_room_grid.dart';
 
 class LiveTab extends StatefulWidget {
   final FocusNode sidebarFocusNode;
@@ -25,7 +21,10 @@ class LiveTab extends StatefulWidget {
 }
 
 class LiveTabState extends State<LiveTab> {
-  int _selectedCategoryIndex = 0;
+  static const int _followPageSize = 20;
+
+  // 已登入預設「關注」(0)，未登入預設「推薦直播」(1)
+  int _selectedCategoryIndex = AuthService.isLoggedIn ? 0 : 1;
   final ScrollController _scrollController = ScrollController();
   late List<_LiveCategory> _categories;
   late List<FocusNode> _categoryFocusNodes;
@@ -35,26 +34,23 @@ class LiveTabState extends State<LiveTab> {
   final Map<int, bool> _categoryLoading = {};
   final Map<int, int> _categoryPage = {};
 
-  // Focus Nodes for Grid Items
-  final Map<int, FocusNode> _roomFocusNodes = {};
-
   bool _isRefreshing = false;
+
+  // 關注分類：分頁停止與去重
+  bool _followHasMore = true;
+  final Set<dynamic> _followRoomIds = {};
 
   @override
   void initState() {
     super.initState();
     _initCategories();
     _categoryFocusNodes = List.generate(_categories.length, (_) => FocusNode());
-    _loadDataForCategory(0);
+    _loadDataForCategory(_selectedCategoryIndex);
   }
 
   void _initCategories() {
     _categories = [
-      _LiveCategory(
-        id: 'following',
-        label: '我的關注',
-        type: _LiveCategoryType.following,
-      ),
+      _LiveCategory(id: 'follow', label: '關注', type: _LiveCategoryType.follow),
       _LiveCategory(
         id: 'recommend',
         label: '推薦直播',
@@ -87,14 +83,7 @@ class LiveTabState extends State<LiveTab> {
     for (var node in _categoryFocusNodes) {
       node.dispose();
     }
-    for (var node in _roomFocusNodes.values) {
-      node.dispose();
-    }
     super.dispose();
-  }
-
-  FocusNode _getFocusNode(int index) {
-    return _roomFocusNodes.putIfAbsent(index, () => FocusNode());
   }
 
   /// Exposed method for sidebar navigation
@@ -114,6 +103,11 @@ class LiveTabState extends State<LiveTab> {
     final category = _categories[index];
     final currentPage = _categoryPage[index] ?? 1;
 
+    if (category.type == _LiveCategoryType.follow) {
+      await _loadFollow(index, refresh: refresh, page: currentPage);
+      return;
+    }
+
     if (refresh) {
       setState(() {
         _categoryLoading[index] = true;
@@ -129,18 +123,7 @@ class LiveTabState extends State<LiveTab> {
 
     try {
       List<dynamic> rooms = [];
-      if (category.type == _LiveCategoryType.following) {
-        if (AuthService.isLoggedIn) {
-          // Following list usually doesn't have deep pagination in this API context,
-          // but we follow standard pattern.
-          // Note: getFollowedLive filters internally, so page size might result in fewer items.
-          // We might need to fetch more pages if empty, but keep simple for now.
-          rooms = await LiveApi.getFollowedLive(
-            page: refresh ? 1 : currentPage,
-            pageSize: 20,
-          );
-        }
-      } else if (category.type == _LiveCategoryType.recommend) {
+      if (category.type == _LiveCategoryType.recommend) {
         rooms = await LiveApi.getRecommended(
           page: refresh ? 1 : currentPage,
           pageSize: 30,
@@ -177,8 +160,65 @@ class LiveTabState extends State<LiveTab> {
     }
   }
 
+  Future<void> _loadFollow(
+    int index, {
+    required bool refresh,
+    required int page,
+  }) async {
+    if (!AuthService.isLoggedIn) {
+      setState(() {
+        _categoryRooms[index] = [];
+        _followRoomIds.clear();
+        _followHasMore = false;
+        _categoryLoading[index] = false;
+        _isRefreshing = false;
+      });
+      return;
+    }
+    if (!refresh && !_followHasMore) return;
+
+    final reqPage = refresh ? 1 : page;
+    setState(() {
+      _categoryLoading[index] = true;
+      if (refresh) {
+        _categoryRooms[index] = [];
+        _categoryPage[index] = 1;
+        _followHasMore = true;
+        _followRoomIds.clear();
+        _isRefreshing = true;
+      }
+    });
+
+    List<dynamic> list = [];
+    try {
+      list = await LiveApi.getFollowedLive(
+        page: reqPage,
+        pageSize: _followPageSize,
+      );
+    } catch (_) {}
+    if (!mounted) return;
+
+    setState(() {
+      final fresh = <dynamic>[];
+      for (final room in list) {
+        final id = room is Map ? room['roomid'] : null;
+        if (id != null && !_followRoomIds.add(id)) continue;
+        fresh.add(room);
+      }
+      _categoryRooms[index] = [...(_categoryRooms[index] ?? []), ...fresh];
+      _categoryPage[index] = reqPage;
+      if (list.isEmpty || list.length < _followPageSize) _followHasMore = false;
+      _categoryLoading[index] = false;
+      _isRefreshing = false;
+    });
+  }
+
   void _loadMore() {
     if (_categoryLoading[_selectedCategoryIndex] == true) return;
+    if (_categories[_selectedCategoryIndex].type == _LiveCategoryType.follow &&
+        !_followHasMore) {
+      return;
+    }
 
     // Following list often returns all or has limited pages, avoid infinite loop if empty
     // But for now, simple increment
@@ -196,51 +236,28 @@ class LiveTabState extends State<LiveTab> {
     }
   }
 
-  void _navigateToRoom(dynamic room) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => LivePlayerScreen(
-          roomId: room['roomid'],
-          title: room['title'],
-          cover:
-              room['pic'] ??
-              room['room_cover'] ??
-              room['cover'] ??
-              room['user_cover'] ??
-              room['keyframe'],
-          uname: room['uname'],
-          face: room['face'],
-          online: BaseApi.toInt(room['online'] ?? room['text_small']),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (!widget.isVisible) return const SizedBox.shrink();
 
     final currentRooms = _categoryRooms[_selectedCategoryIndex] ?? [];
     final isLoading = _categoryLoading[_selectedCategoryIndex] ?? false;
-    // Special case for 'Following' when not logged in
-    final isFollowingTab =
-        _categories[_selectedCategoryIndex].type == _LiveCategoryType.following;
-    final showLoginText = isFollowingTab && !AuthService.isLoggedIn;
+    final isFollowCat =
+        _categories[_selectedCategoryIndex].type == _LiveCategoryType.follow;
 
     // 判斷是否是"啟動後的第一屏資料" (Simulated)
     final bool isInitialLoad =
         _categoryPage[_selectedCategoryIndex] == 1 &&
-        !_categoryLoading[_selectedCategoryIndex]!;
+        !(_categoryLoading[_selectedCategoryIndex] ?? false);
 
     return Stack(
       clipBehavior: Clip.none,
       children: [
         Positioned.fill(
           child: FocusTraversalGroup(
-            child: showLoginText
+            child: isFollowCat && !AuthService.isLoggedIn
                 ? const Center(
-                    child: Text("請先登入", style: TextStyle(color: Colors.white)),
+                    child: Text('請先登入', style: TextStyle(color: Colors.white)),
                   )
                 : isLoading && currentRooms.isEmpty
                 ? const Center(
@@ -257,114 +274,17 @@ class LiveTabState extends State<LiveTab> {
                       ),
                     ),
                   )
-                : SizeCacheWidget(
-                    child: CustomScrollView(
-                      controller: _scrollController,
-                      slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(30, 100, 30, 80),
-                          sliver: SliverGrid(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 4,
-                                  childAspectRatio: 320 / 280,
-                                  crossAxisSpacing: 20,
-                                  mainAxisSpacing: 30,
-                                ),
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              if (index == currentRooms.length - 4) {
-                                _loadMore();
-                              }
-
-                              final room = currentRooms[index];
-
-                              // 構建卡片
-                              Widget buildCard(BuildContext ctx) {
-                                return TvLiveCard(
-                                  room: room,
-                                  autofocus: isInitialLoad && index == 0,
-                                  focusNode: _getFocusNode(index),
-                                  onTap: () => _navigateToRoom(room),
-                                  onFocus: () {
-                                    if (!_scrollController.hasClients) {
-                                      return;
-                                    }
-                                    final RenderObject? object = ctx
-                                        .findRenderObject();
-                                    if (object != null && object is RenderBox) {
-                                      final viewport =
-                                          RenderAbstractViewport.of(object);
-                                      final offsetToReveal = viewport
-                                          .getOffsetToReveal(object, 0.0)
-                                          .offset;
-                                      final targetOffset =
-                                          (offsetToReveal - 120).clamp(
-                                            0.0,
-                                            _scrollController
-                                                .position
-                                                .maxScrollExtent,
-                                          );
-                                      if ((_scrollController.offset -
-                                                  targetOffset)
-                                              .abs() >
-                                          50) {
-                                        _scrollController.animateTo(
-                                          targetOffset,
-                                          duration: const Duration(
-                                            milliseconds: 500,
-                                          ),
-                                          curve: Curves.easeOutCubic,
-                                        );
-                                      }
-                                    }
-                                  },
-                                  onMoveLeft: (index % 4 == 0)
-                                      ? () => widget.sidebarFocusNode
-                                            .requestFocus()
-                                      : () => _getFocusNode(
-                                          index - 1,
-                                        ).requestFocus(),
-                                  onMoveRight: (index + 1 < currentRooms.length)
-                                      ? () => _getFocusNode(
-                                          index + 1,
-                                        ).requestFocus()
-                                      : null,
-                                  onMoveUp: index >= 4
-                                      ? () => _getFocusNode(
-                                          index - 4,
-                                        ).requestFocus()
-                                      : () =>
-                                            _categoryFocusNodes[_selectedCategoryIndex]
-                                                .requestFocus(),
-                                  onMoveDown: (index + 4 < currentRooms.length)
-                                      ? () => _getFocusNode(
-                                          index + 4,
-                                        ).requestFocus()
-                                      : null,
-                                );
-                              }
-
-                              // 只有重新整理時使用分幀渲染 (match HomeTab)
-                              if (_isRefreshing) {
-                                return FrameSeparateWidget(
-                                  index: index,
-                                  placeHolder: const SizedBox(
-                                    width: 30,
-                                    height: 30,
-                                  ),
-                                  child: Builder(builder: buildCard),
-                                );
-                              }
-
-                              return Builder(builder: buildCard);
-                            }, childCount: currentRooms.length),
-                          ),
-                        ),
-                      ],
-                    ),
+                : LiveRoomGrid(
+                    rooms: currentRooms,
+                    sidebarFocusNode: widget.sidebarFocusNode,
+                    scrollController: _scrollController,
+                    onLoadMore: _loadMore,
+                    topPadding: 100,
+                    autofocusFirst: isInitialLoad,
+                    isRefreshing: _isRefreshing,
+                    onMoveUpFromTop: () =>
+                        _categoryFocusNodes[_selectedCategoryIndex]
+                            .requestFocus(),
                   ),
           ),
         ),
@@ -383,7 +303,7 @@ class LiveTabState extends State<LiveTab> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: List.generate(_categories.length, (index) {
-                    return _LiveCategoryTab(
+                    final tab = _LiveCategoryTab(
                       label: _categories[index].label,
                       isSelected: _selectedCategoryIndex == index,
                       focusNode: _categoryFocusNodes[index],
@@ -399,6 +319,19 @@ class LiveTabState extends State<LiveTab> {
                           ? () => widget.sidebarFocusNode.requestFocus()
                           : null,
                     );
+                    if (index != 0) return tab;
+                    // 關注與推薦之間加直立分隔線
+                    return Row(
+                      children: [
+                        tab,
+                        Container(
+                          width: 2,
+                          height: 28,
+                          margin: const EdgeInsets.only(right: 20),
+                          color: Colors.white38,
+                        ),
+                      ],
+                    );
                   }),
                 ),
               ),
@@ -412,7 +345,7 @@ class LiveTabState extends State<LiveTab> {
   }
 }
 
-enum _LiveCategoryType { following, recommend, partition }
+enum _LiveCategoryType { follow, recommend, partition }
 
 class _LiveCategory {
   final String id;

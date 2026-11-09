@@ -85,7 +85,6 @@ class _StorageSettingsState extends State<StorageSettings> {
           label: '清除圖片快取',
           value: '${_cacheSizeMB.toStringAsFixed(1)} MB',
           buttonLabel: _isClearing ? '清除中...' : '清除',
-          autofocus: true,
           focusNode: _buttonFocusNode,
           isFirst: true,
           isLast: true,

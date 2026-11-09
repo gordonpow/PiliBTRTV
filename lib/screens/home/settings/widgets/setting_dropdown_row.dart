@@ -1,10 +1,11 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
+import 'setting_focus_target.dart';
 
 /// 設定頁下拉選擇行元件
 ///
 /// 使用統一的焦點管理系統，支援左右鍵切換選項
-class SettingDropdownRow<T> extends StatelessWidget {
+class SettingDropdownRow<T> extends StatefulWidget {
   final String label;
   final String? subtitle;
   final T value;
@@ -14,6 +15,7 @@ class SettingDropdownRow<T> extends StatelessWidget {
   final VoidCallback? onMoveUp;
   final VoidCallback? onMoveDown;
   final FocusNode? sidebarFocusNode;
+  final FocusNode? focusNode;
   final bool isFirst;
   final bool isLast;
 
@@ -28,41 +30,64 @@ class SettingDropdownRow<T> extends StatelessWidget {
     this.onMoveUp,
     this.onMoveDown,
     this.sidebarFocusNode,
+    this.focusNode,
     this.isFirst = false,
     this.isLast = false,
   });
 
+  @override
+  State<SettingDropdownRow<T>> createState() => _SettingDropdownRowState<T>();
+}
+
+class _SettingDropdownRowState<T> extends State<SettingDropdownRow<T>>
+    with SettingFocusTargetMixin<SettingDropdownRow<T>> {
+  FocusNode? _ownNode;
+
+  @override
+  String get focusTargetLabel => widget.label;
+
+  @override
+  FocusNode get focusTargetNode =>
+      widget.focusNode ?? (_ownNode ??= FocusNode());
+
+  @override
+  void dispose() {
+    _ownNode?.dispose();
+    super.dispose();
+  }
+
   void _nextValue() {
-    final currentIndex = items.indexOf(value);
-    final nextIndex = (currentIndex + 1) % items.length;
-    onChanged(items[nextIndex]);
+    final currentIndex = widget.items.indexOf(widget.value);
+    final nextIndex = (currentIndex + 1) % widget.items.length;
+    widget.onChanged(widget.items[nextIndex]);
   }
 
   @override
   Widget build(BuildContext context) {
     return Focus(
+      focusNode: focusTargetNode,
       onKeyEvent: (node, event) {
         // 處理左右鍵導航和值切換
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
         switch (event.logicalKey) {
           case LogicalKeyboardKey.arrowLeft:
-            sidebarFocusNode?.requestFocus();
+            widget.sidebarFocusNode?.requestFocus();
             return KeyEventResult.handled;
 
           case LogicalKeyboardKey.arrowUp:
-            if (isFirst && onMoveUp != null) {
-              onMoveUp!();
+            if (widget.isFirst && widget.onMoveUp != null) {
+              widget.onMoveUp!();
               return KeyEventResult.handled;
             }
-            return isFirst ? KeyEventResult.handled : KeyEventResult.ignored;
+            return widget.isFirst ? KeyEventResult.handled : KeyEventResult.ignored;
 
           case LogicalKeyboardKey.arrowDown:
-            if (isLast && onMoveDown != null) {
-              onMoveDown!();
+            if (widget.isLast && widget.onMoveDown != null) {
+              widget.onMoveDown!();
               return KeyEventResult.handled;
             }
-            return isLast ? KeyEventResult.handled : KeyEventResult.ignored;
+            return widget.isLast ? KeyEventResult.handled : KeyEventResult.ignored;
 
           case LogicalKeyboardKey.arrowRight:
           case LogicalKeyboardKey.enter:
@@ -95,17 +120,17 @@ class SettingDropdownRow<T> extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        label,
+                        widget.label,
                         style: TextStyle(
                           color: isFocused ? Colors.white : Colors.white70,
                           fontSize: 16,
                         ),
                       ),
-                      if (subtitle != null)
+                      if (widget.subtitle != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
-                            subtitle!,
+                            widget.subtitle!,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 12,
@@ -130,7 +155,7 @@ class SettingDropdownRow<T> extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        itemLabel(value),
+                        widget.itemLabel(widget.value),
                         style: TextStyle(
                           color: isFocused ? Colors.white : Colors.white70,
                           fontSize: 14,

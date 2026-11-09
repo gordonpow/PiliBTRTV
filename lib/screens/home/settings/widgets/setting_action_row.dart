@@ -1,10 +1,11 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../../../../core/focus/focus_navigation.dart';
+import 'setting_focus_target.dart';
 
 /// 設定頁操作按鈕行元件
 ///
 /// 使用統一的焦點管理系統
-class SettingActionRow extends StatelessWidget {
+class SettingActionRow extends StatefulWidget {
   final String label;
   final String value;
   final String buttonLabel;
@@ -37,17 +38,38 @@ class SettingActionRow extends StatelessWidget {
   });
 
   @override
+  State<SettingActionRow> createState() => _SettingActionRowState();
+}
+
+class _SettingActionRowState extends State<SettingActionRow>
+    with SettingFocusTargetMixin<SettingActionRow> {
+  FocusNode? _ownNode;
+
+  @override
+  String get focusTargetLabel => widget.label;
+
+  @override
+  FocusNode get focusTargetNode =>
+      widget.focusNode ?? (_ownNode ??= FocusNode());
+
+  @override
+  void dispose() {
+    _ownNode?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TvFocusScope(
       pattern: FocusPattern.vertical,
-      focusNode: focusNode,
-      autofocus: autofocus,
-      exitLeft: sidebarFocusNode,
-      onExitUp: isFirst ? onMoveUp : null,
-      onExitDown: isLast ? onMoveDown : null,
-      isFirst: isFirst,
-      isLast: isLast,
-      onSelect: onTap,
+      focusNode: focusTargetNode,
+      autofocus: widget.autofocus,
+      exitLeft: widget.sidebarFocusNode,
+      onExitUp: widget.isFirst ? widget.onMoveUp : null,
+      onExitDown: widget.isLast ? widget.onMoveDown : null,
+      isFirst: widget.isFirst,
+      isLast: widget.isLast,
+      onSelect: widget.onTap,
       child: Builder(
         builder: (context) {
           final isFocused = Focus.of(context).hasFocus;
@@ -69,26 +91,26 @@ class SettingActionRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        label,
+                        widget.label,
                         style: TextStyle(
                           color: isFocused ? Colors.white : Colors.white70,
                           fontSize: 16,
                         ),
                       ),
-                      if (value.isNotEmpty)
+                      if (widget.value.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                value,
+                                widget.value,
                                 style: const TextStyle(
                                   color: Colors.white38,
                                   fontSize: 12,
                                 ),
                               ),
-                              if (showDot) ...[
+                              if (widget.showDot) ...[
                                 const SizedBox(width: 6),
                                 Container(
                                   width: 8,
@@ -117,7 +139,7 @@ class SettingActionRow extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    buttonLabel,
+                    widget.buttonLabel,
                     style: TextStyle(
                       color: isFocused ? Colors.white : Colors.white70,
                       fontSize: 14,

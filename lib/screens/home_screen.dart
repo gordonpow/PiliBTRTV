@@ -7,7 +7,8 @@ import 'home/home_tab.dart';
 import 'home/history_tab.dart';
 import 'home/search_tab.dart';
 import 'home/search/search_keyboard_view.dart' show SearchImeBackGuard;
-import 'home/login_tab.dart';
+import 'home/profile/profile_tab.dart';
+import 'home/settings/settings_view.dart';
 import 'home/dynamic_tab.dart';
 import 'home/live_tab.dart';
 import '../widgets/tv_focusable_item.dart';
@@ -32,14 +33,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DateTime? _lastBackPressed;
   DateTime? _backFromSearchHandled; // 防止搜尋鍵盤返回鍵重複處理
 
-  // Tab 順序: 搜尋、首頁、動態、歷史、直播、登入
+  // Tab 順序: 搜尋、首頁、動態、直播、歷史、個人、設定
   final List<String> _tabIcons = [
     'assets/icons/search.svg',
     'assets/icons/home.svg',
     'assets/icons/dynamic.svg',
+    'assets/icons/live.svg',
     'assets/icons/history.svg',
-    'assets/icons/live.svg', // 新增直播圖示
     'assets/icons/user.svg',
+    'assets/icons/settings.svg',
   ];
 
   late List<FocusNode> _sideBarFocusNodes;
@@ -53,9 +55,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       GlobalKey<DynamicTabState>();
   final GlobalKey<HistoryTabState> _historyTabKey =
       GlobalKey<HistoryTabState>();
-  final GlobalKey<LoginTabState> _loginTabKey = GlobalKey<LoginTabState>();
-  // 直播 Tab
+  // 直播、個人、設定 Tab
   final GlobalKey<LiveTabState> _liveTabKey = GlobalKey<LiveTabState>();
+  final GlobalKey<ProfileTabState> _profileTabKey =
+      GlobalKey<ProfileTabState>();
+  final GlobalKey<SettingsViewState> _settingsKey =
+      GlobalKey<SettingsViewState>();
 
   @override
   void initState() {
@@ -161,9 +166,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else if (index == 2) {
         _dynamicTabKey.currentState?.refresh();
       } else if (index == 3) {
-        _historyTabKey.currentState?.refresh();
-      } else if (index == 4) {
         _liveTabKey.currentState?.refresh();
+      } else if (index == 4) {
+        _historyTabKey.currentState?.refresh();
+      } else if (index == 5) {
+        _profileTabKey.currentState?.refresh();
       }
       return;
     }
@@ -175,9 +182,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (index == 2) {
       _dynamicTabKey.currentState?.refresh();
     } else if (index == 3) {
-      _historyTabKey.currentState?.refresh();
-    } else if (index == 4) {
       _liveTabKey.currentState?.refresh();
+    } else if (index == 4) {
+      _historyTabKey.currentState?.refresh();
     }
   }
 
@@ -188,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _dynamicTabKey.currentState?.refresh();
     _historyTabKey.currentState?.refresh();
     _liveTabKey.currentState?.refresh();
+    _profileTabKey.currentState?.refresh();
   }
 
   @override
@@ -198,7 +206,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (didPop) return;
 
         // 搜尋的系統鍵盤（IME）開啟或剛關閉：返回鍵只用來關閉鍵盤
-        if (_selectedTabIndex == 0 && SearchImeBackGuard.shouldSwallowBack()) {
+        if ((_selectedTabIndex == 0 || _selectedTabIndex == 6) &&
+            SearchImeBackGuard.shouldSwallowBack()) {
           return;
         }
 
@@ -223,13 +232,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
 
         if (_selectedTabIndex == 5 &&
-            (_loginTabKey.currentState?.handleBack() ?? false)) {
-          // 登入畫面 → 回設定頁
+            (_profileTabKey.currentState?.handleBack() ?? false)) {
+          // 登入畫面 → 回個人頁
+          return;
+        }
+
+        if (_selectedTabIndex == 6 &&
+            (_settingsKey.currentState?.handleBack() ?? false)) {
+          // 設定搜尋 → 回設定分類
           return;
         }
 
         if (_selectedTabIndex != 1) {
-          // 其他標籤（歷史、直播、登入）按返回鍵都回到主頁
+          // 其他標籤（動態、直播、歷史、個人、設定）按返回鍵都回到主頁
           setState(() => _selectedTabIndex = 1);
           _sideBarFocusNodes[1].requestFocus();
           return;
@@ -263,64 +278,77 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Expanded(
               flex: 8,
               child: Container(
+                // 撐滿整個高度：側邊欄外包 SingleChildScrollView 後，
+                // 背景色只會跟內容一樣高，底部會露出主畫面底色
+                height: double.infinity,
                 color: const Color(0xFF1E1E1E),
                 padding: const EdgeInsets.only(top: 40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: List.generate(_tabIcons.length, (index) {
-                    final isUserTab = index == 5; // User tab is now at index 5
-                    final avatarUrl = isUserTab && AuthService.isLoggedIn
-                        ? AuthService.face
-                        : null;
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: List.generate(_tabIcons.length, (index) {
+                      final isUserTab = index == 5; // 個人頁（頭像）
+                      final isSettingsTab = index == 6;
+                      final avatarUrl = isUserTab && AuthService.isLoggedIn
+                          ? AuthService.face
+                          : null;
 
-                    final item = TvFocusableItem(
-                      iconPath: _tabIcons[index],
-                      avatarUrl: avatarUrl,
-                      isSelected: _selectedTabIndex == index,
-                      focusNode: _sideBarFocusNodes[index],
-                      onFocus: () {
-                        // 焦點移動時只切換標籤頁，不重新整理任何內容
-                        setState(() => _selectedTabIndex = index);
-                      },
-                      onTap: () => _handleSideBarTap(index), // 按確定鍵才重新整理
-                      // 使用者標籤按右鍵導航到設定分類標籤
-                      onMoveRight: index == 4
-                          ? () {
-                              _liveTabKey.currentState?.focusFirstItem();
-                            }
-                          : isUserTab
-                          ? () =>
-                                _loginTabKey.currentState?.focusFirstCategory()
-                          : null,
-                    );
-                    if (!isUserTab) return item;
-                    // 設定入口：有新版本時顯示紅點
-                    return Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        item,
-                        Positioned(
-                          top: 8,
-                          right: 10,
-                          child: IgnorePointer(
-                            child: ValueListenableBuilder<UpdateInfo?>(
-                              valueListenable: UpdateService.available,
-                              builder: (_, info, _) => info == null
-                                  ? const SizedBox.shrink()
-                                  : Container(
-                                      width: 10,
-                                      height: 10,
-                                      decoration: const BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
+                      final item = TvFocusableItem(
+                        iconPath: _tabIcons[index],
+                        avatarUrl: avatarUrl,
+                        isSelected: _selectedTabIndex == index,
+                        focusNode: _sideBarFocusNodes[index],
+                        onFocus: () {
+                          // 焦點移動時只切換標籤頁；歷史分頁另外在背景靜默更新，
+                          // 才看得到剛看過的影片（不清空列表、不搶焦點）
+                          setState(() => _selectedTabIndex = index);
+                          if (index == 4) {
+                            _historyTabKey.currentState?.refreshSilently();
+                          }
+                        },
+                        onTap: () => _handleSideBarTap(index), // 按確定鍵才重新整理
+                        // 使用者標籤按右鍵導航到設定分類標籤
+                        onMoveRight: index == 3
+                            ? () {
+                                _liveTabKey.currentState?.focusFirstItem();
+                              }
+                            : isUserTab
+                            ? () =>
+                                  _profileTabKey.currentState?.focusFirstItem()
+                            : isSettingsTab
+                            ? () => _settingsKey.currentState
+                                  ?.focusFirstCategory()
+                            : null,
+                      );
+                      if (!isSettingsTab) return item;
+                      // 設定入口：有新版本時顯示紅點
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          item,
+                          Positioned(
+                            top: 8,
+                            right: 10,
+                            child: IgnorePointer(
+                              child: ValueListenableBuilder<UpdateInfo?>(
+                                valueListenable: UpdateService.available,
+                                builder: (_, info, _) => info == null
+                                    ? const SizedBox.shrink()
+                                    : Container(
+                                        width: 10,
+                                        height: 10,
+                                        decoration: const BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                        ),
                                       ),
-                                    ),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    );
-                  }),
+                        ],
+                      );
+                    }),
+                  ),
                 ),
               ),
             ),
@@ -360,23 +388,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           sidebarFocusNode: _sideBarFocusNodes[2],
           isVisible: _selectedTabIndex == 2,
         ),
-        // 3: 歷史
-        HistoryTab(
-          key: _historyTabKey,
+        // 3: 直播
+        LiveTab(
+          key: _liveTabKey,
           sidebarFocusNode: _sideBarFocusNodes[3],
           isVisible: _selectedTabIndex == 3,
         ),
-        // 4: 直播
-        LiveTab(
-          key: _liveTabKey,
+        // 4: 歷史
+        HistoryTab(
+          key: _historyTabKey,
           sidebarFocusNode: _sideBarFocusNodes[4],
           isVisible: _selectedTabIndex == 4,
         ),
-        // 5: 登入/使用者
-        LoginTab(
-          key: _loginTabKey,
+        // 5: 個人
+        ProfileTab(
+          key: _profileTabKey,
           sidebarFocusNode: _sideBarFocusNodes[5],
+          isVisible: _selectedTabIndex == 5,
           onLoginSuccess: _refreshCurrentTab,
+          onLogout: () async {
+            await AuthService.logout();
+            if (!mounted) return;
+            _refreshCurrentTab();
+            setState(() {});
+          },
+        ),
+        // 6: 設定
+        SettingsView(
+          key: _settingsKey,
+          sidebarFocusNode: _sideBarFocusNodes[6],
         ),
       ],
     );

@@ -5,6 +5,7 @@ import '../../../../core/focus/focus_navigation.dart';
 import '../widgets/setting_toggle_row.dart';
 import '../widgets/setting_dropdown_row.dart';
 import '../../../../utils/app_restart.dart';
+import '../../../../services/card_preview_service.dart';
 
 class InterfaceSettings extends StatefulWidget {
   final VoidCallback onMoveUp;
@@ -110,7 +111,6 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           label: '啟動動畫',
           subtitle: '啟動應用時顯示動畫，關閉則直接進入主頁',
           value: SettingsService.splashAnimationEnabled,
-          autofocus: true,
           isFirst: true, // 第一項，向上返回分類標籤
           onMoveUp: widget.onMoveUp,
           sidebarFocusNode: widget.sidebarFocusNode,
@@ -130,6 +130,21 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (value) async {
             await SettingsService.setAlwaysShowPlayerTime(value);
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 16),
+        // 影片卡片預覽開關
+        SettingToggleRow(
+          label: '影片卡片預覽',
+          subtitle: '游標停在影片卡片上 1 秒，靜音預覽 10 秒',
+          value: SettingsService.cardPreview,
+          autofocus: false,
+          onMoveUp: null,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (value) async {
+            await SettingsService.setCardPreview(value);
+            if (!value) CardPreviewService.instance.stopAll();
             setState(() {});
           },
         ),

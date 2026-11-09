@@ -1,10 +1,11 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../../../../core/focus/focus_navigation.dart';
+import 'setting_focus_target.dart';
 
 /// 設定頁開關行元件
 ///
 /// 使用統一的焦點管理系統
-class SettingToggleRow extends StatelessWidget {
+class SettingToggleRow extends StatefulWidget {
   final String label;
   final String? subtitle;
   final bool value;
@@ -33,17 +34,38 @@ class SettingToggleRow extends StatelessWidget {
   });
 
   @override
+  State<SettingToggleRow> createState() => _SettingToggleRowState();
+}
+
+class _SettingToggleRowState extends State<SettingToggleRow>
+    with SettingFocusTargetMixin<SettingToggleRow> {
+  FocusNode? _ownNode;
+
+  @override
+  String get focusTargetLabel => widget.label;
+
+  @override
+  FocusNode get focusTargetNode =>
+      widget.focusNode ?? (_ownNode ??= FocusNode());
+
+  @override
+  void dispose() {
+    _ownNode?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TvFocusScope(
       pattern: FocusPattern.vertical,
-      focusNode: focusNode,
-      autofocus: autofocus,
-      exitLeft: sidebarFocusNode,
-      onExitUp: isFirst ? onMoveUp : null,
-      onExitDown: isLast ? onMoveDown : null,
-      isFirst: isFirst,
-      isLast: isLast,
-      onSelect: () => onChanged(!value),
+      focusNode: focusTargetNode,
+      autofocus: widget.autofocus,
+      exitLeft: widget.sidebarFocusNode,
+      onExitUp: widget.isFirst ? widget.onMoveUp : null,
+      onExitDown: widget.isLast ? widget.onMoveDown : null,
+      isFirst: widget.isFirst,
+      isLast: widget.isLast,
+      onSelect: () => widget.onChanged(!widget.value),
       child: Builder(
         builder: (context) {
           final isFocused = Focus.of(context).hasFocus;
@@ -65,17 +87,17 @@ class SettingToggleRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        label,
+                        widget.label,
                         style: TextStyle(
                           color: isFocused ? Colors.white : Colors.white70,
                           fontSize: 16,
                         ),
                       ),
-                      if (subtitle != null)
+                      if (widget.subtitle != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
-                            subtitle!,
+                            widget.subtitle!,
                             style: const TextStyle(
                               color: Colors.white38,
                               fontSize: 12,
@@ -85,18 +107,20 @@ class SettingToggleRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                Switch(
-                  value: value,
-                  onChanged: onChanged,
-                  activeTrackColor: const Color(
-                    0xFFfb7299,
-                  ).withValues(alpha: 0.5),
-                  thumbColor: WidgetStateProperty.resolveWith((states) {
-                    if (states.contains(WidgetState.selected)) {
-                      return const Color(0xFFfb7299);
-                    }
-                    return Colors.grey;
-                  }),
+                ExcludeFocus(
+                  child: Switch(
+                    value: widget.value,
+                    onChanged: widget.onChanged,
+                    activeTrackColor: const Color(
+                      0xFFfb7299,
+                    ).withValues(alpha: 0.5),
+                    thumbColor: WidgetStateProperty.resolveWith((states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return const Color(0xFFfb7299);
+                      }
+                      return Colors.grey;
+                    }),
+                  ),
                 ),
               ],
             ),

@@ -7,46 +7,45 @@ import '../auth_service.dart';
 
 /// 認證相關 API
 class AuthApi {
-  /// 獲取使用者資訊 (頭像、暱稱等)
-  static Future<void> fetchAndSaveUserInfo() async {
-    if (!AuthService.isLoggedIn) return;
-
+  /// 呼叫 /x/web-interface/nav（cookie），成功回傳 data，失敗回傳 null。
+  /// 個人頁與 [fetchAndSaveUserInfo] 共用，避免各自解析。
+  static Future<Map<String, dynamic>?> fetchNavData() async {
+    if (!AuthService.isLoggedIn) return null;
     try {
       final response = await http.get(
         Uri.parse('${BaseApi.apiBase}/x/web-interface/nav'),
         headers: BaseApi.getHeaders(withCookie: true),
       );
-
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
-        if (json['code'] == 0 && json['data'] != null) {
-          final data = json['data'];
-          final face = data['face'] as String? ?? '';
-          final uname = data['uname'] as String? ?? '';
-
-          // 解析 VIP 狀態
-          // vipStatus: 0=無, 1=大會員
-          // vipType: 0=無, 1=月度, 2=年度及以上
-          final vipData = data['vip'];
-          final isVip = (vipData != null && (vipData['status'] == 1));
-
-          if (face.isNotEmpty) {
-            await AuthService.saveUserInfo(
-              face: face,
-              uname: uname,
-              isVip: isVip,
-            );
-          }
-        } else {
-          debugPrint(
-            'TvLogin: 取得使用者資訊失敗 code=${json['code']} message=${json['message']}',
-          );
+        if (json['code'] == 0 && json['data'] is Map) {
+          return Map<String, dynamic>.from(json['data'] as Map);
         }
+        debugPrint(
+          'TvLogin: 取得使用者資訊失敗 code=${json['code']} message=${json['message']}',
+        );
       } else {
         debugPrint('TvLogin: 取得使用者資訊失敗 HTTP ${response.statusCode}');
       }
     } catch (e) {
       debugPrint('TvLogin: 取得使用者資訊例外 ${e.runtimeType}');
+    }
+    return null;
+  }
+
+  /// 獲取使用者資訊 (頭像、暱稱等)
+  static Future<void> fetchAndSaveUserInfo() async {
+    final data = await fetchNavData();
+    if (data == null) return;
+    final face = data['face'] as String? ?? '';
+    final uname = data['uname'] as String? ?? '';
+
+    // vip.status: 0=無, 1=大會員
+    final vipData = data['vip'];
+    final isVip = (vipData != null && (vipData['status'] == 1));
+
+    if (face.isNotEmpty) {
+      await AuthService.saveUserInfo(face: face, uname: uname, isVip: isVip);
     }
   }
 
@@ -130,9 +129,7 @@ class AuthApi {
           case 86038:
             return {'status': 'expired'};
           default:
-            debugPrint(
-              'TvLogin: 輪詢結果 code=$code message=${json['message']}',
-            );
+            debugPrint('TvLogin: 輪詢結果 code=$code message=${json['message']}');
             return {
               'status': 'error',
               'code': code,

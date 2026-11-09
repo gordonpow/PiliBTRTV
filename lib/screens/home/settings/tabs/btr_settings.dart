@@ -80,7 +80,6 @@ class _BtrSettingsState extends State<BtrSettings> {
           label: '播放加速',
           subtitle: '播放時從多個 CDN 節點並行下載，減少卡頓',
           value: BtrConfig.playback,
-          autofocus: true,
           isFirst: true,
           onMoveUp: widget.onMoveUp,
           sidebarFocusNode: widget.sidebarFocusNode,
@@ -195,7 +194,9 @@ class _CustomCdnDialogState extends State<_CustomCdnDialog> {
           keyboardType: TextInputType.multiline,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
-            hintText: ZhConvert.convert('每行一個，例如\nupos-sz-mirrorali.bilivideo.com'),
+            hintText: ZhConvert.convert(
+              '每行一個，例如\nupos-sz-mirrorali.bilivideo.com',
+            ),
             helperText: ZhConvert.convert('最多 32 個，原始位址會一併使用'),
             hintStyle: TextStyle(color: Colors.white38),
             helperStyle: TextStyle(color: Colors.white54),
