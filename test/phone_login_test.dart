@@ -59,6 +59,53 @@ void main() {
       s.stop();
     });
 
+    test('extendOnFirstOpen 延長到建立後 45 分鐘', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final s = PhoneLoginService.forTest(clock: () => now);
+      final token = Uri.parse(s.start()!).queryParameters['t']!;
+      now = now.add(const Duration(minutes: 10));
+      s.extendOnFirstOpen();
+      now = now.add(const Duration(minutes: 20)); // 建立後 30 分鐘
+      expect(s.checkToken(token), isTrue);
+      now = now.add(const Duration(minutes: 14)); // 建立後 44 分鐘
+      expect(s.checkToken(token), isTrue);
+      s.stop();
+    });
+
+    test('extendOnFirstOpen 呼叫兩次不會再延長', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final s = PhoneLoginService.forTest(clock: () => now);
+      final token = Uri.parse(s.start()!).queryParameters['t']!;
+      now = now.add(const Duration(minutes: 10));
+      s.extendOnFirstOpen();
+      now = now.add(const Duration(minutes: 30));
+      s.extendOnFirstOpen();
+      now = now.add(const Duration(minutes: 6)); // 建立後 46 分鐘
+      expect(s.checkToken(token), isFalse);
+      s.stop();
+    });
+
+    test('checkTokenQuiet 錯誤 15 次不會使有效代碼失效', () {
+      final s = PhoneLoginService.forTest();
+      final token = Uri.parse(s.start()!).queryParameters['t']!;
+      for (var i = 0; i < 15; i++) {
+        expect(s.checkTokenQuiet('bad'), isFalse);
+      }
+      expect(s.checkTokenQuiet(token), isTrue);
+      expect(s.checkToken(token), isTrue);
+      s.stop();
+    });
+
+    test('延長後 45 分鐘到期', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final s = PhoneLoginService.forTest(clock: () => now);
+      final token = Uri.parse(s.start()!).queryParameters['t']!;
+      s.extendOnFirstOpen();
+      now = now.add(const Duration(minutes: 45));
+      expect(s.checkToken(token), isFalse);
+      s.stop();
+    });
+
     test('no address gives null url', () {
       final s = PhoneLoginService.forTest(addressProvider: () => null);
       expect(s.start(), isNull);

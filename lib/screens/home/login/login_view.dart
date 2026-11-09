@@ -2,11 +2,15 @@ import 'dart:async';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import '../../../services/api/auth_api.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/local_server.dart';
 import '../../../services/phone_login_service.dart';
 import '../../../widgets/error_report_dialog.dart';
+
+/// 左側 QR 登入模式：TV 掃碼或網頁版掃碼
+enum _LoginQrMode { tv, web }
 
 class LoginView extends StatefulWidget {
   final FocusNode? sidebarFocusNode;
@@ -19,11 +23,35 @@ class LoginView extends StatefulWidget {
 }
 
 class LoginViewState extends State<LoginView> {
-  /// 預設按鈕（回報問題或重新產生 QR Code）的焦點，供側邊欄按右鍵時進入
-  final FocusNode _defaultButtonFocus = FocusNode(debugLabel: 'loginDefault');
+  /// 底部按鈕列各按鈕的焦點
+  final FocusNode _regenFocus = FocusNode(debugLabel: 'loginRegen');
+  final FocusNode _switchFocus = FocusNode(debugLabel: 'loginSwitch');
+  final FocusNode _refreshFocus = FocusNode(debugLabel: 'loginRefresh');
+  final FocusNode _reportFocus = FocusNode(debugLabel: 'loginReport');
+
+  /// 預設按鈕：QR 失敗（非 48007）→ 重新產生；48007 → 切換；其餘 → 回報問題
+  FocusNode _defaultFocusNode(bool qrFailed) {
+    if (_is48007) return _switchFocus;
+    if (qrFailed) return _regenFocus;
+    return _reportFocus;
+  }
 
   /// 從側邊欄導航進來時，把焦點移到預設按鈕
-  void focusDefault() => _defaultButtonFocus.requestFocus();
+  void focusDefault() {
+    final qrFailed = _status == 'expired' || _status == 'error';
+    _defaultFocusNode(qrFailed).requestFocus();
+  }
+
+  _LoginQrMode _mode = _LoginQrMode.tv;
+
+  /// 網頁版掃碼的 qrcode_key（TV 模式用 _authCode）
+  String? _webQrKey;
+
+  /// TV 掃碼輪詢回 48007（帳號不支援 TV 掃碼）
+  bool _is48007 = false;
+
+  /// QR 產生世代：切換模式、重產、登入成功時遞增，丟棄過期的非同步回應
+  int _qrGen = 0;
 
   String? _qrUrl;
   String? _authCode;
@@ -55,7 +83,10 @@ class LoginViewState extends State<LoginView> {
     _pollTimer?.cancel();
     _phone.loggedIn.removeListener(_onPhoneLoggedIn);
     _phone.stop();
-    _defaultButtonFocus.dispose();
+    _regenFocus.dispose();
+    _switchFocus.dispose();
+    _refreshFocus.dispose();
+    _reportFocus.dispose();
     super.dispose();
   }
 
@@ -91,20 +122,39 @@ class LoginViewState extends State<LoginView> {
     widget.onLoginSuccess?.call();
   }
 
-  Future<void> _generateQrCode() async {
-    setState(() => _status = 'loading');
-    final result = await BilibiliApi.generateTvQrCode();
-    if (!mounted) return;
+  bool get _isWeb => _mode == _LoginQrMode.web;
 
-    if (result != null && (result['auth_code'] ?? '').isNotEmpty) {
+  Future<void> _generateQrCode() async {
+    final gen = ++_qrGen;
+    final web = _isWeb;
+    setState(() {
+      _status = 'loading';
+      _is48007 = false;
+    });
+    final result = web
+        ? await BilibiliApi.generateWebQrCode()
+        : await BilibiliApi.generateTvQrCode();
+    if (gen != _qrGen || !mounted || _loginHandled) return;
+
+    final key = result == null
+        ? null
+        : (web ? result['qrcode_key'] : result['auth_code']);
+    if (result != null && (key ?? '').isNotEmpty) {
       setState(() {
         _qrUrl = result['url'];
-        _authCode = result['auth_code'];
+        if (web) {
+          _webQrKey = key;
+        } else {
+          _authCode = key;
+        }
         _status = 'waiting';
       });
-      _startPolling();
+      if (web) debugPrint('WebLogin: QR Code 產生成功');
+      _startPolling(gen);
     } else {
-      debugPrint('TvLogin: QR Code 產生失敗（詳見 AuthApi 記錄）');
+      debugPrint(
+        web ? 'WebLogin: QR Code 產生失敗' : 'TvLogin: QR Code 產生失敗（詳見 AuthApi 記錄）',
+      );
       setState(() {
         _errorText = '載入失敗，請重試';
         _status = 'error';
@@ -117,41 +167,73 @@ class LoginViewState extends State<LoginView> {
     _generateQrCode();
   }
 
-  void _startPolling() {
+  /// 切換 TV／網頁版掃碼
+  void _switchMode() {
     _pollTimer?.cancel();
+    _expiredCount = 0;
+    _qrGen++;
+    setState(() {
+      _mode = _isWeb ? _LoginQrMode.tv : _LoginQrMode.web;
+      _is48007 = false;
+      _qrUrl = null;
+    });
+    _generateQrCode();
+  }
+
+  /// 狀態改變時才更新（網頁版同時寫 log）
+  void _setStatus(String next) {
+    if (_isWeb && _status != next) {
+      debugPrint('WebLogin: 狀態 $_status→$next');
+    }
+    setState(() => _status = next);
+  }
+
+  void _startPolling(int gen) {
+    _pollTimer?.cancel();
+    final web = _isWeb;
     _pollTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
-      if (_authCode == null) {
+      final key = web ? _webQrKey : _authCode;
+      if (key == null) {
         timer.cancel();
         return;
       }
-      final result = await BilibiliApi.pollTvLogin(_authCode!);
+      final result = web
+          ? await BilibiliApi.pollWebQrLogin(key)
+          : await BilibiliApi.pollTvLogin(key);
       final status = result['status'] as String?;
 
-      if (!mounted || _loginHandled) {
+      if (gen != _qrGen || !mounted || _loginHandled) {
+        // 此計時器已過期（世代已換）或頁面已結束，直接停掉
         timer.cancel();
         return;
       }
 
       switch (status) {
         case 'success':
+          // 先停輪詢並遞增世代，避免後續 await 期間重疊回應覆蓋成功狀態
           timer.cancel();
-          debugPrint(
-            'TvLogin: 掃碼成功，儲存憑證 mid有效=${((result['mid'] as int?) ?? 0) != 0} '
-            'hasCookie=${result['cookie_info'] != null}',
-          );
-          // 儲存登入憑證
-          await AuthService.saveLoginCredentials(
-            accessToken: result['access_token'] ?? '',
-            refreshToken: result['refresh_token'] ?? '',
-            mid: (result['mid'] as int?) ?? 0,
-            cookieInfo: result['cookie_info'],
-          );
-          // 獲取使用者資訊並通知成功
-          await _completeLogin();
+          _qrGen++;
+          if (web) {
+            await _finishWebLogin(
+              Map<String, String>.from(result['cookies'] as Map),
+            );
+          } else {
+            debugPrint(
+              'TvLogin: 掃碼成功，儲存憑證 mid有效=${((result['mid'] as int?) ?? 0) != 0} '
+              'hasCookie=${result['cookie_info'] != null}',
+            );
+            await AuthService.saveLoginCredentials(
+              accessToken: result['access_token'] ?? '',
+              refreshToken: result['refresh_token'] ?? '',
+              mid: (result['mid'] as int?) ?? 0,
+              cookieInfo: result['cookie_info'],
+            );
+            await _completeLogin();
+          }
           break;
         case 'scanned':
           _expiredCount = 0;
-          setState(() => _status = 'scanned');
+          _setStatus('scanned');
           break;
         case 'expired':
           timer.cancel();
@@ -159,28 +241,68 @@ class LoginViewState extends State<LoginView> {
             _expiredCount++;
             _generateQrCode();
           } else {
-            setState(() => _status = 'expired');
+            _setStatus('expired');
           }
           break;
         case 'error':
           timer.cancel();
           final code = result['code'];
           final message = result['message'] ?? '';
-          debugPrint('TvLogin: 輪詢錯誤 code=$code message=$message');
+          debugPrint(
+            '${web ? 'WebLogin' : 'TvLogin'}: 輪詢錯誤 code=$code message=$message',
+          );
+          final is48007 = !web && code == 48007;
           setState(() {
-            _errorText = '錯誤：$message（$code）';
+            _errorText = is48007
+                ? '此帳號不支援 TV 掃碼，請改用網頁版掃碼'
+                : '錯誤：$message（$code）';
             _status = 'error';
+            _is48007 = is48007;
           });
+          if (is48007) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _switchFocus.requestFocus();
+            });
+          }
           break;
         case 'network':
-          setState(() => _status = 'network');
+          _setStatus('network');
           break;
         case 'waiting':
         default:
-          if (_status == 'network') setState(() => _status = 'waiting');
+          if (_status == 'network') _setStatus('waiting');
           break;
       }
     });
+  }
+
+  /// 網頁版掃碼成功：先驗證 Cookie，再儲存並收尾
+  Future<void> _finishWebLogin(Map<String, String> cookies) async {
+    final ok = await AuthApi.verifyWebCookies(cookies);
+    if (!mounted || _loginHandled) return;
+    if (!ok) {
+      debugPrint('WebLogin: Cookie 驗證失敗');
+      setState(() {
+        _errorText = 'Cookie 驗證失敗，請重新掃描';
+        _status = 'error';
+      });
+      return;
+    }
+    try {
+      await AuthService.saveCookieLogin(cookies);
+    } catch (e) {
+      debugPrint('WebLogin: 儲存憑證失敗 ${e.runtimeType}');
+      if (!mounted) return;
+      setState(() {
+        _errorText = 'Cookie 驗證失敗，請重新掃描';
+        _status = 'error';
+      });
+      return;
+    }
+    debugPrint(
+      'WebLogin: 登入成功 mid有效=${(cookies['DedeUserID'] ?? '').isNotEmpty}',
+    );
+    await _completeLogin();
   }
 
   Widget _buildQrContent() {
@@ -267,26 +389,72 @@ class LoginViewState extends State<LoginView> {
     );
   }
 
+  /// 底部按鈕列：依目前可見的按鈕建立有序清單，左右鍵依清單順序移動焦點
+  Widget _buildButtonRow(bool qrFailed) {
+    final items = <(String, VoidCallback, FocusNode)>[
+      if (qrFailed) ('重新產生 QR Code', _manualRegenerate, _regenFocus),
+      (_isWeb ? '改用 TV 掃碼' : '改用網頁版掃碼', _switchMode, _switchFocus),
+      ('重新整理手機登入', _startPhoneLogin, _refreshFocus),
+      ('回報問題', () => showErrorReportDialog(context), _reportFocus),
+    ];
+    // 每個狀態只有一個 autofocus 按鈕，選擇與 focusDefault 相同
+    final autofocusNode = _defaultFocusNode(qrFailed);
+    final children = <Widget>[];
+    for (var i = 0; i < items.length; i++) {
+      if (i > 0) children.add(const SizedBox(width: 16));
+      final (label, onPressed, node) = items[i];
+      children.add(
+        _buildButton(
+          label,
+          onPressed,
+          focusNode: node,
+          autofocus: identical(node, autofocusNode) && !_is48007,
+          prev: i > 0 ? items[i - 1].$3 : null,
+          next: i < items.length - 1 ? items[i + 1].$3 : null,
+        ),
+      );
+    }
+    return Row(mainAxisSize: MainAxisSize.min, children: children);
+  }
+
   Widget _buildButton(
     String label,
     VoidCallback onPressed, {
+    required FocusNode focusNode,
     bool autofocus = false,
+    FocusNode? prev,
+    FocusNode? next,
   }) {
     return Focus(
       autofocus: autofocus,
-      // autofocus 的按鈕同時是預設按鈕
-      focusNode: autofocus ? _defaultButtonFocus : null,
+      focusNode: focusNode,
       onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.enter ||
-                event.logicalKey == LogicalKeyboardKey.select)) {
-          onPressed();
+        if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+          return KeyEventResult.ignored;
+        }
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.select) {
+          if (event is KeyDownEvent) onPressed();
           return KeyEventResult.handled;
         }
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.arrowLeft &&
-            !node.focusInDirection(TraversalDirection.left)) {
-          widget.sidebarFocusNode?.requestFocus();
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          // 最左邊的按鈕再按左鍵，回到側邊欄
+          if (prev != null) {
+            prev.requestFocus();
+          } else {
+            widget.sidebarFocusNode?.requestFocus();
+          }
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowRight) {
+          // 最右邊的按鈕再按右鍵，停留原地
+          next?.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowUp ||
+            key == LogicalKeyboardKey.arrowDown) {
+          // 上下沒有可聚焦的元件，停留原地
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -428,8 +596,8 @@ class LoginViewState extends State<LoginView> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            'TV 掃碼登入',
+          Text(
+            _isWeb ? '網頁版掃碼登入' : 'TV 掃碼登入',
             style: TextStyle(
               color: Colors.white,
               fontSize: 24,
@@ -437,9 +605,11 @@ class LoginViewState extends State<LoginView> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            '用 B 站 App 掃描，不需同一個網路',
-            style: TextStyle(color: Color(0xFF81C784), fontSize: 15),
+          Text(
+            _isWeb
+                ? '用 B 站手機 App 掃描，在手機上按確認；適用 TV 掃碼出現 48007 的帳號。此方式不支援投幣'
+                : '用 B 站 App 掃描，不需同一個網路',
+            style: const TextStyle(color: Color(0xFF81C784), fontSize: 15),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 14),
@@ -481,26 +651,7 @@ class LoginViewState extends State<LoginView> {
               ],
             ),
             const SizedBox(height: 20),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (qrFailed) ...[
-                  _buildButton(
-                    '重新產生 QR Code',
-                    _manualRegenerate,
-                    autofocus: true,
-                  ),
-                  const SizedBox(width: 16),
-                ],
-                _buildButton('重新整理手機登入', _startPhoneLogin),
-                const SizedBox(width: 16),
-                _buildButton(
-                  '回報問題',
-                  () => showErrorReportDialog(context),
-                  autofocus: !qrFailed,
-                ),
-              ],
-            ),
+            _buildButtonRow(qrFailed),
           ],
         ),
       ),

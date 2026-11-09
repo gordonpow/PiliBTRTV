@@ -89,6 +89,7 @@ flutter:
   
   assets:
     - assets/zh/
+    - assets/login_guide/
     - assets/icons/startup.mp4
     - assets/icons/startup_frame.jpg
     - assets/icons/home.svg

@@ -54,6 +54,14 @@ class BilibiliApi {
   static Future<Map<String, dynamic>> pollTvLogin(String authCode) =>
       AuthApi.pollTvLogin(authCode);
 
+  /// 生成網頁版登入二維碼
+  static Future<Map<String, String>?> generateWebQrCode() =>
+      AuthApi.generateWebQrCode();
+
+  /// 輪詢網頁版登入狀態
+  static Future<Map<String, dynamic>> pollWebQrLogin(String key) =>
+      AuthApi.pollWebQrLogin(key);
+
   // ========== 影片列表相關 ==========
 
   /// 獲取熱門影片 (無需登入)

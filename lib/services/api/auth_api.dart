@@ -1,9 +1,51 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'app_sign.dart';
 import 'base_api.dart';
 import '../auth_service.dart';
+
+/// Cookie 值是否安全（避免標頭注入）：不可含空白、分號、引號、反斜線或控制字元
+bool isSafeCookieValue(String v) =>
+    RegExp(r'^[^\s;"\\\x00-\x1f\x7f]+$').hasMatch(v);
+
+const _webLoginFields = ['SESSDATA', 'bili_jct', 'DedeUserID'];
+
+/// 手動切分網址原始 query（不做 URL 解碼），只取登入需要的欄位
+Map<String, String> _rawWebLoginQuery(String url) {
+  final q = url.indexOf('?');
+  final result = <String, String>{};
+  if (q < 0) return result;
+  for (final part in url.substring(q + 1).split('&')) {
+    final i = part.indexOf('=');
+    if (i <= 0) continue;
+    final name = part.substring(0, i);
+    if (_webLoginFields.contains(name) && !result.containsKey(name)) {
+      result[name] = part.substring(i + 1);
+    }
+  }
+  return result;
+}
+
+/// 解析網頁版掃碼成功後 `data.url` 的 Cookie。
+/// 不做 URL 解碼，保留 `%2C` 等原樣（與瀏覽器 Cookie 值一致）。
+/// 缺欄位、值不安全或 DedeUserID 非數字時回傳 null。
+Map<String, String>? parseWebLoginCookies(String url) =>
+    validateWebLoginCookies(_rawWebLoginQuery(url));
+
+/// 驗證登入 Cookie：三個欄位都要有、值安全、DedeUserID 為數字。
+/// 通過回傳只含三個欄位的新 Map，否則回傳 null。
+Map<String, String>? validateWebLoginCookies(Map<String, String> m) {
+  final result = <String, String>{};
+  for (final f in _webLoginFields) {
+    final v = m[f];
+    if (v == null || v.isEmpty || !isSafeCookieValue(v)) return null;
+    result[f] = v;
+  }
+  if (!RegExp(r'^\d+$').hasMatch(result['DedeUserID']!)) return null;
+  return result;
+}
 
 /// 認證相關 API
 class AuthApi {
@@ -147,6 +189,195 @@ class AuthApi {
       // 網路錯誤，呼叫端會繼續輪詢
       debugPrint('TvLogin: 輪詢例外 ${e.runtimeType}');
       return {'status': 'network'};
+    }
+  }
+
+  // ========== 網頁版掃碼登入 ==========
+
+  static Map<String, String> _webQrHeaders() => {
+    ...BaseApi.getHeaders(),
+    'Referer': 'https://www.bilibili.com/',
+  };
+
+  /// 生成網頁版登入二維碼，回傳 {'url', 'qrcode_key'}，失敗回傳 null
+  static Future<Map<String, String>?> generateWebQrCode() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              '${BaseApi.passportBase}/x/passport-login/web/qrcode/generate',
+            ),
+            headers: _webQrHeaders(),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final data = json['data'];
+        if (json['code'] == 0 && data is Map) {
+          final url = data['url'];
+          final key = data['qrcode_key'];
+          if (url is String &&
+              url.isNotEmpty &&
+              key is String &&
+              key.isNotEmpty) {
+            debugPrint('WebLogin: 產生 QR 成功');
+            return {'url': url, 'qrcode_key': key};
+          }
+        }
+        debugPrint('WebLogin: 產生 QR 失敗 code=${json['code']}');
+      } else {
+        debugPrint('WebLogin: 產生 QR 失敗 HTTP ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('WebLogin: 產生 QR 例外 ${e.runtimeType}');
+    }
+    return null;
+  }
+
+  /// 輪詢網頁版登入狀態。status：waiting / scanned / expired / success / error / network
+  static Future<Map<String, dynamic>> pollWebQrLogin(String key) async {
+    try {
+      final uri = Uri.parse(
+        '${BaseApi.passportBase}/x/passport-login/web/qrcode/poll',
+      ).replace(queryParameters: {'qrcode_key': key});
+      // 改用 dart:io HttpClient：http 套件會把多個 Set-Cookie 以逗號合併
+      // （Expires 本身也含逗號），無法可靠切分，因此直接讀 response.cookies
+      final client = HttpClient();
+      final int statusCode;
+      final String body;
+      final headerCookies = <String, String>{};
+      try {
+        final result = await () async {
+          final req = await client.getUrl(uri);
+          _webQrHeaders().forEach((k, v) => req.headers.set(k, v));
+          final res = await req.close();
+          final text = await res.transform(utf8.decoder).join();
+          return (res, text);
+        }().timeout(const Duration(seconds: 15));
+        final res = result.$1;
+        statusCode = res.statusCode;
+        body = result.$2;
+        try {
+          // Cookie.value 不做解碼，%2C 等保留原樣
+          for (final c in res.cookies) {
+            if (_webLoginFields.contains(c.name) &&
+                c.value.isNotEmpty &&
+                !headerCookies.containsKey(c.name)) {
+              headerCookies[c.name] = c.value;
+            }
+          }
+        } catch (e) {
+          debugPrint('WebLogin: 讀取 Set-Cookie 例外 ${e.runtimeType}');
+        }
+      } finally {
+        client.close(force: true);
+      }
+      if (statusCode != 200) {
+        debugPrint('WebLogin: 輪詢失敗 HTTP $statusCode');
+        return {'status': 'network'};
+      }
+      final json = jsonDecode(body);
+      final data = json['data'];
+      if (json['code'] != 0 || data is! Map) {
+        debugPrint(
+          'WebLogin: 輪詢錯誤 code=${json['code']} message=${json['message']}',
+        );
+        return {
+          'status': 'error',
+          'code': json['code'],
+          'message': json['message'] ?? '',
+        };
+      }
+      final code = data['code'];
+      switch (code) {
+        case 86101:
+          return {'status': 'waiting'};
+        case 86090:
+          return {'status': 'scanned'};
+        case 86038:
+          return {'status': 'expired'};
+        case 0:
+          final url = data['url'];
+          final raw = url is String ? url : '';
+          final q = _rawWebLoginQuery(raw);
+          // 優先用 Set-Cookie，缺的欄位再用 data.url 補
+          final merged = <String, String>{};
+          for (final f in _webLoginFields) {
+            final v = headerCookies[f] ?? q[f];
+            if (v != null) merged[f] = v;
+          }
+          final cookies = validateWebLoginCookies(merged);
+          if (cookies == null) {
+            final missing = _webLoginFields
+                .where((f) => (merged[f] ?? '').isEmpty)
+                .toList();
+            final detail = missing.isEmpty
+                ? '欄位格式不正確'
+                : '缺少 ${missing.join('、')}';
+            // 只記欄位名稱，不記任何值、qrcode_key 或完整網址
+            final parsed = Uri.tryParse(raw);
+            final where = parsed == null
+                ? '?'
+                : '${parsed.host}${parsed.path}';
+            final urlNames = raw.contains('?')
+                ? raw
+                      .substring(raw.indexOf('?') + 1)
+                      .split('&')
+                      .map((p) => p.split('=').first)
+                      .toList()
+                : <String>[];
+            debugPrint(
+              'WebLogin: 解析 Cookie 失敗 $detail；'
+              'url 欄位=[${urlNames.join(',')}]；'
+              'Set-Cookie=[${headerCookies.keys.join(',')}]；'
+              'url 主機=$where',
+            );
+            return {
+              'status': 'error',
+              'code': 0,
+              'message': 'Cookie 解析失敗：$detail',
+            };
+          }
+          return {'status': 'success', 'cookies': cookies};
+        default:
+          debugPrint('WebLogin: 輪詢錯誤 code=$code message=${data['message']}');
+          return {
+            'status': 'error',
+            'code': code,
+            'message': data['message'] ?? '',
+          };
+      }
+    } catch (e) {
+      debugPrint('WebLogin: 輪詢例外 ${e.runtimeType}');
+      return {'status': 'network'};
+    }
+  }
+
+  /// 帶 Cookie 呼叫 /x/member/web/account，確認 mid 與 DedeUserID 相符。任何失敗回傳 false。
+  static Future<bool> verifyWebCookies(Map<String, String> cookies) async {
+    try {
+      final headers = BaseApi.getHeaders();
+      headers['Cookie'] = [
+        ?headers['Cookie'],
+        'SESSDATA=${cookies['SESSDATA']}',
+        'bili_jct=${cookies['bili_jct']}',
+        'DedeUserID=${cookies['DedeUserID']}',
+      ].join('; ');
+      final res = await http
+          .get(
+            Uri.parse('${BaseApi.apiBase}/x/member/web/account'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
+      final json = jsonDecode(res.body);
+      if (json is! Map) return false;
+      final data = json['data'];
+      return json['code'] == 0 &&
+          data is Map &&
+          data['mid'].toString() == cookies['DedeUserID'];
+    } catch (e) {
+      debugPrint('WebLogin: 驗證 Cookie 例外 ${e.runtimeType}');
+      return false;
     }
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import '../plugins/ad_filter_plugin.dart';
 import '../plugins/danmaku_enhance_plugin.dart';
 import '../core/plugin/plugin_manager.dart';
@@ -116,6 +117,11 @@ class LocalServer {
   /// 處理 HTTP 請求
   Future<void> _handleRequest(HttpRequest request) async {
     final reqPath = request.uri.path;
+    // 登入教學圖片：需帶有效代碼，不加 CORS 標頭（必須在 /login 判斷之前）
+    if (reqPath.startsWith('/login/guide/')) {
+      await _handleLoginGuideImage(request);
+      return;
+    }
     // 手機登入：不加 CORS 標頭，也不放行 OPTIONS
     if (reqPath == '/login' || reqPath.startsWith('/api/login/')) {
       await _handlePhoneLogin(request);
@@ -174,6 +180,45 @@ class LocalServer {
     await request.response.close();
   }
 
+  /// 登入教學圖片（/login/guide/NN.webp），僅 GET，需有效代碼
+  Future<void> _handleLoginGuideImage(HttpRequest request) async {
+    final res = request.response;
+    try {
+      if (request.method != 'GET') {
+        res.statusCode = HttpStatus.methodNotAllowed;
+        return;
+      }
+      final name = request.uri.path.substring('/login/guide/'.length);
+      if (!RegExp(r'^\d{2}\.webp$').hasMatch(name)) {
+        res.statusCode = HttpStatus.notFound;
+        return;
+      }
+      // 靜態圖片請求不計入錯誤次數，避免被拿來讓代碼失效
+      if (!PhoneLoginService.instance.checkTokenQuiet(
+        request.uri.queryParameters['t'],
+      )) {
+        res.statusCode = HttpStatus.forbidden;
+        return;
+      }
+      final ByteData data;
+      try {
+        data = await rootBundle.load('assets/login_guide/$name');
+      } catch (_) {
+        res.statusCode = HttpStatus.notFound;
+        return;
+      }
+      res.statusCode = HttpStatus.ok;
+      res.headers.set('Content-Type', 'image/webp');
+      res.headers.set('Cache-Control', 'private, max-age=600');
+      res.headers.set('Referrer-Policy', 'no-referrer');
+      res.add(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+    } catch (_) {
+      res.statusCode = HttpStatus.internalServerError;
+    } finally {
+      await res.close();
+    }
+  }
+
   /// 手機登入路由（/login 與 /api/login/*）
   Future<void> _handlePhoneLogin(HttpRequest request) async {
     final res = request.response;
@@ -191,6 +236,7 @@ class LocalServer {
       )) {
         _loginJson(res, {'error': 'forbidden'}, 403);
       } else if (method == 'GET' && path == '/login') {
+        service.extendOnFirstOpen();
         res.headers.contentType = ContentType.html;
         res.write(phoneLoginPageHtml);
       } else if (method == 'GET' && path == '/api/login/state') {

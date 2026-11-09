@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api/app_sign.dart';
+import 'api/auth_api.dart';
 import 'api/base_api.dart';
 import 'auth_service.dart';
 import 'local_server.dart';
@@ -67,6 +68,7 @@ class PhoneLoginService {
        _now = clock ?? DateTime.now;
 
   static const Duration tokenLifetime = Duration(minutes: 15);
+  static const Duration extendedTokenLifetime = Duration(minutes: 45);
   static const Duration doneGrace = Duration(seconds: 60);
   static const int maxBadTokens = 10;
   static const String _fallbackError = '操作失敗，請稍後再試';
@@ -86,6 +88,8 @@ class PhoneLoginService {
 
   String? _token;
   DateTime? _tokenExpiry;
+  DateTime? _tokenCreatedAt;
+  bool _extended = false;
   DateTime? _doneUntil;
   Timer? _expiryTimer;
   bool _active = false;
@@ -148,7 +152,9 @@ class PhoneLoginService {
       return;
     }
     _token = _randomToken();
-    _tokenExpiry = _now().add(tokenLifetime);
+    _tokenCreatedAt = _now();
+    _extended = false;
+    _tokenExpiry = _tokenCreatedAt!.add(tokenLifetime);
     _expiryTimer = Timer(tokenLifetime, _onExpired);
     url.value = '$address/login?t=$_token';
     status.value = '等待手機連線';
@@ -159,6 +165,8 @@ class PhoneLoginService {
     _expiryTimer = null;
     _token = null;
     _tokenExpiry = null;
+    _tokenCreatedAt = null;
+    _extended = false;
     _doneUntil = null;
     _badCount = 0;
     _phoneConnected = false;
@@ -248,6 +256,32 @@ class PhoneLoginService {
     return true;
   }
 
+  /// 與 [checkToken]（write: false）結果相同，但不累計錯誤次數、不重新產生或清除代碼。
+  /// 供圖片等靜態資源路由使用。
+  bool checkTokenQuiet(String? candidate) {
+    _expireIfNeeded();
+    final token = _token;
+    if (token == null) return false;
+    return constantTimeEquals(candidate ?? '', token);
+  }
+
+  /// 手機第一次開啟登入頁時，把代碼有效期延長為自建立起算 45 分鐘（每個代碼只延長一次）。
+  void extendOnFirstOpen() {
+    final created = _tokenCreatedAt;
+    if (_token == null || created == null || _extended || _step == 'done') {
+      return;
+    }
+    _extended = true;
+    final expiry = created.add(extendedTokenLifetime);
+    _tokenExpiry = expiry;
+    _expiryTimer?.cancel();
+    final remaining = expiry.difference(_now());
+    _expiryTimer = Timer(
+      remaining.isNegative ? Duration.zero : remaining,
+      _onExpired,
+    );
+  }
+
   // ---------------------------------------------------------------- 狀態
 
   void _setStatus(String text) => status.value = text;
@@ -325,6 +359,9 @@ class PhoneLoginService {
   }
 
   static String _msg(Map res, String fallback) {
+    if (res['code'] == 48007) {
+      return '此帳號不支援 App 登入，請改用電視上的「網頁版掃碼」或 Cookie 登入';
+    }
     final m = res['message'];
     return (m is String && m.isNotEmpty && m != '0') ? m : fallback;
   }
@@ -487,30 +524,15 @@ class PhoneLoginService {
       };
     }
     // 避免標頭注入：值不可含空白、分號、引號或控制字元
-    final safe = RegExp(r'^[^\s;"\\\x00-\x1f\x7f]+$');
-    if (cookies.values.any((v) => !safe.hasMatch(v))) {
+    if (cookies.values.any((v) => !isSafeCookieValue(v))) {
       return {...stateJson(), 'message': 'Cookie 格式不正確'};
     }
     final id = _beginFlow();
     _setStep('working', '', tvText: '驗證中…');
     return _guard(id, () async {
-      final headers = BaseApi.getHeaders();
-      final merged = [
-        ?headers['Cookie'],
-        'SESSDATA=${cookies['SESSDATA']}',
-        'bili_jct=${cookies['bili_jct']}',
-        'DedeUserID=${cookies['DedeUserID']}',
-      ].join('; ');
-      headers['Cookie'] = merged;
-      final res = await _getJson(
-        '${BaseApi.apiBase}/x/member/web/account',
-        headers,
-      );
+      final ok = await AuthApi.verifyWebCookies(cookies);
       if (!_valid(id)) return;
-      final data = res['data'];
-      if (res['code'] != 0 ||
-          data is! Map ||
-          data['mid'].toString() != cookies['DedeUserID']) {
+      if (!ok) {
         _fail('Cookie 無效或已過期');
         return;
       }
