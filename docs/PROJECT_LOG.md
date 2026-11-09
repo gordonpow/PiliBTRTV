@@ -162,3 +162,20 @@
 | 新增觀看紀錄刷新按鈕 | 歷史頁分頁列右側加「重新整理」按鈕，OK 重新整理目前分頁（歷史／收藏／稍後再看）；`flutter analyze` 無問題 |
 | 從點選影片到開始播放要約 0.5 秒；預覽要等很久才開始 | 模擬器實測：暖機就緒後按 OK 0.135 秒；移過去馬上按 OK 2.8～3.6 秒（videoInfo＋playurl 約 0.65 秒、播放器 initialize 1.5～2.6 秒）。使用者選兩項都做：覆寫 `video_player_android` 起播緩衝 0.5 秒、鄰近卡片預先解析（Sonnet）。之後發現主因為 B 站給的 `mirrorcosov` 主機 TLS 0.6～2 秒（`mirroraliov` 0.13 秒），新增 `BtrHostRanker` 選最快主機並保留連線（Sonnet）。改善後馬上按 OK 約 2.1 秒（initialize 約 1.1 秒）；同排鄰居優先預先解析後，模擬器網路斷線未能再量。`flutter analyze` 無問題、66 項測試通過；未 commit |
 | 推新版並打包專案 ZIP 到另一台電腦修改 | 排除 4 個只有格式變動的檔案與 `log/`、`img/` 截圖，分 6 個功能 commit（`87620f2` 側邊欄／個人頁／設定搜尋、`67cbdca` 歷史頁收藏與重新整理、`290e721` 卡片預覽與暖機秒開、`f3fc6d5` 播完倒數連播、`a466c21` 開播加速、`98c838b` 回報紀錄），版本升至 `v1.2.2-btr.7` 並發布；搬移包見 `C:\presonal_project\PiliBTRTV_transfer_20261109.zip` |
+
+### 2026-11-09：新電腦還原專案
+
+| 請求 | 結果 |
+|---|---|
+| 配置專案並開啟模擬器 | 專案從搬移包複製到 `C:\presonal_project\PiliBTRTV`（原路徑，對話紀錄可 `/resume`）；`C:\flutter` 由 3.32.0 切到 3.47.9；`flutter config --android-sdk` 後 `flutter pub get` 成功並產生 `android/local.properties`；開啟模擬器 `Pixel_9_Pro_XL`（Android 16） |
+| 模擬器上沒看到 App | 前次只開模擬器未安裝；`flutter build apk --debug` 成功（約 6 分鐘），裝到 `Pixel_9_Pro_XL` 並啟動，開機動畫正常。這台沒有 TV 模擬器 `Android_TV_API36` |
+| 建一台 Android TV 模擬器，方向鍵要能控制 | 下載 `system-images;android-36;android-tv;x86_64`，建立 `Android_TV_API36`（`tv_1080p`、`hw.dPad=yes`、`hw.keyboard=yes`、4GB RAM）。sdkmanager 需 JDK 17 以上：系統 `JAVA_HOME` 無效、Android Studio `jbr` 損壞，改用 `C:\Program Files\Java\jdk-23`。裝入 debug APK，adb 送兩次 DPAD_DOWN，側邊欄由首頁移到直播，方向鍵可用 |
+| 手機登入的手機端網頁打不開 | 模擬器 IP 為 NAT 內的 `10.0.2.15`，手機連不到，實機電視不受影響，不改程式。`adb forward tcp:3321 tcp:3322` 後本機 `/login` 回 403（缺 token，表示服務正常）；區網中繼（電腦 `10.16.32.67:3322`）被權限擋下，交由使用者自行執行 |
+| 手機用 USB 網路共用給電腦；手機開網址出現 ERR_TOO_MANY_RETRIES | 區網中繼（只綁 `10.16.32.67`）電腦端測試 200，但手機連線沒到電腦：手機 App 流量走行動網路 `rmnet_data7`，不經 USB 共用介面。改開手機 USB 偵錯，`adb -s R5CY136L62J reverse tcp:3322 tcp:3321`，手機開 `http://127.0.0.1:3322/login?t=...`，手機端 curl 回 403（缺 token，連線正常）；已停止區網中繼 |
+| 分析無法登入的使用者 log（report-EKAKJQ，btr.6，SPPL Google TV） | TV 掃碼與簡訊登入都回 48007；btr.6 已改用 android_hd appkey 仍被擋，判斷為 B 站依帳號限制 App 登入。說明 Cookie 登入作法 |
+| Cookie 頁加入只用手機的逐步圖文教學；iPhone 改用網頁版掃碼 | iPhone Safari 擴充功能讀不到 HttpOnly 的 SESSDATA。需求與規格見 `docs/work/cookie-guide-webqr/`（Sonnet 規格審查 11 條，採用 9 條）。已實作：網頁版掃碼 API 與 Cookie 解析（T-1）、電視登入頁 TV／網頁版切換與 48007 提示（T-2，第一次子代理回報完成但未寫入檔案，重做後確認）、手機登入代碼首次開啟後延長到 45 分鐘與教學圖片路由（T-4a）。使用者決定先暫停 Cookie 圖文教學，先讓 48007 使用者測試網頁版掃碼。`flutter analyze` 無問題、77 項測試通過；未 commit |
+| 使用者回報當機（report-8S73RW，btr.6，自稱 Pixel 3、Android 12、32 位元） | `PlatformViewExoPlayerEventListener.sendInitialized` 對 `getVideoFormat()` 做 `requireNonNull`，裝置解不了影片軌只播聲音時為 null 而閃退。精簡流程修正：null 時改用 VideoSize 回報、旋轉角度異常不修正。「無畫面時改用 H.264 重播」未做 |
+| 登入頁按鈕列：回報問題按左鍵跳過重新整理；最左按鈕按左鍵跳到設定而非個人 | 原因為 `focusInDirection` 幾何搜尋選錯目標（含高度相近的側邊欄設定圖示）。每顆按鈕獨立 FocusNode，左右鍵依順序移動，最左按左鍵回 `sidebarFocusNode`（個人），上下鍵與最右按右鍵停留（Sonnet）。`flutter analyze` 無問題、77 項測試通過，已裝到 TV 模擬器，待使用者測試 |
+| 網頁版掃碼確認後顯示「Cookie 解析失敗：缺少 SESSDATA、bili_jct、DedeUserID（0）」 | poll 回 `data.code 0` 但 `data.url` 不含 Cookie，推測只由 `Set-Cookie` 下發。輪詢改用 `dart:io` HttpClient，先取 `response.cookies`、缺的再從 url 補；失敗 log 只記欄位名稱與 Set-Cookie 名稱（Sonnet）。`flutter analyze` 無問題、81 項測試通過，已裝到 TV 模擬器，待使用者重測 |
+| 開播前載入圈圈放在畫面正中間 | `video_layer.dart` 封面上的轉圈由右下角改為置中，加半透明黑色圓底。`flutter analyze` 無問題，已裝到 TV 模擬器 |
+| 推送、建 issue、commit 並發布 | 使用者選合併發布 btr.8（btr.7 未曾推送與發布）；winget 安裝 GitHub CLI 2.103.3、使用者授權登入。建 issue #1（48007 無法登入）、#2（播放閃退）、#3（登入頁焦點）；第一次誤建在上游 Hyper-Beast/BiliTV（#45～#47，因 `upstream` 遠端），已改為「誤建，請忽略」並關閉，`gh repo set-default gordonpow/PiliBTRTV`。分 5 個 commit（排除 4 個只有格式變動的檔案、`img/`、`docs/work/search-crash-seek/` 未追蹤檔），版本升至 `v1.2.2-btr.8`，`--split-per-abi` 建置並發布 GitHub Release；`flutter analyze` 無問題、81 項測試通過 |
