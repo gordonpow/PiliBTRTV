@@ -48,10 +48,18 @@ class VideoLayer extends StatelessWidget {
               ),
             ),
           ),
-          const Positioned(
-            right: 40,
-            bottom: 40,
-            child: SizedBox(width: 36, height: 36, child: spinner),
+          // 載入圈圈置中，加半透明圓底，亮色封面上也看得清楚
+          Center(
+            child: Container(
+              width: 72,
+              height: 72,
+              padding: const EdgeInsets.all(14),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: spinner,
+            ),
           ),
         ],
       );
