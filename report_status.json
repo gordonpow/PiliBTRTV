@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "reports": {
+    "8S73RW": {"status": "resolved", "note": "已在 v1.2.2-btr.8 修正播放閃退，請更新", "updated": "2026-11-09"},
+    "EKAKJQ": {"status": "resolved", "note": "v1.2.2-btr.8 新增網頁版掃碼，請更新後在登入頁選「改用網頁版掃碼」", "updated": "2026-11-09"}
+  }
+}

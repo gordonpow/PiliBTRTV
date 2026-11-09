@@ -1,6 +1,7 @@
 import 'package:bili_tv_app/services/error_report_service.dart';
 import 'package:bili_tv_app/services/report_send_service.dart';
 import 'package:bili_tv_app/services/report_share_service.dart';
+import 'package:bili_tv_app/services/report_status_service.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -433,28 +434,48 @@ String formatReportTime(DateTime t) {
   return '${t.year}/${two(t.month)}/${two(t.day)} ${two(t.hour)}:${two(t.minute)}';
 }
 
-class _ReportHistoryDialog extends StatelessWidget {
+class _ReportHistoryDialog extends StatefulWidget {
   final List<ReportRecord> records;
   const _ReportHistoryDialog({required this.records});
 
   @override
+  State<_ReportHistoryDialog> createState() => _ReportHistoryDialogState();
+}
+
+class _ReportHistoryDialogState extends State<_ReportHistoryDialog> {
+  // 只建立一次，避免重建時重新下載；無紀錄時不下載
+  late final Future<Map<String, ReportStatus>>? _statusFuture =
+      widget.records.isEmpty ? null : ReportStatusService.load();
+
+  @override
   Widget build(BuildContext context) {
     const pink = Color(0xFFfb7299);
+    final records = widget.records;
     return AlertDialog(
       backgroundColor: const Color(0xFF2A2A2A),
       title: const Text('回報紀錄', style: TextStyle(color: Colors.white)),
       content: SizedBox(
         width: 480,
-        height: records.isEmpty ? 60 : 280,
+        height: records.isEmpty ? 60 : 340,
         child: records.isEmpty
             ? const Text('尚無回報紀錄', style: TextStyle(color: Colors.white70))
-            : SingleChildScrollView(
-                child: Column(
-                  children: [
-                    for (var i = 0; i < records.length; i++)
-                      _ReportRecordTile(record: records[i], autofocus: i == 0),
-                  ],
-                ),
+            : FutureBuilder<Map<String, ReportStatus>>(
+                future: _statusFuture,
+                builder: (context, snap) {
+                  final statuses = snap.data ?? const <String, ReportStatus>{};
+                  return SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < records.length; i++)
+                          _ReportRecordTile(
+                            record: records[i],
+                            autofocus: i == 0,
+                            status: statuses[records[i].id.trim().toUpperCase()],
+                          ),
+                      ],
+                    ),
+                  );
+                },
               ),
       ),
       actions: [
@@ -478,7 +499,23 @@ class _ReportHistoryDialog extends StatelessWidget {
 class _ReportRecordTile extends StatelessWidget {
   final ReportRecord record;
   final bool autofocus;
-  const _ReportRecordTile({required this.record, required this.autofocus});
+  final ReportStatus? status;
+  const _ReportRecordTile({
+    required this.record,
+    required this.autofocus,
+    this.status,
+  });
+
+  static Color _badgeColor(ReportStatusKind k) {
+    switch (k) {
+      case ReportStatusKind.resolved:
+        return const Color(0xFF4CAF50);
+      case ReportStatusKind.inProgress:
+        return const Color(0xFFFFB74D);
+      case ReportStatusKind.cannotReproduce:
+        return const Color(0xFF9E9E9E);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -513,20 +550,58 @@ class _ReportRecordTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  record.id,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'monospace',
-                    letterSpacing: 2,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      record.id,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'monospace',
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    if (status != null) ...[
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _badgeColor(status!.kind),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          status!.kind.label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 Text(
                   '${formatReportTime(record.time)}　${record.category}',
                   style: const TextStyle(color: Colors.white54, fontSize: 13),
                 ),
+                if (status?.note != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      status!.note!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
               ],
             ),
           );
