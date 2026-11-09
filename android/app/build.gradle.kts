@@ -1,9 +1,19 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// 固定簽章金鑰：android/key.properties（不進 git）指定金鑰時用它簽署，
+// 換電腦建置也能覆蓋安裝舊版；沒有這個檔案時沿用本機 debug 金鑰。
+val keyProperties = Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val hasFixedKey = keyProperties.getProperty("storeFile") != null
 
 android {
     namespace = "com.bili.tv.bili_tv_app"
@@ -34,11 +44,26 @@ android {
         // }
     }
 
+    signingConfigs {
+        if (hasFixedKey) {
+            create("fixed") {
+                storeFile = file(keyProperties.getProperty("storeFile"))
+                storePassword = keyProperties.getProperty("storePassword")
+                keyAlias = keyProperties.getProperty("keyAlias")
+                keyPassword = keyProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+        val signing =
+            if (hasFixedKey) signingConfigs.getByName("fixed")
+            else signingConfigs.getByName("debug")
+        getByName("debug") {
+            signingConfig = signing
+        }
+        getByName("release") {
+            signingConfig = signing
         }
     }
 }
