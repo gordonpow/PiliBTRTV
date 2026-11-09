@@ -64,7 +64,16 @@
 
 ### 已實作、尚未 commit
 
-（無）
+- 回報編號紀錄：送出成功後在 App 內保存最近 20 筆（編號、時間、類型），「設定 → 關於 → 回報紀錄」可查看。
+- 播放器：控制欄隱藏時按 OK 顯示控制欄，新增播放／暫停按鈕（index 0）；自動升級畫質不再升到 HDR／杜比／8K；新增「播放畫面模式」（原生／相容）。
+- 設定畫面焦點：移除分頁第一列 autofocus（避免搶走上方分類列焦點）、上鍵改為找正上方最近項目（找不到才回分類列）、退出登入按下鍵回到目前分類、Switch 不再單獨取得焦點、側邊欄向右回到目前分類。
+- 觀看歷史：側邊欄焦點移到歷史、從歷史頁播放器返回時背景靜默重抓第一頁。
+- 影片卡片焦點預覽：焦點停 1 秒後在卡片內靜音播放 480P AVC 預覽 10 秒（`CardPreviewService`），介面設定可關閉（預設開）；規格見 `docs/work/card-preview/`。
+- 焦點暖機秒開：UGC 卡片預覽改用正式畫質播放器（`PlaybackPreparer`、`CardPreviewService` 暖機），按 OK 由播放頁接手；規格見 `docs/work/instant-play/`。
+- 卡片預覽即時啟動：單次移動 0.15 秒後開始預覽與預載，長按或快速連按時等停住才只預覽最後一張（`NavSettle`）。
+- 播放頁：控制列顯示時按下鍵開相關影片；新增「播放完畢後」（播完暫停／順序播放／單個循環／列表循環／自動連播）與「連播倒數」（預設 5 秒），倒數時右下角顯示待播卡片，OK 立即播、返回取消、下鍵看相關影片；規格見 `docs/work/preview-upnext/`。
+- 觀看歷史頁分頁列右側新增「重新整理」按鈕（重新整理目前分頁）。
+- 開播加速：`packages/video_player_android`（覆寫套件，起播緩衝 2.5 秒改 0.5 秒）；焦點停住時背景預先解析鄰近 4 張卡片（同排優先）；`BtrHostRanker` 啟動時測 CDN 主機延遲，開播單一連線與 prefetchHead 改用最快主機（失敗退回原網址）；`btrDio` 連線保留 90 秒。規格見 `docs/work/fast-start/`。
 
 ## 3. 對話紀錄
 
@@ -140,3 +149,16 @@
 | 使用者無法登入（附 TV 掃碼與手機登入截圖） | TV 掃碼顯示 48007；原因為 TV appkey（雲視聽小電視）拒絕部分帳號，PiliBTR 用 android_hd appkey，curl 實測可產生 QR 與輪詢。Sonnet 修正並為登入流程加上 log；手機登入失敗原因無紀錄，待使用者用新版重試後回報。`flutter analyze` 無問題、43 項測試通過；未 commit |
 | 4K 卡頓使用者的 log（Sony BRAVIA VH22，btr.5）、改用 Gmail 回報 | log 顯示已依解碼能力升到 120／125，低 FPS 應非編碼選擇問題，待使用者做「關閉播放加速」「關閉彈幕」對照測試；log 另有直播閃退（`live_player_screen.dart:814` null），已修正。使用者選 Google Apps Script 寄 Gmail；Sonnet 審查規格 8 條全採用、Sonnet 實作；使用者部署腳本，curl 測試回 `ok`。`flutter analyze` 無問題、52 項測試通過 |
 | 先發布 | 分 6 個 commit（排除 6 個只有格式變動的檔案與 `log/` 使用者截圖），發布 `v1.2.2-btr.6`；一鍵回報、UP主頁面未經完整實機驗證 |
+| 改收件信箱方式、確認網址相同、增加回報編號紀錄、32 位元能否跑 4K | 說明改 Apps Script 的 `TO` 並以「管理部署作業→新版本」更新（網址不變）；確認網址與 App 內相同。使用者選 App 內紀錄，Sonnet 實作；`flutter analyze` 無問題、54 項測試通過，已裝到模擬器，未 commit。說明 32 位元本身不限制 4K，Sony 使用者的低 FPS 待對照測試 |
+| 使用者回報：OK 鍵叫不出選項、介面不直觀、設定選不到上方 BAR、4K FPS 低且色彩偏淡 | Explore 找出 OK 只切換播放、設定分頁 autofocus 搶焦點；使用者選不自動升 HDR＋新增播放畫面模式，介面直觀待使用者說明。兩個 Sonnet 平行實作；發現控制欄沒有播放鍵，退回加上播放／暫停按鈕。`flutter analyze` 無問題、54 項測試通過，已裝到模擬器；另提出手機補充說明（Apps Script 表單）待使用者確認 |
+| 開模擬器；OK 鍵仍直接暫停 | 開啟 `Android_TV_API36`；模擬器上是舊版，裝最新 debug APK（已含 OK 叫出控制列） |
+| 觀看歷史不顯示最新 | 側邊欄焦點切換只換分頁不重抓；加 `refreshSilently()`，焦點到歷史與從播放器返回時背景更新。`flutter analyze` 無問題，已裝到模擬器 |
+| 設定頁上鍵跳到分類列、退出登入下鍵跳到介面設定 | 上鍵改為自己找正上方最近項目；退出登入下鍵回到目前分類。`flutter analyze` 無問題，已裝到模擬器 |
+| 影片卡片焦點預覽 | 使用者選全部卡片、停 1 秒播 10 秒、靜音、介面設定開關預設開。Explore 探索、Sonnet 審查規格 12 條全採用、Sonnet 實作；`flutter analyze` 無問題、54 項測試通過。模擬器確認預覽播放、預覽中按 OK 進播放頁正常（1080P H.265）；有一支影片預覽遇 CDN 回 567，靜默保持封面。未 commit |
+| 焦點 0.3 秒預載、首頁分區往下只有兩列、歷史頁加我的收藏與稍後再看 | 使用者選預載 API＋開頭 2MB、收藏先選收藏夾、三個分頁。首頁根因為 grid builder 中呼叫會 setState 的 `_loadMore`（build 期間 setState），改為卡片 onFocus 觸發並修正失敗還原。Sonnet 審查規格 10 條全採用，三個 Sonnet 平行實作（`PrefetchService`、`PlayParams`、`BtrProxy.prefetchHead`；`TvTabBar`、`fav_view`、`watch_later_view`、`fav_api`）。`flutter analyze` 無問題、57 項測試通過；模擬器 log 確認 playurl、彈幕、預覽命中預載並正常播放 1080P。待使用者測試、未 commit |
+| 直播的我的關注與推薦混在一起、個人與設定混在一起、個人資料太少、側邊欄加設定且設定可搜尋 | 使用者選關注獨立成側邊欄、個人頁含基本資料／關注粉絲／我的投稿／登入登出、設定頁搜尋設定項目、設定放最下。側邊欄改為搜尋、首頁、動態、歷史、直播、關注、個人、設定；新增 `FollowLiveTab`、`LiveRoomGrid`、`ProfileTab`、`FollowingsScreen`、`UserApi`、設定索引與搜尋（繁簡共用 `ZhConvert` 正規化）；刪除 `login_tab.dart`。Sonnet 審查規格 12 條全採用，三個 Sonnet 平行實作。`flutter analyze` 無問題、66 項測試通過，已裝到模擬器；待使用者測試、未 commit |
+| 關注放回直播頁、齒輪像太陽、直播與歷史互換；沒有預覽；往下一排就補新影片；預載後仍轉圈 | 側邊欄改為搜尋、首頁、動態、直播、歷史、個人、設定，關注為直播頁第一個分類並以分隔線隔開，齒輪重畫（Sonnet）。預覽失敗根因為直連 CDN 回 HTTP 567，改走 BtrProxy；首頁剩不到 3 列就載入；開頭 2MB 改為先直接向原始網址抓（多節點遇連不上的節點要 10 秒以上）；開播前改顯示封面＋角落小轉圈；加 `⏱ [Startup]` 計時 log；側邊欄背景撐滿高度。模擬器自測：預覽出現、往下 8 列持續載入、直播頁分類正確、預載命中後開播 3.3 秒（原 5.4 秒，模擬器網路慢）。`flutter analyze` 無問題、66 項測試通過；未 commit |
+| 繼續未完成工作；卡片預覽 1 秒太久要馬上預覽但長按不能每張都預覽；播放中再按下鍵看相關影片；播完倒數 5 秒連播（秒數與模式可調，同 PiliBTR），顯示待播卡片，往下看相關影片停止倒數 | 未完成的是焦點暖機秒開（已實作、analyze 無問題）。新需求寫入 `docs/work/preview-upnext/`；模式沿用 PiliBTR 的 PlayRepeat 五種，倒數秒數 0/3/5/10/15。Sonnet 審查規格 11 條全採用，兩個 Sonnet 平行實作（`NavSettle`＋卡片計時；播放頁倒數、`UpNextCard`、設定）。`flutter analyze` 無問題、66 項測試通過、debug APK 建置成功；模擬器未開啟未安裝，待使用者測試、未 commit |
+| 新增觀看紀錄刷新按鈕 | 歷史頁分頁列右側加「重新整理」按鈕，OK 重新整理目前分頁（歷史／收藏／稍後再看）；`flutter analyze` 無問題 |
+| 從點選影片到開始播放要約 0.5 秒；預覽要等很久才開始 | 模擬器實測：暖機就緒後按 OK 0.135 秒；移過去馬上按 OK 2.8～3.6 秒（videoInfo＋playurl 約 0.65 秒、播放器 initialize 1.5～2.6 秒）。使用者選兩項都做：覆寫 `video_player_android` 起播緩衝 0.5 秒、鄰近卡片預先解析（Sonnet）。之後發現主因為 B 站給的 `mirrorcosov` 主機 TLS 0.6～2 秒（`mirroraliov` 0.13 秒），新增 `BtrHostRanker` 選最快主機並保留連線（Sonnet）。改善後馬上按 OK 約 2.1 秒（initialize 約 1.1 秒）；同排鄰居優先預先解析後，模擬器網路斷線未能再量。`flutter analyze` 無問題、66 項測試通過；未 commit |
+| 推新版並打包專案 ZIP 到另一台電腦修改 | 排除 4 個只有格式變動的檔案與 `log/`、`img/` 截圖，分 6 個功能 commit（`87620f2` 側邊欄／個人頁／設定搜尋、`67cbdca` 歷史頁收藏與重新整理、`290e721` 卡片預覽與暖機秒開、`f3fc6d5` 播完倒數連播、`a466c21` 開播加速、`98c838b` 回報紀錄），版本升至 `v1.2.2-btr.7` 並發布；搬移包見 `C:\presonal_project\PiliBTRTV_transfer_20261109.zip` |
