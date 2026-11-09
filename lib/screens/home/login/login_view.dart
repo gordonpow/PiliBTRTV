@@ -29,11 +29,12 @@ class LoginViewState extends State<LoginView> {
   final FocusNode _refreshFocus = FocusNode(debugLabel: 'loginRefresh');
   final FocusNode _reportFocus = FocusNode(debugLabel: 'loginReport');
 
-  /// 預設按鈕：QR 失敗（非 48007）→ 重新產生；48007 → 切換；其餘 → 回報問題
+  /// 預設按鈕：QR 失敗（非 48007）→ 重新產生；48007 與其餘 → 切換（最左邊）
   FocusNode _defaultFocusNode(bool qrFailed) {
     if (_is48007) return _switchFocus;
     if (qrFailed) return _regenFocus;
-    return _reportFocus;
+    // 一般狀態：從側邊欄按右鍵進來時落在按鈕列最左邊的按鈕
+    return _switchFocus;
   }
 
   /// 從側邊欄導航進來時，把焦點移到預設按鈕
