@@ -105,6 +105,7 @@ class HistoryVideoCard extends StatelessWidget {
       onMoveUp: onMoveUp,
       onMoveDown: onMoveDown,
       onBack: onBack,
+      previewVideo: video.isLive ? null : video,
       imageContent: Stack(
         fit: StackFit.expand,
         children: [
