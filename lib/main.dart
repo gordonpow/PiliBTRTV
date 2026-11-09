@@ -8,6 +8,7 @@ import 'package:bili_tv_app/plugins/sponsor_block_plugin.dart';
 import 'package:bili_tv_app/plugins/ad_filter_plugin.dart';
 import 'package:bili_tv_app/plugins/danmaku_enhance_plugin.dart';
 import 'services/auth_service.dart';
+import 'services/btr/btr_host_ranker.dart';
 import 'services/local_server.dart';
 import 'services/log_service.dart';
 import 'services/settings_service.dart';
@@ -45,6 +46,9 @@ Future<void> _main() async {
 
   // 初始化邏輯已移交至 SplashScreen 處理，這裡僅啟動 APP
   // 這樣可以確保啟動畫面迅速出現，無需等待初始化完成
+
+  // 背景測量 CDN 主機延遲（不阻塞啟動）
+  BtrHostRanker.instance.warmUp();
 
   runApp(const BiliTvApp());
 }
