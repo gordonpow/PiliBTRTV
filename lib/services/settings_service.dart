@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:bili_tv_app/models/play_repeat.dart';
 import 'package:bili_tv_app/utils/zh_convert.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 
@@ -149,18 +150,38 @@ class SettingsService {
     await _prefs!.setBool(_useHardwareDecodeKey, value);
   }
 
-  // 自動連播設定
-  static const String _autoPlayKey = 'auto_play';
+  // 播放完畢後行為
+  static const String _legacyAutoPlayKey = 'auto_play'; // 舊設定，只用於遷移
+  static const String _playRepeatKey = 'play_repeat';
+  static const String _upNextCountdownKey = 'up_next_countdown';
 
-  /// 是否自動連播
-  static bool get autoPlay {
-    return _prefs?.getBool(_autoPlayKey) ?? true; // 預設開啟
+  /// 連播倒數可選秒數（0 = 立即播放）
+  static const List<int> upNextCountdownOptions = [0, 3, 5, 10, 15];
+
+  /// 播放完畢後行為。尚未設定時，舊的「自動連播」關閉者視為播完暫停。
+  static PlayRepeat get playRepeat {
+    final idx = _prefs?.getInt(_playRepeatKey);
+    if (idx != null && idx >= 0 && idx < PlayRepeat.values.length) {
+      return PlayRepeat.values[idx];
+    }
+    if (_prefs?.getBool(_legacyAutoPlayKey) == false) return PlayRepeat.pause;
+    return PlayRepeat.autoPlayRelated;
   }
 
-  /// 設定自動連播
-  static Future<void> setAutoPlay(bool value) async {
+  static Future<void> setPlayRepeat(PlayRepeat value) async {
     await init();
-    await _prefs!.setBool(_autoPlayKey, value);
+    await _prefs!.setInt(_playRepeatKey, value.index);
+  }
+
+  /// 連播倒數秒數，預設 5
+  static int get upNextCountdown {
+    final v = _prefs?.getInt(_upNextCountdownKey) ?? 5;
+    return upNextCountdownOptions.contains(v) ? v : 5;
+  }
+
+  static Future<void> setUpNextCountdown(int value) async {
+    await init();
+    await _prefs!.setInt(_upNextCountdownKey, value);
   }
 
   // 自動檢查更新
@@ -313,6 +334,20 @@ class SettingsService {
     await _prefs!.setBool(_alwaysShowPlayerTimeKey, value);
   }
 
+  // 影片卡片焦點預覽設定
+  static const String _cardPreviewKey = 'card_video_preview';
+
+  /// 游標停在影片卡片上時是否播放靜音預覽
+  static bool get cardPreview {
+    return _prefs?.getBool(_cardPreviewKey) ?? true; // 預設開啟
+  }
+
+  /// 設定是否啟用影片卡片預覽
+  static Future<void> setCardPreview(bool value) async {
+    await init();
+    await _prefs!.setBool(_cardPreviewKey, value);
+  }
+
   // 分區順序設定
   static const String _categoryOrderKey = 'home_category_order';
 
@@ -387,6 +422,18 @@ class SettingsService {
       current.remove(name);
     }
     await setEnabledCategories(current);
+  }
+
+  // 播放畫面模式（false=原生 SurfaceView，true=相容 TextureView）
+  static const String _playerTextureViewKey = 'player_texture_view';
+
+  static bool get playerTextureView {
+    return _prefs?.getBool(_playerTextureViewKey) ?? false;
+  }
+
+  static Future<void> setPlayerTextureView(bool value) async {
+    await init();
+    await _prefs!.setBool(_playerTextureViewKey, value);
   }
 
   // 快進預覽模式設定

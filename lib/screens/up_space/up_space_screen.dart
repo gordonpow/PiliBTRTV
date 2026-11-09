@@ -20,11 +20,15 @@ class UpSpaceScreen extends StatefulWidget {
   final String name;
   final String face;
 
+  /// 看自己的空間：隱藏關注按鈕，且不查詢關注狀態。
+  final bool isSelf;
+
   const UpSpaceScreen({
     super.key,
     required this.mid,
     required this.name,
     required this.face,
+    this.isSelf = false,
   });
 
   @override
@@ -70,7 +74,7 @@ class _UpSpaceScreenState extends State<UpSpaceScreen> {
   void initState() {
     super.initState();
     _loadSpace();
-    _loadFollowStatus();
+    if (!widget.isSelf) _loadFollowStatus();
   }
 
   @override
@@ -122,7 +126,7 @@ class _UpSpaceScreenState extends State<UpSpaceScreen> {
         if (!mounted) return;
         // 初始焦點在關注按鈕（或尚無焦點）時，移到目前分頁的按鈕
         final primary = FocusManager.instance.primaryFocus;
-        if (_followNode.hasFocus || primary == null) {
+        if (widget.isSelf || _followNode.hasFocus || primary == null) {
           _tabNodes[_tab]?.requestFocus();
         }
       });
@@ -378,20 +382,24 @@ class _UpSpaceScreenState extends State<UpSpaceScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 20),
-          SpaceButton(
-            focusNode: _followNode,
-            autofocus: true,
-            onTap: _toggleFollow,
-            onDown: _spaceLoading ? null : _focusTabBar,
-            builder: (focused) => spacePill(
-              focused: focused,
-              color: _isFollowing ? Colors.grey[700]! : const Color(0xFFfb7299),
-              horizontal: 18,
-              icon: _isFollowing ? Icons.check : Icons.add,
-              label: _isFollowing ? '已關注' : '關注',
+          if (!widget.isSelf) ...[
+            const SizedBox(width: 20),
+            SpaceButton(
+              focusNode: _followNode,
+              autofocus: true,
+              onTap: _toggleFollow,
+              onDown: _spaceLoading ? null : _focusTabBar,
+              builder: (focused) => spacePill(
+                focused: focused,
+                color: _isFollowing
+                    ? Colors.grey[700]!
+                    : const Color(0xFFfb7299),
+                horizontal: 18,
+                icon: _isFollowing ? Icons.check : Icons.add,
+                label: _isFollowing ? '已關注' : '關注',
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -409,7 +417,7 @@ class _UpSpaceScreenState extends State<UpSpaceScreen> {
               onFocus: (_) => _onTabFocused(tab),
               onLeft: () => _moveTab(-1),
               onRight: () => _moveTab(1),
-              onUp: () => _followNode.requestFocus(),
+              onUp: widget.isSelf ? null : () => _followNode.requestFocus(),
               onDown: _enterContent,
               builder: (focused) => spacePill(
                 focused: focused,

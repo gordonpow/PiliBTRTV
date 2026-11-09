@@ -40,12 +40,11 @@ class PlayerFocusHandler {
         onHide?.call();
         return (result: KeyEventResult.handled, newIndex: currentIndex);
 
-      case LogicalKeyboardKey.enter:
-      case LogicalKeyboardKey.select:
-        onSelect(currentIndex);
-        return (result: KeyEventResult.handled, newIndex: currentIndex);
-
       default:
+        if (isSelectKey(event)) {
+          onSelect(currentIndex);
+          return (result: KeyEventResult.handled, newIndex: currentIndex);
+        }
         return (result: KeyEventResult.ignored, newIndex: currentIndex);
     }
   }
@@ -223,6 +222,7 @@ class PlayerFocusHandler {
   /// 檢查是否是確認鍵
   static bool isSelectKey(KeyEvent event) {
     return event.logicalKey == LogicalKeyboardKey.enter ||
-        event.logicalKey == LogicalKeyboardKey.select;
+        event.logicalKey == LogicalKeyboardKey.select ||
+        event.logicalKey == LogicalKeyboardKey.gameButtonA;
   }
 }

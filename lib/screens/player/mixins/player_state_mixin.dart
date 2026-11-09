@@ -5,10 +5,26 @@ import 'package:canvas_danmaku/canvas_danmaku.dart';
 import '../player_screen.dart';
 import '../widgets/settings_panel.dart';
 import '../../../models/videoshot.dart';
+import '../../../services/playback_preparer.dart';
+
+/// 倒數連播的下一部資訊
+class UpNextInfo {
+  final String title;
+  final String cover;
+  final VoidCallback play;
+  const UpNextInfo({
+    required this.title,
+    required this.cover,
+    required this.play,
+  });
+}
 
 /// 播放器狀態 Mixin
 /// 包含所有 State 變數
 mixin PlayerStateMixin on State<PlayerScreen> {
+  // 從卡片暖機接手、尚未使用的播放資料（initState 同步 take）
+  PreparedPlayback? warmPlayback;
+
   // 控制器
   VideoPlayerController? videoController;
   DanmakuController? danmakuController;
@@ -73,7 +89,7 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   SettingsMenuType settingsMenuType = SettingsMenuType.main;
   Timer? hideTimer;
   Timer? progressReportTimer;
-  int focusedButtonIndex = 0; // 0=Play, 1=Settings, 2=Playlist, 3=More
+  int focusedButtonIndex = 0; // 0=播放/暫停, 1=選集, 2=UP主, 3=更多影片, 4=設定, 5=點贊/投幣/收藏
   int focusedSettingIndex = 0;
 
   // 解析度
@@ -112,6 +128,12 @@ mixin PlayerStateMixin on State<PlayerScreen> {
 
   // 相關影片 (用於自動連播)
   List<dynamic> relatedVideos = [];
+
+  // 播完倒數連播
+  int? upNextSeconds; // 剩餘秒數；null = 沒有在倒數
+  int upNextTotal = 0; // 本次倒數總秒數（供卡片進度圈使用）
+  Timer? upNextTimer;
+  UpNextInfo? upNextInfo;
 
   // 播放器根 Focus 節點（從 UP主頁面返回後用來恢復焦點）
   final FocusNode playerFocusNode = FocusNode();

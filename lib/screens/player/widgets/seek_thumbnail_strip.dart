@@ -212,10 +212,18 @@ class _SeekThumbnailStripState extends State<SeekThumbnailStrip> {
       double left;
       if (offset < 0) {
         // 左側卡片 (offset = -1, -2, -3)
-        left = centerLeft - spacing - sideCardW + (offset + 1) * (sideCardW + spacing);
+        left =
+            centerLeft -
+            spacing -
+            sideCardW +
+            (offset + 1) * (sideCardW + spacing);
       } else {
         // 右側卡片 (offset = 1, 2, 3)
-        left = centerLeft + centerCardW + spacing + (offset - 1) * (sideCardW + spacing);
+        left =
+            centerLeft +
+            centerCardW +
+            spacing +
+            (offset - 1) * (sideCardW + spacing);
       }
 
       final top = cardCenterY - sideCardH / 2;
@@ -293,10 +301,7 @@ class _SeekThumbnailStripState extends State<SeekThumbnailStrip> {
       );
     }
 
-    return Stack(
-      clipBehavior: Clip.hardEdge,
-      children: cards,
-    );
+    return Stack(clipBehavior: Clip.hardEdge, children: cards);
   }
 
   Widget _buildSpriteCard({

@@ -192,37 +192,46 @@ class ControlsOverlay extends StatelessWidget {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    // 選集 (原 index 1 → 現 index 0)
+                    // 播放/暫停 (index 0)
                     _buildControlButton(
                       index: 0,
+                      icon: controller.value.isPlaying
+                          ? Icons.pause
+                          : Icons.play_arrow,
+                      onTap: onPlayPause,
+                    ),
+                    const SizedBox(width: 24),
+                    // 選集 (index 1)
+                    _buildControlButton(
+                      index: 1,
                       icon: Icons.playlist_play,
                       onTap: onEpisodes,
                     ),
                     const SizedBox(width: 24),
-                    // UP主 (原 index 2 → 現 index 1)
+                    // UP主 (index 2)
                     _buildControlButton(
-                      index: 1,
+                      index: 2,
                       icon: Icons.person,
                       onTap: () {},
                     ),
                     const SizedBox(width: 24),
-                    // 更多影片 (原 index 3 → 現 index 2)
+                    // 更多影片 (index 3)
                     _buildControlButton(
-                      index: 2,
+                      index: 3,
                       icon: Icons.expand_more,
                       onTap: () {},
                     ),
                     const SizedBox(width: 24),
-                    // 設定 (原 index 4 → 現 index 3)
+                    // 設定 (index 4)
                     _buildControlButton(
-                      index: 3,
+                      index: 4,
                       icon: Icons.tune,
                       onTap: onSettings,
                     ),
                     const SizedBox(width: 24),
-                    // 點贊/投幣/收藏 (原 index 5 → 現 index 4)
+                    // 點贊/投幣/收藏 (index 5)
                     _buildControlButton(
-                      index: 4,
+                      index: 5,
                       icon: Icons.thumb_up_outlined,
                       onTap: () {},
                     ),

@@ -1,3 +1,4 @@
+import '../../services/prefetch_service.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
@@ -5,6 +6,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../core/plugin/plugin_types.dart';
 import '../../models/video.dart';
 import '../../services/settings_service.dart';
+import '../../services/card_preview_service.dart';
 import 'widgets/video_layer.dart';
 import 'widgets/danmaku_layer.dart';
 import 'widgets/controls_overlay.dart';
@@ -13,6 +15,7 @@ import 'widgets/episode_panel.dart';
 import 'widgets/pause_indicator.dart';
 import 'widgets/action_buttons.dart';
 import 'widgets/related_panel.dart';
+import 'widgets/up_next_card.dart';
 import 'widgets/mini_progress_bar.dart';
 import 'widgets/seek_thumbnail_strip.dart';
 import '../../services/frame_service.dart';
@@ -27,6 +30,9 @@ class PlayerScreen extends StatefulWidget {
 
   const PlayerScreen({super.key, required this.video});
 
+  /// 目前開著的播放頁數量；> 0 時卡片不暖機（避免覆寫 LocalServer 的 MPD）
+  static int activeCount = 0;
+
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
 }
@@ -40,6 +46,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    PlayerScreen.activeCount++;
+    // 第一個 await 之前同步接手暖機播放器；沒有就釋放卡片預覽的解碼器
+    warmPlayback = CardPreviewService.instance.take(widget.video.bvid);
+    // 暖機還在準備且已保留給本頁時不要停掉它，initializePlayer 會等它完成
+    if (warmPlayback == null &&
+        !CardPreviewService.instance.isPendingFor(widget.video.bvid)) {
+      CardPreviewService.instance.stopAll();
+    }
     SystemChannels.textInput.invokeMethod('TextInput.hide');
     WidgetsBinding.instance.addObserver(this);
     // 保持螢幕常亮，防止電視待機
@@ -60,15 +74,22 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   void dispose() {
+    PlayerScreen.activeCount--;
+    // 接手了但還沒用到的暖機播放器要釋放
+    warmPlayback?.controller.dispose();
+    warmPlayback = null;
     // 恢復螢幕休眠
     WakelockPlus.disable();
     WidgetsBinding.instance.removeObserver(this);
     hideTimer?.cancel();
+    upNextTimer?.cancel();
     progressReportTimer?.cancel();
     // 退出時上報進度
     reportPlaybackProgress();
 
     FrameService.release();
+
+    PrefetchService.instance.invalidate(widget.video.bvid);
 
     // 通過 mixin 方法銷燬播放器
     disposePlayer();
@@ -95,6 +116,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 controller: videoController,
                 isLoading: isLoading,
                 errorMessage: errorMessage,
+                coverUrl: widget.video.pic,
               ),
 
               // 彈幕層
@@ -270,6 +292,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                     });
                   },
                   onQualityPicker: showQualityPicker,
+                ),
+
+              // 播完倒數卡片
+              if (upNextSeconds != null && upNextInfo != null)
+                Positioned(
+                  right: 32,
+                  bottom: 48,
+                  child: UpNextCard(
+                    info: upNextInfo!,
+                    seconds: upNextSeconds!,
+                    total: upNextTotal,
+                  ),
                 ),
 
               // 更多影片面板

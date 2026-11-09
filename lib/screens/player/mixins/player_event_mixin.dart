@@ -20,6 +20,12 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return;
     }
 
+    // 倒數連播中：返回 = 取消倒數並顯示控制列
+    if (upNextSeconds != null) {
+      cancelUpNext(showControlsAfter: true);
+      return;
+    }
+
     if (showSettingsPanel) {
       if (settingsMenuType != SettingsMenuType.main) {
         setState(() {
@@ -109,6 +115,31 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.ignored;
     }
 
+    // 倒數連播中的按鍵（含 KeyRepeat）
+    if (upNextSeconds != null) {
+      final key = event.logicalKey;
+      if (key == LogicalKeyboardKey.arrowLeft ||
+          key == LogicalKeyboardKey.arrowRight) {
+        // 取消倒數後照原流程（快退／快進）；Repeat 事件在已取消後才會進來
+        if (event is KeyDownEvent) cancelUpNext();
+        if (upNextSeconds != null) return KeyEventResult.handled;
+      } else {
+        if (event is KeyDownEvent) {
+          if (PlayerFocusHandler.isSelectKey(event)) {
+            final info = upNextInfo;
+            cancelUpNext();
+            info?.play();
+          } else if (PlayerFocusHandler.isBackKey(event)) {
+            if (key != LogicalKeyboardKey.escape) backKeyJustHandled = true;
+            cancelUpNext(showControlsAfter: true);
+          } else if (key == LogicalKeyboardKey.arrowDown) {
+            _activateControlButton(3);
+          }
+        }
+        return KeyEventResult.handled;
+      }
+    }
+
     // 設定面板
     if (showSettingsPanel) {
       if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
@@ -188,11 +219,17 @@ mixin PlayerEventMixin on PlayerActionMixin {
   KeyEventResult _handleControlsVisibleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
+    // 下鍵直接開「更多影片」面板
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _activateControlButton(3);
+      return KeyEventResult.handled;
+    }
+
     // 使用 PlayerFocusHandler 處理控制欄導航
     final nav = PlayerFocusHandler.handleControlsNavigation(
       event,
       currentIndex: focusedButtonIndex,
-      maxIndex: 4,
+      maxIndex: 5,
       onSelect: _activateControlButton,
       onHide: () => setState(() => showControls = false),
     );
@@ -220,28 +257,33 @@ mixin PlayerEventMixin on PlayerActionMixin {
   /// 啟用控制欄按鈕
   void _activateControlButton(int index) {
     switch (index) {
-      case 0: // 選集
+      case 0: // 播放/暫停（保持控制欄顯示）
+        togglePlayPause();
+        startHideTimer();
+        break;
+      case 1: // 選集
         setState(() {
           showEpisodePanel = true;
           hideTimer?.cancel();
         });
         break;
-      case 1: // UP主
+      case 2: // UP主
         _openUpSpace();
         break;
-      case 2: // 更多影片
+      case 3: // 更多影片
+        cancelUpNext();
         setState(() {
           showRelatedPanel = true;
           hideTimer?.cancel();
         });
         break;
-      case 3: // 設定
+      case 4: // 設定
         setState(() {
           showSettingsPanel = true;
           hideTimer?.cancel();
         });
         break;
-      case 4: // 點贊/投幣/收藏
+      case 5: // 點贊/投幣/收藏
         setState(() {
           showActionButtons = !showActionButtons;
         });
@@ -259,6 +301,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
     }
     upSpaceOpen = true;
     hideTimer?.cancel();
+    cancelUpNext();
 
     final controller = videoController;
     final wasPlaying =
@@ -336,9 +379,10 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.handled;
     }
 
-    // 確認鍵播放/暫停
+    // 確認鍵顯示控制欄，焦點回到播放/暫停鈕（再按一次才暫停）
     if (PlayerFocusHandler.isSelectKey(event) && event is KeyDownEvent) {
-      togglePlayPause();
+      setState(() => focusedButtonIndex = 0);
+      toggleControls();
       return KeyEventResult.handled;
     }
 

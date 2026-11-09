@@ -1,4 +1,5 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
+import '../../../../models/play_repeat.dart';
 import '../../../../services/settings_service.dart';
 import '../../../../services/codec_service.dart';
 import '../widgets/setting_toggle_row.dart';
@@ -41,17 +42,35 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SettingToggleRow(
-          label: '自動連播',
-          subtitle: '影片播完自動播放下一集或推薦影片',
-          value: SettingsService.autoPlay,
-          autofocus: true,
+        SettingDropdownRow<PlayRepeat>(
+          label: '播放完畢後',
+          subtitle: '播完暫停、順序播放、單個循環、列表循環、自動連播',
+          value: SettingsService.playRepeat,
+          items: PlayRepeat.values,
+          itemLabel: (v) => v.label,
           isFirst: true, // 第一項，向上返回分類標籤
           onMoveUp: widget.onMoveUp,
           sidebarFocusNode: widget.sidebarFocusNode,
-          onChanged: (value) async {
-            await SettingsService.setAutoPlay(value);
-            setState(() {});
+          onChanged: (v) async {
+            if (v != null) {
+              await SettingsService.setPlayRepeat(v);
+              setState(() {});
+            }
+          },
+        ),
+        const SizedBox(height: 16),
+        SettingDropdownRow<int>(
+          label: '連播倒數',
+          subtitle: '影片播完後倒數幾秒再播下一部',
+          value: SettingsService.upNextCountdown,
+          items: SettingsService.upNextCountdownOptions,
+          itemLabel: (v) => v == 0 ? '立即播放' : '$v 秒',
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (v) async {
+            if (v != null) {
+              await SettingsService.setUpNextCountdown(v);
+              setState(() {});
+            }
           },
         ),
         const SizedBox(height: 16),
@@ -85,6 +104,21 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
           onChanged: (value) async {
             await SettingsService.setSeekPreviewMode(value);
             setState(() {});
+          },
+        ),
+        const SizedBox(height: 16),
+        SettingDropdownRow<bool>(
+          label: '播放畫面模式',
+          subtitle: '影片顏色或順暢度異常時可切換試試',
+          value: SettingsService.playerTextureView,
+          items: const [false, true],
+          itemLabel: (v) => v ? '相容' : '原生（預設）',
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (v) async {
+            if (v != null) {
+              await SettingsService.setPlayerTextureView(v);
+              setState(() {});
+            }
           },
         ),
         const SizedBox(height: 16),
