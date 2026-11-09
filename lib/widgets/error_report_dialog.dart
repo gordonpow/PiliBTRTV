@@ -85,6 +85,9 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
       category: category,
       report: text,
     );
+    if (result.ok) {
+      await ReportHistory.add(id: result.id, category: category);
+    }
     if (!mounted) return;
     setState(() {
       if (result.ok) {
@@ -261,7 +264,14 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
         );
         actions = [_btn('送出中…', null)];
       case _Stage.sent:
-        content = Text('已送出，回報編號 $_sentId。開發者會透過 Email 收到這份報告。', style: body);
+        content = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('已送出，回報編號 $_sentId。開發者會透過 Email 收到這份報告。', style: body),
+            const Text('可在「設定 → 關於 → 回報紀錄」再次查看編號。', style: body),
+          ],
+        );
         actions = [
           _btn(
             '完成',
@@ -403,6 +413,124 @@ class _PreviewDialogState extends State<_PreviewDialog> {
             child: const Text('關閉', style: TextStyle(color: Color(0xFFfb7299))),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 回報紀錄對話框。
+Future<void> showReportHistoryDialog(BuildContext context) async {
+  final records = await ReportHistory.load();
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (_) => _ReportHistoryDialog(records: records),
+  );
+}
+
+String formatReportTime(DateTime t) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${t.year}/${two(t.month)}/${two(t.day)} ${two(t.hour)}:${two(t.minute)}';
+}
+
+class _ReportHistoryDialog extends StatelessWidget {
+  final List<ReportRecord> records;
+  const _ReportHistoryDialog({required this.records});
+
+  @override
+  Widget build(BuildContext context) {
+    const pink = Color(0xFFfb7299);
+    return AlertDialog(
+      backgroundColor: const Color(0xFF2A2A2A),
+      title: const Text('回報紀錄', style: TextStyle(color: Colors.white)),
+      content: SizedBox(
+        width: 480,
+        height: records.isEmpty ? 60 : 280,
+        child: records.isEmpty
+            ? const Text('尚無回報紀錄', style: TextStyle(color: Colors.white70))
+            : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < records.length; i++)
+                      _ReportRecordTile(record: records[i], autofocus: i == 0),
+                  ],
+                ),
+              ),
+      ),
+      actions: [
+        TextButton(
+          autofocus: records.isEmpty,
+          onPressed: () => Navigator.of(context).pop(),
+          style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.resolveWith(
+              (s) => s.contains(WidgetState.focused)
+                  ? pink
+                  : Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+          child: const Text('關閉', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
+  }
+}
+
+class _ReportRecordTile extends StatelessWidget {
+  final ReportRecord record;
+  final bool autofocus;
+  const _ReportRecordTile({required this.record, required this.autofocus});
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      autofocus: autofocus,
+      onFocusChange: (f) {
+        if (f) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 150),
+            alignment: 0.5,
+          );
+        }
+      },
+      child: Builder(
+        builder: (context) {
+          final focused = Focus.of(context).hasFocus;
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: focused
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: focused ? const Color(0xFFfb7299) : Colors.transparent,
+                width: 2,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  record.id,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
+                    letterSpacing: 2,
+                  ),
+                ),
+                Text(
+                  '${formatReportTime(record.time)}　${record.category}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 13),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

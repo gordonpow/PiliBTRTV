@@ -89,4 +89,30 @@ void main() {
     expect(isRedirectStatus(302), isTrue);
     expect(isRedirectStatus(200), isFalse);
   });
+
+  group('report history', () {
+    ReportRecord rec(int n) => ReportRecord(
+      id: 'ID$n',
+      time: DateTime(2026, 11, 9, 10, n % 60),
+      category: '其他',
+    );
+
+    test('最新在前且最多 20 筆', () {
+      var raw = '[]';
+      for (var i = 0; i < 25; i++) {
+        raw = encodeReportHistory(rec(i), decodeReportHistory(raw));
+      }
+      final list = decodeReportHistory(raw);
+      expect(list.length, kReportHistoryMax);
+      expect(list.first.id, 'ID24');
+      expect(list.last.id, 'ID5');
+      expect(list.first.time, DateTime(2026, 11, 9, 10, 24));
+    });
+
+    test('壞 JSON 回傳空清單', () {
+      expect(decodeReportHistory(null), isEmpty);
+      expect(decodeReportHistory('not json'), isEmpty);
+      expect(decodeReportHistory('{"a":1}'), isEmpty);
+    });
+  });
 }

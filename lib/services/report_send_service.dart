@@ -32,6 +32,90 @@ class ReportSendResult {
   const ReportSendResult.fail(this.message) : ok = false, id = '';
 }
 
+/// 一筆回報紀錄。
+class ReportRecord {
+  final String id;
+  final DateTime time;
+  final String category;
+
+  const ReportRecord({
+    required this.id,
+    required this.time,
+    required this.category,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'time': time.toIso8601String(),
+    'category': category,
+  };
+}
+
+const String kReportHistoryKey = 'report_history';
+const int kReportHistoryMax = 20;
+
+/// 解析回報紀錄 JSON；格式錯誤回傳空清單，略過壞掉的項目。
+List<ReportRecord> decodeReportHistory(String? raw) {
+  if (raw == null || raw.isEmpty) return [];
+  try {
+    final json = jsonDecode(raw);
+    if (json is! List) return [];
+    final out = <ReportRecord>[];
+    for (final e in json) {
+      if (e is! Map) continue;
+      final id = e['id'];
+      final time = DateTime.tryParse('${e['time']}');
+      final cat = e['category'];
+      if (id is! String || time == null || cat is! String) continue;
+      out.add(ReportRecord(id: id, time: time, category: cat));
+    }
+    return out;
+  } catch (_) {
+    return [];
+  }
+}
+
+/// 把新紀錄放到最前面並只保留最新 [kReportHistoryMax] 筆。
+String encodeReportHistory(ReportRecord record, List<ReportRecord> existing) {
+  final list = [record, ...existing].take(kReportHistoryMax).toList();
+  return jsonEncode(list.map((e) => e.toJson()).toList());
+}
+
+class ReportHistory {
+  ReportHistory._();
+
+  static Future<List<ReportRecord>> load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return decodeReportHistory(prefs.getString(kReportHistoryKey));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> add({
+    required String id,
+    required ReportCategory category,
+    DateTime? time,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final existing = decodeReportHistory(prefs.getString(kReportHistoryKey));
+      final rec = ReportRecord(
+        id: id,
+        time: time ?? DateTime.now(),
+        category: category.label,
+      );
+      await prefs.setString(
+        kReportHistoryKey,
+        encodeReportHistory(rec, existing),
+      );
+    } catch (e) {
+      debugPrint('回報：儲存紀錄失敗 $e');
+    }
+  }
+}
+
 const String kReportIdChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const int kReportMaxBytes = 400 * 1024;
 const int kReportHeadBytes = 20 * 1024;

@@ -1,6 +1,7 @@
 import 'package:bili_tv_app/btr_version.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
+import '../../../../services/report_send_service.dart';
 import '../../../../services/settings_service.dart';
 import '../../../../services/update_service.dart';
 import '../../../../widgets/error_report_dialog.dart';
@@ -25,6 +26,20 @@ class AboutSettings extends StatefulWidget {
 class _AboutSettingsState extends State<AboutSettings> {
   bool _autoUpdate = SettingsService.autoUpdate;
   int _interval = SettingsService.updateIntervalHours;
+
+  String? _lastReportId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    final list = await ReportHistory.load();
+    if (!mounted) return;
+    setState(() => _lastReportId = list.isEmpty ? null : list.first.id);
+  }
 
   static String _intervalLabel(int hours) =>
       hours >= 48 ? '${hours ~/ 24} 天' : '$hours 小時';
@@ -84,7 +99,6 @@ class _AboutSettingsState extends State<AboutSettings> {
                   : (info != null ? '有新版本 ${info.tag}' : '已是最新'),
               showDot: !checking && info != null,
               buttonLabel: info != null ? '查看' : '檢查',
-              autofocus: true,
               isFirst: true,
               onMoveUp: widget.onMoveUp,
               sidebarFocusNode: widget.sidebarFocusNode,
@@ -108,11 +122,21 @@ class _AboutSettingsState extends State<AboutSettings> {
         ),
         SettingActionRow(
           label: '回報問題',
-          value: '上傳去除個人資訊的錯誤報告',
+          value: '送出錯誤報告給開發者',
           buttonLabel: '回報',
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onTap: () async {
+            await showErrorReportDialog(context);
+            _loadHistory();
+          },
+        ),
+        SettingActionRow(
+          label: '回報紀錄',
+          value: _lastReportId == null ? '尚無紀錄' : '最近一次：$_lastReportId',
+          buttonLabel: '查看',
           isLast: true,
           sidebarFocusNode: widget.sidebarFocusNode,
-          onTap: () => showErrorReportDialog(context),
+          onTap: () => showReportHistoryDialog(context),
         ),
       ],
     );
