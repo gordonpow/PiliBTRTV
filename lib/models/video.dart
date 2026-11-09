@@ -215,6 +215,43 @@ class Video {
     );
   }
 
+  /// 從收藏夾內容 (fav/resource/list) 的 medias 項目解析
+  factory Video.fromFav(Map<String, dynamic> json) {
+    final upper = json['upper'] as Map<String, dynamic>? ?? {};
+    final cnt = json['cnt_info'] as Map<String, dynamic>? ?? {};
+    return Video(
+      bvid: json['bvid']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      pic: _fixPicUrl(json['cover']?.toString() ?? ''),
+      ownerName: upper['name']?.toString() ?? '',
+      ownerFace: _fixPicUrl(upper['face']?.toString() ?? ''),
+      ownerMid: _toInt(upper['mid']),
+      view: _toInt(cnt['play']),
+      danmaku: _toInt(cnt['danmaku']),
+      duration: _toInt(json['duration']),
+      pubdate: _toInt(json['pubtime']),
+    );
+  }
+
+  /// 從稍後再看 (v2/history/toview) 的 list 項目解析
+  factory Video.fromToView(Map<String, dynamic> json) {
+    final owner = json['owner'] as Map<String, dynamic>? ?? {};
+    final stat = json['stat'] as Map<String, dynamic>? ?? {};
+    return Video(
+      bvid: json['bvid']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      pic: _fixPicUrl(json['pic']?.toString() ?? ''),
+      ownerName: owner['name']?.toString() ?? '',
+      ownerFace: _fixPicUrl(owner['face']?.toString() ?? ''),
+      ownerMid: _toInt(owner['mid']),
+      view: _toInt(stat['view']),
+      danmaku: _toInt(stat['danmaku']),
+      duration: _toInt(json['duration']),
+      pubdate: _toInt(json['pubdate']),
+      cid: _toInt(json['cid']),
+    );
+  }
+
   /// 格式化播放量
   String get viewFormatted {
     return formatCount(view);

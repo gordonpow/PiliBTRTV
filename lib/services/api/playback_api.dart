@@ -322,6 +322,7 @@ class PlaybackApi {
               if (videoUrl != null) {
                 // 選取抽幀預覽串流：codecs 以 avc 開頭、id 最小但 >= 32 (若無則最小 id 的 avc，再無則 videoUrl)
                 String? previewUrl;
+                bool previewIsAvc = false;
                 final avcVideos = videos.where((v) {
                   final codecs = (v['codecs'] as String? ?? '').toLowerCase();
                   return codecs.startsWith('avc');
@@ -350,6 +351,7 @@ class PlaybackApi {
                     candidate = avcVideos.first;
                   }
                   previewUrl = candidate['baseUrl'] ?? candidate['base_url'];
+                  previewIsAvc = previewUrl != null;
                 }
                 previewUrl ??= videoUrl;
 
@@ -367,6 +369,7 @@ class PlaybackApi {
                     'video': [selectedVideo],
                   },
                   'previewUrl': previewUrl,
+                  'previewIsAvc': previewIsAvc,
                   'hwDecodable': await hwOk(selectedVideo),
                   'maxDecodableQn': await maxQn(),
                 };

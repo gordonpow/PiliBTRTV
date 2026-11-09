@@ -11,14 +11,17 @@ library;
 
 // 匯出子模組，供外部直接使用
 export 'api/video_api.dart' show DynamicFeed;
+export 'api/user_api.dart' show MyInfo, MyStat, FollowingUser, FollowingPage;
 
 import 'api/auth_api.dart';
+import 'api/user_api.dart';
 import 'api/video_api.dart';
 import 'api/playback_api.dart';
 import 'api/interaction_api.dart';
 import 'api/videoshot_api.dart';
 import 'api/pgc_api.dart';
 import 'api/space_api.dart';
+import 'api/fav_api.dart';
 import 'settings_service.dart' show VideoCodec;
 import '../models/space_data.dart';
 import '../models/video.dart';
@@ -31,6 +34,15 @@ class BilibiliApi {
 
   /// 獲取使用者資訊 (頭像、暱稱等)
   static Future<void> fetchAndSaveUserInfo() => AuthApi.fetchAndSaveUserInfo();
+
+  // ========== 個人頁面 ==========
+
+  static Future<MyInfo?> getMyInfo() => UserApi.getMyInfo();
+
+  static Future<MyStat?> getMyStat() => UserApi.getMyStat();
+
+  static Future<FollowingPage?> getFollowings(int mid, int pn) =>
+      UserApi.getFollowings(mid, pn);
 
   // ========== TV 登入相關 ==========
 
@@ -59,6 +71,13 @@ class BilibiliApi {
   }) => VideoApi.getRegionVideos(tid: tid, page: page);
 
   /// 獲取觀看歷史 (需要登入)
+  static Future<List<FavFolder>> getFavFolders() => FavApi.getFavFolders();
+
+  static Future<Map<String, dynamic>> getFavVideos(int mediaId, int pn) =>
+      FavApi.getFavVideos(mediaId, pn);
+
+  static Future<List<Video>> getWatchLater() => FavApi.getWatchLater();
+
   static Future<Map<String, dynamic>> getHistory({
     int ps = 30,
     int viewAt = 0,

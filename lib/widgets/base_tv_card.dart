@@ -1,5 +1,13 @@
+import 'dart:async';
+
 import 'package:bili_tv_app/widgets/zh_material.dart';
+import 'package:video_player/video_player.dart';
 import '../core/focus/focus_navigation.dart';
+import '../models/video.dart';
+import '../services/card_preview_service.dart';
+import '../services/prefetch_service.dart';
+import '../services/settings_service.dart';
+import '../utils/nav_settle.dart';
 
 /// TV 影片卡片基類
 ///
@@ -14,6 +22,9 @@ class BaseTvCard extends StatefulWidget {
   final VoidCallback? onBack;
   final bool autofocus;
   final FocusNode? focusNode;
+
+  /// 焦點預覽用的影片（null 表示此卡片不預覽，如直播、合集）
+  final Video? previewVideo;
 
   /// The main image content (usually CachedNetworkImage)
   /// This will be wrapped in AspectRatio and Stack for glow/border
@@ -40,6 +51,7 @@ class BaseTvCard extends StatefulWidget {
     this.onBack,
     this.autofocus = false,
     this.focusNode,
+    this.previewVideo,
     this.isFirst = false,
     this.isLast = false,
   });
@@ -50,7 +62,14 @@ class BaseTvCard extends StatefulWidget {
 
 class _BaseTvCardState extends State<BaseTvCard>
     with SingleTickerProviderStateMixin {
+  /// 已掛載的卡片（供焦點停住時挑鄰近卡片預先解析）
+  static final Set<_BaseTvCardState> _mounted = {};
+
   bool _isFocused = false;
+  Timer? _startTimer;
+
+  /// 已按下確認鍵進入播放：之後的失焦不取消預載，讓播放器能用到結果
+  bool _keepPrefetch = false;
   late AnimationController _animController;
   late Animation<double> _scaleAnim;
   late Animation<double> _glowAnim;
@@ -58,6 +77,7 @@ class _BaseTvCardState extends State<BaseTvCard>
   @override
   void initState() {
     super.initState();
+    _mounted.add(this);
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -75,6 +95,12 @@ class _BaseTvCardState extends State<BaseTvCard>
 
   @override
   void dispose() {
+    _mounted.remove(this);
+    _startTimer?.cancel();
+    _startTimer = null;
+    if (!_keepPrefetch) PrefetchService.instance.cancel(this);
+    // 避免在 widget 樹卸載期間通知監聽者，延後到 microtask
+    Future.microtask(() => CardPreviewService.instance.stop(this));
     _animController.dispose();
     super.dispose();
   }
@@ -84,9 +110,129 @@ class _BaseTvCardState extends State<BaseTvCard>
     if (focused) {
       widget.onFocus();
       _animController.forward();
+      _keepPrefetch = false;
+      final video = widget.previewVideo;
+      // 焦點停穩後才預載並開始預覽（單次移動約 150ms，快速移動 250ms）
+      _startTimer?.cancel();
+      _startTimer = null;
+      if (video != null) {
+        _scheduleStart(video, NavSettle.instance.onFocusArrived());
+      }
     } else {
       _animController.reverse();
+      _startTimer?.cancel();
+      _startTimer = null;
+      if (!_keepPrefetch) PrefetchService.instance.cancel(this);
+      CardPreviewService.instance.stop(this);
     }
+  }
+
+  void _scheduleStart(Video video, Duration delay) {
+    _startTimer = Timer(delay, () {
+      if (!mounted || !_isFocused) {
+        debugPrint(
+          '⚡ [PreResolve] skip: timer fired mounted=$mounted focused=$_isFocused',
+        );
+        return;
+      }
+      // 長按移動中：等放開再啟動
+      if (NavSettle.instance.isHeld) {
+        _scheduleStart(video, const Duration(milliseconds: 250));
+        return;
+      }
+      PrefetchService.instance.schedule(this, video);
+      if (SettingsService.cardPreview) {
+        CardPreviewService.instance.start(this, video);
+        _preResolveNeighbors();
+      } else {
+        debugPrint('⚡ [PreResolve] skip: cardPreview off');
+      }
+    });
+  }
+
+  /// 挑最近 4 張在畫面內的其他卡片，背景預先解析影片資訊與播放網址
+  void _preResolveNeighbors() {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached) {
+      debugPrint('⚡ [PreResolve] skip: render box not attached');
+      return;
+    }
+    final screen = Offset.zero & MediaQuery.sizeOf(context);
+    final origin = box.localToGlobal(box.size.center(Offset.zero));
+    final found = <({double dist, Video video})>[];
+    for (final s in _mounted) {
+      if (identical(s, this)) continue;
+      final v = s.widget.previewVideo;
+      final b = s.context.findRenderObject();
+      if (v == null || b is! RenderBox || !b.attached || !b.hasSize) continue;
+      final rect = b.localToGlobal(Offset.zero) & b.size;
+      if (!rect.overlaps(screen)) continue;
+      // 同一排的左右鄰居優先（使用者多半左右移動），垂直距離加權 1.5 倍
+      final d = rect.center - origin;
+      found.add((dist: Offset(d.dx, d.dy * 1.5).distance, video: v));
+    }
+    if (found.isEmpty) {
+      debugPrint(
+        '⚡ [PreResolve] skip: no visible candidates (mounted=${_mounted.length})',
+      );
+      return;
+    }
+    found.sort((a, b) => a.dist.compareTo(b.dist));
+    // 多給幾張候選，已快取的由 preResolve 跳過後再取 4 張
+    PrefetchService.instance.preResolve([
+      for (final f in found.take(8)) f.video,
+    ]);
+  }
+
+  void _handleSelect() {
+    // 只取消尚未觸發的計時器；已開始的預載保留給播放器
+    _startTimer?.cancel();
+    _startTimer = null;
+    _keepPrefetch = true;
+    // 保留暖機播放器給播放頁接手（尚未就緒則取消準備）
+    final video = widget.previewVideo;
+    if (video != null && !video.isPgc) {
+      CardPreviewService.instance.reserve(video.bvid);
+    } else {
+      CardPreviewService.instance.stopAll();
+    }
+    // 卡片立即不再顯示預覽畫面，避免同一個 controller 掛在兩個視圖
+    if (mounted) setState(() {});
+    widget.onTap();
+  }
+
+  Widget _buildCover() {
+    return ValueListenableBuilder<CardPreviewState?>(
+      valueListenable: CardPreviewService.instance.current,
+      builder: (context, state, _) {
+        final controller = state?.controller;
+        final showVideo =
+            state != null &&
+            identical(state.owner, this) &&
+            controller != null &&
+            !CardPreviewService.instance.isClaimed(controller) &&
+            controller.value.isInitialized &&
+            !controller.value.hasError;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            widget.imageContent,
+            if (showVideo)
+              Positioned.fill(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  clipBehavior: Clip.hardEdge,
+                  child: SizedBox(
+                    width: controller.value.size.width,
+                    height: controller.value.size.height,
+                    child: VideoPlayer(controller),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -100,7 +246,7 @@ class _BaseTvCardState extends State<BaseTvCard>
       onExitRight: widget.onMoveRight,
       onExitUp: widget.onMoveUp,
       onExitDown: widget.onMoveDown,
-      onSelect: widget.onTap,
+      onSelect: _handleSelect,
       isFirst: widget.isFirst,
       isLast: widget.isLast,
       enableKeyRepeat: true, // 網格導航支援按住快速移動
@@ -144,7 +290,9 @@ class _BaseTvCardState extends State<BaseTvCard>
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                          child: widget.imageContent,
+                          child: widget.previewVideo == null
+                              ? widget.imageContent
+                              : _buildCover(),
                         ),
                         // 聚焦時的邊框
                         if (_isFocused)

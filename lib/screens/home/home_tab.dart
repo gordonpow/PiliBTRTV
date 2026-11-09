@@ -165,13 +165,25 @@ class HomeTabState extends State<HomeTab> {
     }
 
     if (!mounted) return;
+
+    // 非重新整理且取回 0 筆（失敗或空）：只還原 loading 與 page，下次往下移動會重試
+    if (!refresh && videos.isEmpty) {
+      setState(() {
+        _categoryLoading[categoryIndex] = false;
+        if (currentPage > 1) _categoryPage[categoryIndex] = currentPage - 1;
+      });
+      return;
+    }
+
     setState(() {
-      final page = _categoryPage[categoryIndex] ?? 1;
+      // 是否取代清單：只看 refresh 或清單原本為空
+      final replaceList =
+          refresh || (_categoryVideos[categoryIndex] ?? []).isEmpty;
 
       // 外掛過濾
       final filteredVideos = _filterVideos(videos);
 
-      if (refresh || page == 1) {
+      if (replaceList) {
         _categoryVideos[categoryIndex] = filteredVideos;
       } else {
         // 去重 (分區 feed 翻頁可能重複)
@@ -201,6 +213,7 @@ class HomeTabState extends State<HomeTab> {
   // ... (省略 _loadMore, _switchCategory 等輔助方法) ...
   void _loadMore() {
     if (_isLoading) return;
+    if (_currentVideos.isEmpty) return;
     final page = (_categoryPage[_selectedCategoryIndex] ?? 1) + 1;
     _categoryPage[_selectedCategoryIndex] = page;
     _loadVideosForCategory(_selectedCategoryIndex);
@@ -261,10 +274,6 @@ class HomeTabState extends State<HomeTab> {
                             ) {
                               final video = _currentVideos[index];
 
-                              if (index == _currentVideos.length - 4) {
-                                _loadMore();
-                              }
-
                               // 【最佳化】只有重新整理時才使用交錯載入
                               // 初始載入和從播放器返回時，圖片已在快取中，直接顯示
                               final int? staggerIdx = _isRefreshing
@@ -307,8 +316,19 @@ class HomeTabState extends State<HomeTab> {
                                       ? () => _getFocusNode(
                                           index + 4,
                                         ).requestFocus()
-                                      : null,
+                                      : ((index ~/ 4 + 1) * 4 <
+                                                _currentVideos.length)
+                                      // 最後一列不滿四張：移到最後一張
+                                      ? () => _getFocusNode(
+                                          _currentVideos.length - 1,
+                                        ).requestFocus()
+                                      // 真正最後一列：觸發載入更多
+                                      : () => _loadMore(),
                                   onFocus: () {
+                                    // 焦點接近底部時載入更多（不在 build 中呼叫）
+                                    if (index >= _currentVideos.length - 12) {
+                                      _loadMore();
+                                    }
                                     if (!_scrollController.hasClients) {
                                       return;
                                     }
