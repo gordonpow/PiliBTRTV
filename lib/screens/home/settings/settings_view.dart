@@ -80,8 +80,9 @@ class SettingsViewState extends State<SettingsView>
 
   /// 請求第一個分類標籤的焦點（用於從側邊欄導航）
   void focusFirstCategory() {
+    // 從側邊欄進來一律到第一個分類（播放設定），不回到上次停留的分類
     if (_categoryFocusNodes.isNotEmpty) {
-      _categoryFocusNodes[_selectedCategoryIndex].requestFocus();
+      _categoryFocusNodes.first.requestFocus();
     }
   }
 
