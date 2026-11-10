@@ -101,6 +101,28 @@ class Video {
     );
   }
 
+  /// 從番劇相關推薦 (pgc/season/web/related/recommend) 的 season 項目解析
+  factory Video.fromSeasonRelated(Map<String, dynamic> json) {
+    final stat = json['stat'] as Map<String, dynamic>? ?? {};
+    final newEp = json['new_ep'] as Map<String, dynamic>? ?? {};
+    return Video(
+      bvid: '',
+      title: (json['title'] ?? '').toString(),
+      pic: _fixPicUrl((json['cover'] ?? '').toString()),
+      // 卡片 UP 主位置顯示類型標籤 (如 "戰鬥 / 奇幻")
+      ownerName: ((json['styles'] as List?) ?? const [])
+          .map((e) => e is Map ? (e['name'] ?? '').toString() : '')
+          .where((e) => e.isNotEmpty)
+          .take(3)
+          .join(' / '),
+      view: _toInt(stat['view']),
+      danmaku: _toInt(stat['danmaku']),
+      badge: (json['badge'] ?? '').toString(),
+      seasonId: _toInt(json['season_id']),
+      epIndexText: (newEp['index_show'] ?? '').toString(),
+    );
+  }
+
   /// 從推薦/熱門 API 響應解析
   factory Video.fromRecommend(Map<String, dynamic> json) {
     final owner = json['owner'] as Map<String, dynamic>? ?? {};

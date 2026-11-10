@@ -38,46 +38,40 @@ abstract final class SettingsIndex {
     // 播放設定
     SettingsEntry(
       '播放完畢後',
-      '播完暫停、順序播放、單個循環、列表循環、自動連播',
+      '播完暫停、直接播下一部、倒數後播下一部、循環播放此影片、列表循環',
       SettingsCategory.playback,
     ),
-    SettingsEntry('連播倒數', '影片播完後倒數幾秒再播下一部', SettingsCategory.playback),
+    SettingsEntry('連播倒數', '「倒數後播下一部」模式播完後倒數幾秒', SettingsCategory.playback),
     SettingsEntry('迷你進度條', '播放時在螢幕底部顯示簡約進度條', SettingsCategory.playback),
     SettingsEntry('預設隱藏控制欄', '開啟影片時不顯示控制欄和進度條', SettingsCategory.playback),
     SettingsEntry('快進預覽模式', '快進快退時顯示預覽縮圖，按確定跳轉', SettingsCategory.playback),
     SettingsEntry('播放畫面模式', '影片顏色或順暢度異常時可切換試試', SettingsCategory.playback),
+    SettingsEntry('影片解碼器', '自動=按硬體支援選最優，失敗時降級到其他格式', SettingsCategory.playback),
     SettingsEntry(
-      '影片解碼器',
-      '自動=按硬體支援選最優，失敗時降級到其他格式',
+      '隧道播放（實驗）',
+      '4K 60 幀不順時可試試，只在「原生」畫面模式有效；黑畫面或沒聲音請關閉',
+      SettingsCategory.playback,
+    ),
+    SettingsEntry(
+      '重設 4K 60 幀偵測',
+      '清除此裝置 4K 60 幀不順的記錄',
       SettingsCategory.playback,
     ),
     // 線程撕裂者
     SettingsEntry('播放加速', '播放時從多個 CDN 節點並行下載，減少卡頓', SettingsCategory.btr),
-    SettingsEntry(
-      'CDN 模式',
-      '節點輪換使用，連續兩次 0 KiB 的節點會被停用',
-      SettingsCategory.btr,
-    ),
+    SettingsEntry('CDN 模式', '節點輪換使用，連續兩次 0 KiB 的節點會被停用', SettingsCategory.btr),
     SettingsEntry('自訂 CDN 節點', '編輯', SettingsCategory.btr),
     SettingsEntry('自動執行緒數（推薦）', '播放使用 8 個執行緒', SettingsCategory.btr),
     SettingsEntry('執行緒數', '每個播放請求使用的執行緒數', SettingsCategory.btr),
     // 介面設定
-    SettingsEntry(
-      '啟動動畫',
-      '啟動應用時顯示動畫，關閉則直接進入主頁',
-      SettingsCategory.interface_,
-    ),
+    SettingsEntry('啟動動畫', '啟動應用時顯示動畫，關閉則直接進入主頁', SettingsCategory.interface_),
     SettingsEntry('總是顯示時間', '播放介面右上角總是顯示當前時間', SettingsCategory.interface_),
     SettingsEntry(
       '影片卡片預覽',
       '游標停在影片卡片上 1 秒，靜音預覽 10 秒',
       SettingsCategory.interface_,
     ),
-    SettingsEntry(
-      '語言',
-      '切換繁體或簡體中文，重新啟動後生效',
-      SettingsCategory.interface_,
-    ),
+    SettingsEntry('語言', '切換繁體或簡體中文，重新啟動後生效', SettingsCategory.interface_),
     SettingsEntry(
       '首頁分區',
       '分區開關、分區排序 推薦 熱門 番劇 影視 遊戲 知識 科技 音樂 舞蹈 生活 美食 動畫',
@@ -98,7 +92,7 @@ abstract final class SettingsIndex {
     SettingsEntry('檢查更新', '檢查 查看 有新版本 已是最新', SettingsCategory.about),
     SettingsEntry('自動檢查更新', '', SettingsCategory.about),
     SettingsEntry('檢查間隔', '', SettingsCategory.about),
-    SettingsEntry('回報問題', '送出錯誤報告給開發者', SettingsCategory.about),
+    SettingsEntry('回報問題/建議', '送出錯誤報告或功能建議給開發者', SettingsCategory.about),
     SettingsEntry('回報紀錄', '查看 尚無紀錄 最近一次', SettingsCategory.about),
   ];
 

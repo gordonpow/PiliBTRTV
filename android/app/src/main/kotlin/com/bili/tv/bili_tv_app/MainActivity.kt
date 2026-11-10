@@ -93,6 +93,14 @@ class MainActivity : FlutterActivity() {
                     val fps = call.argument<Double>("fps") ?: 0.0
                     result.success(canHwDecode(codec, w, h, fps))
                 }
+                "decoderCaps" -> {
+                    val codec = call.argument<String>("codec") ?: ""
+                    val w = call.argument<Int>("width") ?: 0
+                    val h = call.argument<Int>("height") ?: 0
+                    val fps = call.argument<Double>("fps") ?: 0.0
+                    val name = call.argument<String>("decoderName")
+                    result.success(decoderCaps(codec, name, w, h, fps))
+                }
                 "isHdrDisplay" -> result.success(isHdrDisplay())
                 "getDeviceInfo" -> result.success(perfDeviceInfo())
                 "getProcessCpu" -> result.success(processCpu())
@@ -186,6 +194,53 @@ class MainActivity : FlutterActivity() {
             false
         } catch (e: Exception) {
             true
+        }
+    }
+
+    // 解碼器能力診斷：隧道支援、可達幀率、效能點。優先查目前播放中的解碼器名稱，
+    // 查不到再找第一個支援該 MIME 的硬體解碼器；任何例外回 null
+    private fun decoderCaps(
+        codec: String,
+        decoderName: String?,
+        width: Int,
+        height: Int,
+        fps: Double
+    ): Map<String, Any?>? {
+        return try {
+            val mime = when (codec) {
+                "avc" -> "video/avc"
+                "hevc" -> "video/hevc"
+                "av1" -> "video/av01"
+                else -> return null
+            }
+            val infos = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos.filter {
+                !it.isEncoder && it.supportedTypes.any { t -> t.equals(mime, ignoreCase = true) }
+            }
+            val info = infos.firstOrNull { !decoderName.isNullOrEmpty() && it.name == decoderName }
+                ?: infos.firstOrNull { isHardwareCodec(it) && !it.name.lowercase().endsWith(".secure") }
+                ?: return null
+            val caps = info.getCapabilitiesForType(mime)
+            val tunnel = caps.isFeatureSupported(MediaCodecInfo.CodecCapabilities.FEATURE_TunneledPlayback)
+            val vc = caps.videoCapabilities
+            val achievable = vc?.getAchievableFrameRatesFor(width, height)?.let {
+                "${it.lower}-${it.upper}"
+            }
+            var perfPointOk: Boolean? = null
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && vc != null) {
+                val points = vc.supportedPerformancePoints
+                if (points != null) {
+                    val target = MediaCodecInfo.VideoCapabilities.PerformancePoint(width, height, fps.toInt())
+                    perfPointOk = points.any { it.covers(target) }
+                }
+            }
+            mapOf(
+                "name" to info.name,
+                "tunnel" to tunnel,
+                "achievable" to achievable,
+                "perfPointOk" to perfPointOk
+            )
+        } catch (e: Exception) {
+            null
         }
     }
 

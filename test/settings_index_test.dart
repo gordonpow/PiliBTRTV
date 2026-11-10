@@ -11,7 +11,7 @@ void main() {
 
   test('比對 label 與 subtitle，不分大小寫', () {
     expect(SettingsIndex.search('cdn').map((e) => e.label), contains('CDN 模式'));
-    expect(SettingsIndex.search('自動連播'), isNotEmpty);
+    expect(SettingsIndex.search('倒數後播下一部'), isNotEmpty);
     expect(SettingsIndex.search('連播倒數'), isNotEmpty);
     expect(SettingsIndex.search('迷你')[0].label, '迷你進度條');
   });

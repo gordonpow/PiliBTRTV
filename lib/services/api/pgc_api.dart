@@ -45,6 +45,38 @@ class PgcApi {
     return [];
   }
 
+  /// 番劇相關推薦（回應的 `data.season[]`，`data.relates` 是漫畫等其他類型，不使用）。
+  /// 失敗或沒有資料時回傳空清單。
+  static Future<List<Video>> getSeasonRelated(int seasonId) async {
+    if (seasonId <= 0) return [];
+    try {
+      final uri = Uri.parse(
+        '${BaseApi.apiBase}/pgc/season/web/related/recommend',
+      ).replace(queryParameters: {'season_id': seasonId.toString()});
+      final response = await http.get(
+        uri,
+        headers: BaseApi.getHeaders(withCookie: true),
+      );
+      if (response.statusCode == 200) {
+        final json = jsonDecode(utf8.decode(response.bodyBytes));
+        if (json['code'] == 0 && json['data'] != null) {
+          final list = json['data']['season'] as List? ?? [];
+          return list
+              .whereType<Map<String, dynamic>>()
+              .where((item) => BaseApi.toInt(item['season_id']) > 0)
+              .map(Video.fromSeasonRelated)
+              .toList();
+        }
+        debugPrint(
+          'getSeasonRelated failed: code=${json['code']} message=${json['message']}',
+        );
+      }
+    } catch (e) {
+      debugPrint('getSeasonRelated error: $e');
+    }
+    return [];
+  }
+
   /// 解析番劇網址 `/bangumi/play/ss<id>` 或 `/bangumi/play/ep<id>`，其他回傳 null。
   static ({int seasonId, int epId})? parseBangumiUrl(String url) {
     final m = RegExp(r'/bangumi/play/(ss|ep)(\d+)').firstMatch(url);
@@ -65,9 +97,7 @@ class PgcApi {
     int epId = 0,
   }) async {
     try {
-      final uri = Uri.parse(
-        '${BaseApi.apiBase}/pgc/view/web/season',
-      ).replace(
+      final uri = Uri.parse('${BaseApi.apiBase}/pgc/view/web/season').replace(
         queryParameters: seasonId > 0
             ? {'season_id': seasonId.toString()}
             : {'ep_id': epId.toString()},

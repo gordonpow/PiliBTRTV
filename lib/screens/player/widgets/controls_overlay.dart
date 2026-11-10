@@ -3,6 +3,8 @@ import 'package:video_player/video_player.dart';
 import '../../../models/video.dart';
 import '../../../widgets/time_display.dart';
 import '../../../widgets/conditional_marquee.dart';
+import '../mixins/player_state_mixin.dart' show CtrlBtn;
+import '../video_actions_controller.dart';
 import 'tv_progress_bar.dart';
 
 class ControlsOverlay extends StatelessWidget {
@@ -20,7 +22,9 @@ class ControlsOverlay extends StatelessWidget {
   final bool isProgressBarFocused; // 進度條是否獲得焦點
   final Duration? previewPosition; // 預覽位置（快進快退時）
   final String? onlineCount; // 線上觀看人數
-  final int danmakuCount; // 彈幕總數
+  final VideoActionsController actions; // 點讚／投幣／收藏狀態與動作
+  final bool hasPrev; // 沒有上一部時按鈕變暗
+  final bool hasNext; // 沒有下一部時按鈕變暗
 
   const ControlsOverlay({
     super.key,
@@ -35,11 +39,13 @@ class ControlsOverlay extends StatelessWidget {
     required this.onToggleDanmaku,
     required this.currentQuality,
     required this.onQualityClick,
+    required this.actions,
     this.isProgressBarFocused = false,
     this.previewPosition,
     this.alwaysShowPlayerTime = false,
     this.onlineCount,
-    this.danmakuCount = 0,
+    this.hasPrev = false,
+    this.hasNext = false,
   });
 
   final bool alwaysShowPlayerTime;
@@ -66,16 +72,17 @@ class ControlsOverlay extends StatelessWidget {
     return parts.join(' · ');
   }
 
-  // 格式化彈幕數
-  String _formatDanmakuCount(int count) {
-    if (count >= 10000) {
-      return '${(count / 10000).toStringAsFixed(1)}萬';
-    }
-    return count.toString();
-  }
+  static const Color accent = Color(0xFFfb7299);
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: actions,
+      builder: (context, _) => _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
     // 計算緩衝時長
     Duration buffered = Duration.zero;
     if (controller.value.buffered.isNotEmpty) {
@@ -144,6 +151,23 @@ class ControlsOverlay extends StatelessWidget {
         if (!alwaysShowPlayerTime)
           const Positioned(top: 20, right: 30, child: TimeDisplay()),
 
+        // 右上角時間下方：在看人數與畫質
+        Positioned(
+          top: 54,
+          right: 30,
+          child: Text(
+            [
+              if (onlineCount != null && onlineCount!.isNotEmpty)
+                '在看:$onlineCount',
+              currentQuality,
+            ].join(' · '),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 14,
+            ),
+          ),
+        ),
+
         // 底部控制區
         Positioned(
           bottom: 0,
@@ -192,81 +216,66 @@ class ControlsOverlay extends StatelessWidget {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    // 播放/暫停 (index 0)
                     _buildControlButton(
-                      index: 0,
+                      index: CtrlBtn.prev,
+                      icon: Icons.skip_previous,
+                      enabled: hasPrev,
+                    ),
+                    const SizedBox(width: 24),
+                    _buildControlButton(
+                      index: CtrlBtn.playPause,
                       icon: controller.value.isPlaying
                           ? Icons.pause
                           : Icons.play_arrow,
-                      onTap: onPlayPause,
                     ),
                     const SizedBox(width: 24),
-                    // 選集 (index 1)
                     _buildControlButton(
-                      index: 1,
+                      index: CtrlBtn.next,
+                      icon: Icons.skip_next,
+                      enabled: hasNext,
+                    ),
+                    const SizedBox(width: 24),
+                    _buildControlButton(
+                      index: CtrlBtn.episodes,
                       icon: Icons.playlist_play,
-                      onTap: onEpisodes,
                     ),
                     const SizedBox(width: 24),
-                    // UP主 (index 2)
+                    _buildControlButton(index: CtrlBtn.up, icon: Icons.person),
+                    const SizedBox(width: 24),
                     _buildControlButton(
-                      index: 2,
-                      icon: Icons.person,
-                      onTap: () {},
+                      index: CtrlBtn.danmaku,
+                      icon: isDanmakuEnabled
+                          ? Icons.subtitles
+                          : Icons.subtitles_off,
                     ),
                     const SizedBox(width: 24),
-                    // 更多影片 (index 3)
                     _buildControlButton(
-                      index: 3,
-                      icon: Icons.expand_more,
-                      onTap: () {},
-                    ),
-                    const SizedBox(width: 24),
-                    // 設定 (index 4)
-                    _buildControlButton(
-                      index: 4,
+                      index: CtrlBtn.settings,
                       icon: Icons.tune,
-                      onTap: onSettings,
-                    ),
-                    const SizedBox(width: 24),
-                    // 點贊/投幣/收藏 (index 5)
-                    _buildControlButton(
-                      index: 5,
-                      icon: Icons.thumb_up_outlined,
-                      onTap: () {},
                     ),
                     const Spacer(),
-                    // 線上人數 (純文字)
-                    if (onlineCount != null && onlineCount!.isNotEmpty)
-                      Text(
-                        '在看:$onlineCount',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 14,
-                        ),
-                      ),
-                    if (onlineCount != null && onlineCount!.isNotEmpty)
-                      const SizedBox(width: 16),
-                    // 彈幕數 (純文字)
-                    Text(
-                      isDanmakuEnabled && danmakuCount > 0
-                          ? '彈幕:${_formatDanmakuCount(danmakuCount)}'
-                          : (isDanmakuEnabled ? '彈幕' : '彈幕關'),
-                      style: TextStyle(
-                        color: isDanmakuEnabled
-                            ? Colors.white.withValues(alpha: 0.8)
-                            : Colors.white.withValues(alpha: 0.5),
-                        fontSize: 14,
-                      ),
+                    _buildControlButton(
+                      index: CtrlBtn.like,
+                      icon: actions.isLiked
+                          ? Icons.thumb_up
+                          : Icons.thumb_up_outlined,
+                      iconColor: actions.isLiked ? accent : Colors.white,
                     ),
-                    const SizedBox(width: 16),
-                    // 畫質 (純文字)
-                    Text(
-                      currentQuality,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 14,
-                      ),
+                    const SizedBox(width: 24),
+                    _buildControlButton(
+                      index: CtrlBtn.coin,
+                      icon: actions.coinCount > 0
+                          ? Icons.monetization_on
+                          : Icons.monetization_on_outlined,
+                      iconColor: actions.coinCount > 0 ? accent : Colors.white,
+                    ),
+                    const SizedBox(width: 24),
+                    _buildControlButton(
+                      index: CtrlBtn.fav,
+                      icon: actions.isFavorited
+                          ? Icons.star
+                          : Icons.star_border,
+                      iconColor: actions.isFavorited ? accent : Colors.white,
                     ),
                   ],
                 ),
@@ -281,20 +290,24 @@ class ControlsOverlay extends StatelessWidget {
   Widget _buildControlButton({
     required int index,
     required IconData icon,
-    required VoidCallback onTap,
+    bool enabled = true,
+    Color iconColor = Colors.white,
   }) {
     final isFocused =
         !isProgressBarFocused && focusedIndex == index && showControls;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isFocused
-            ? const Color(0xFFfb7299).withValues(alpha: 0.8)
-            : Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: isFocused ? Border.all(color: Colors.white, width: 3) : null,
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.35,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isFocused
+              ? const Color(0xFFfb7299).withValues(alpha: 0.8)
+              : Colors.white.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: isFocused ? Border.all(color: Colors.white, width: 3) : null,
+        ),
+        child: Icon(icon, color: iconColor, size: 36),
       ),
-      child: Icon(icon, color: Colors.white, size: 36),
     );
   }
 }

@@ -2,7 +2,9 @@ import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../../../../models/play_repeat.dart';
 import '../../../../services/settings_service.dart';
 import '../../../../services/codec_service.dart';
+import 'package:bili_tv_app/utils/zh_toast.dart';
 import '../widgets/setting_toggle_row.dart';
+import '../widgets/setting_action_row.dart';
 import '../widgets/setting_dropdown_row.dart';
 
 class PlaybackSettings extends StatefulWidget {
@@ -44,7 +46,7 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
       children: [
         SettingDropdownRow<PlayRepeat>(
           label: '播放完畢後',
-          subtitle: '播完暫停、順序播放、單個循環、列表循環、自動連播',
+          subtitle: '播完暫停、直接播下一部、倒數後播下一部、循環播放此影片、列表循環',
           value: SettingsService.playRepeat,
           items: PlayRepeat.values,
           itemLabel: (v) => v.label,
@@ -61,10 +63,10 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
         const SizedBox(height: 16),
         SettingDropdownRow<int>(
           label: '連播倒數',
-          subtitle: '影片播完後倒數幾秒再播下一部',
+          subtitle: '「倒數後播下一部」模式播完後倒數幾秒',
           value: SettingsService.upNextCountdown,
           items: SettingsService.upNextCountdownOptions,
-          itemLabel: (v) => v == 0 ? '立即播放' : '$v 秒',
+          itemLabel: (v) => '$v 秒',
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (v) async {
             if (v != null) {
@@ -144,13 +146,38 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
             return _hardwareDecoders.contains(codec.name.toLowerCase());
           }).toList(),
           itemLabel: (codec) => codec.label,
-          isLast: true, // 最後一項，阻止向下導航
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (codec) async {
             if (codec != null) {
               await SettingsService.setPreferredCodec(codec);
               setState(() {});
             }
+          },
+        ),
+        const SizedBox(height: 16),
+        SettingToggleRow(
+          label: '隧道播放（實驗）',
+          subtitle: '4K 60 幀不順時可試試，只在「原生」畫面模式有效；黑畫面或沒聲音請關閉',
+          value: SettingsService.playerTunneling,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (value) async {
+            await SettingsService.setPlayerTunneling(value);
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 16),
+        SettingActionRow(
+          label: '重設 4K 60 幀偵測',
+          value: SettingsService.known4k60Bad
+              ? '已記錄此裝置播放 4K 60 幀不順'
+              : '目前沒有 4K 60 幀不順的記錄',
+          buttonLabel: '重設',
+          isLast: true, // 最後一項，阻止向下導航
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onTap: () async {
+            await SettingsService.clearKnown4k60Bad();
+            showZhToast(msg: '已重設 4K 60 幀偵測');
+            if (mounted) setState(() {});
           },
         ),
       ],

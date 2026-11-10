@@ -13,8 +13,7 @@ import 'widgets/controls_overlay.dart';
 import 'widgets/settings_panel.dart';
 import 'widgets/episode_panel.dart';
 import 'widgets/pause_indicator.dart';
-import 'widgets/action_buttons.dart';
-import 'widgets/related_panel.dart';
+import 'widgets/related_strip.dart';
 import 'widgets/up_next_card.dart';
 import 'widgets/mini_progress_bar.dart';
 import 'widgets/seek_thumbnail_strip.dart';
@@ -28,7 +27,10 @@ import 'mixins/player_event_mixin.dart';
 class PlayerScreen extends StatefulWidget {
   final Video video;
 
-  const PlayerScreen({super.key, required this.video});
+  /// > 0 時從這個分P開始（合集換片用）；其他入口維持原本的續播邏輯
+  final int startCid;
+
+  const PlayerScreen({super.key, required this.video, this.startCid = 0});
 
   /// 目前開著的播放頁數量；> 0 時卡片不暖機（避免覆寫 LocalServer 的 MPD）
   static int activeCount = 0;
@@ -82,6 +84,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     WakelockPlus.disable();
     WidgetsBinding.instance.removeObserver(this);
     hideTimer?.cancel();
+    cancelDanmakuHold();
     upNextTimer?.cancel();
     progressReportTimer?.cancel();
     // 退出時上報進度
@@ -94,6 +97,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     // 通過 mixin 方法銷燬播放器
     disposePlayer();
     playerFocusNode.dispose();
+    videoActions.dispose();
     super.dispose();
   }
 
@@ -193,7 +197,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                     video: getDisplayVideo(),
                     controller: videoController!,
                     showControls: showControls,
-                    focusedIndex: focusedButtonIndex,
+                    focusedIndex: isCtrlBtnEnabled(focusedButtonIndex)
+                        ? focusedButtonIndex
+                        : CtrlBtn.playPause,
+                    hasPrev: hasPrev,
+                    hasNext: hasNext,
                     onPlayPause: togglePlayPause,
                     onSettings: () {
                       setState(() {
@@ -215,7 +223,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     previewPosition: previewPosition,
                     alwaysShowPlayerTime: SettingsService.alwaysShowPlayerTime,
                     onlineCount: onlineCount,
-                    danmakuCount: danmakuList.length,
+                    actions: videoActions,
                   ),
                 ),
 
@@ -231,28 +239,6 @@ class _PlayerScreenState extends State<PlayerScreen>
                   previewPosition != null &&
                   videoController != null)
                 _buildProgressPreview(),
-
-              // 點贊/投幣/收藏按鈕
-              if (showActionButtons && !isLoading && videoController != null)
-                Positioned(
-                  bottom: 100,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: ActionButtons(
-                      video: widget.video,
-                      aid: aid ?? 0,
-                      isFocused: showActionButtons,
-                      onFocusExit: () {
-                        setState(() => showActionButtons = false);
-                        startHideTimer();
-                      },
-                      onUserInteraction: () {
-                        startHideTimer();
-                      },
-                    ),
-                  ),
-                ),
 
               // 選集面板
               if (showEpisodePanel)
@@ -278,6 +264,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                   qualityDesc: currentQualityDesc,
                   playbackSpeed: playbackSpeed,
                   availableSpeeds: availableSpeeds,
+                  playEndLabel: SettingsService.playRepeat.label,
                   danmakuEnabled: danmakuEnabled,
                   danmakuOpacity: danmakuOpacity,
                   danmakuFontSize: danmakuFontSize,
@@ -306,25 +293,15 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ),
                 ),
 
-              // 更多影片面板
+              // 相關影片底部橫排
               if (showRelatedPanel)
-                RelatedPanel(
-                  bvid: widget.video.bvid,
-                  onVideoSelect: (video) {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PlayerScreen(video: video),
-                      ),
-                    );
-                  },
-                  onClose: () {
-                    setState(() {
-                      showRelatedPanel = false;
-                      showControls = true;
-                    });
-                    startHideTimer();
-                  },
+                RelatedStrip(
+                  bvid: playingBvid,
+                  seasonId: isPgc ? widget.video.seasonId : 0,
+                  expanded: relatedExpanded,
+                  onExpandedChanged: (v) => setState(() => relatedExpanded = v),
+                  onVideoSelect: (video) => navigateTo(video),
+                  onClose: closeRelatedStrip,
                 ),
 
               // 外掛跳過按鈕

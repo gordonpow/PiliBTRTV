@@ -152,25 +152,36 @@ class SettingsService {
 
   // 播放完畢後行為
   static const String _legacyAutoPlayKey = 'auto_play'; // 舊設定，只用於遷移
-  static const String _playRepeatKey = 'play_repeat';
+  static const String _legacyPlayRepeatKey = 'play_repeat'; // 舊 enum index，只用於遷移
+  static const String _playEndModeKey = 'play_end_mode'; // 新設定，存 enum 名稱
   static const String _upNextCountdownKey = 'up_next_countdown';
 
-  /// 連播倒數可選秒數（0 = 立即播放）
-  static const List<int> upNextCountdownOptions = [0, 3, 5, 10, 15];
+  /// 連播倒數可選秒數（「直接播下一部」已取代原本的 0 秒）
+  static const List<int> upNextCountdownOptions = [3, 5, 10, 15];
 
-  /// 播放完畢後行為。尚未設定時，舊的「自動連播」關閉者視為播完暫停。
+  /// 測試用：注入 SharedPreferences
+  @visibleForTesting
+  static void debugSetPrefs(SharedPreferences? prefs) => _prefs = prefs;
+
+  /// 播放完畢後行為。讀取順序：新 key、舊 play_repeat（依倒數秒數轉換）、
+  /// 更舊的 auto_play。由舊 play_repeat 轉換時，把結果寫進新 key。
   static PlayRepeat get playRepeat {
-    final idx = _prefs?.getInt(_playRepeatKey);
-    if (idx != null && idx >= 0 && idx < PlayRepeat.values.length) {
-      return PlayRepeat.values[idx];
+    final r = PlayRepeat.resolve(
+      name: _prefs?.getString(_playEndModeKey),
+      legacyIndex: _prefs?.getInt(_legacyPlayRepeatKey),
+      legacyAutoPlay: _prefs?.getBool(_legacyAutoPlayKey),
+      // 先用原始倒數秒數轉換，再正規化（讀到 0 時當作 5）
+      countdown: _prefs?.getInt(_upNextCountdownKey),
+    );
+    if (r.fromLegacy) {
+      _prefs?.setString(_playEndModeKey, r.mode.name);
     }
-    if (_prefs?.getBool(_legacyAutoPlayKey) == false) return PlayRepeat.pause;
-    return PlayRepeat.autoPlayRelated;
+    return r.mode;
   }
 
   static Future<void> setPlayRepeat(PlayRepeat value) async {
     await init();
-    await _prefs!.setInt(_playRepeatKey, value.index);
+    await _prefs!.setString(_playEndModeKey, value.name);
   }
 
   /// 連播倒數秒數，預設 5
@@ -446,6 +457,37 @@ class SettingsService {
   static Future<void> setAutoDowngradeOnDrops(bool value) async {
     await init();
     await _prefs!.setBool(_autoDowngradeOnDropsKey, value);
+  }
+
+  // 隧道播放（實驗，預設關）。原生端 PlatformViewVideoPlayer 會直接讀
+  // SharedPreferences 檔 FlutterSharedPreferences 的 flutter.player_tunneling
+  static const String _playerTunnelingKey = 'player_tunneling';
+
+  static bool get playerTunneling {
+    return _prefs?.getBool(_playerTunnelingKey) ?? false;
+  }
+
+  static Future<void> setPlayerTunneling(bool value) async {
+    await init();
+    await _prefs!.setBool(_playerTunnelingKey, value);
+  }
+
+  // 此裝置 4K 高幀率（60fps）播放不順：觸發過自動降畫質就記下來
+  static const String _known4k60BadKey = 'known_4k60_bad';
+
+  static bool get known4k60Bad {
+    return _prefs?.getBool(_known4k60BadKey) ?? false;
+  }
+
+  static Future<void> setKnown4k60Bad(bool value) async {
+    await init();
+    await _prefs!.setBool(_known4k60BadKey, value);
+  }
+
+  /// 清除「4K 60 幀不順」記錄
+  static Future<void> clearKnown4k60Bad() async {
+    await init();
+    await _prefs!.remove(_known4k60BadKey);
   }
 
   // 快進預覽模式設定

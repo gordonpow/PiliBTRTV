@@ -58,6 +58,20 @@ public class PlatformViewVideoPlayer extends VideoPlayer {
         () -> {
           androidx.media3.exoplayer.trackselection.DefaultTrackSelector trackSelector =
               new androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context);
+          // 隧道播放（實驗）：讀 Flutter shared_preferences 的 flutter.player_tunneling
+          // （檔名 FlutterSharedPreferences，key 前綴 flutter.）。只有此 SurfaceView 路徑會啟用。
+          try {
+            boolean tunneling =
+                context
+                    .getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                    .getBoolean("flutter.player_tunneling", false);
+            if (tunneling) {
+              trackSelector.setParameters(
+                  trackSelector.buildUponParameters().setTunnelingEnabled(true));
+            }
+          } catch (Exception e) {
+            // 讀不到設定就維持一般模式
+          }
           ExoPlayer.Builder builder =
               new ExoPlayer.Builder(context)
                   .setTrackSelector(trackSelector)

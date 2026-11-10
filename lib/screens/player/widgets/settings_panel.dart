@@ -11,6 +11,7 @@ class SettingsPanel extends StatefulWidget {
   final String qualityDesc;
   final double playbackSpeed;
   final List<double> availableSpeeds;
+  final String playEndLabel; // 「播放完畢後」目前的模式名稱
 
   // Danmaku Settings
   final bool danmakuEnabled;
@@ -32,6 +33,7 @@ class SettingsPanel extends StatefulWidget {
     required this.qualityDesc,
     required this.playbackSpeed,
     required this.availableSpeeds,
+    required this.playEndLabel,
     required this.danmakuEnabled,
     required this.danmakuOpacity,
     required this.danmakuFontSize,
@@ -199,6 +201,13 @@ class _SettingsPanelState extends State<SettingsPanel> {
           icon: Icons.star_border,
           title: '收藏',
           value: '選擇收藏夾',
+          onTap: () {},
+        ),
+        _buildSettingItem(
+          index: 5,
+          icon: Icons.repeat,
+          title: '播放完畢後',
+          value: widget.playEndLabel,
           onTap: () {},
         ),
       ],

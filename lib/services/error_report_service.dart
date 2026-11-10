@@ -76,6 +76,8 @@ class ErrorReportService {
       '畫面模式: ${SettingsService.playerTextureView ? 'textureView' : 'platformView'}',
     );
     b.writeln('硬體解碼: ${SettingsService.useHardwareDecode ? '開' : '關'}');
+    b.writeln('隧道播放: ${SettingsService.playerTunneling ? '開' : '關'}');
+    b.writeln('4K60 已知不順: ${SettingsService.known4k60Bad ? '是' : '否'}');
     b.writeln('首選編碼: ${SettingsService.preferredCodec.name}');
     b.writeln('已登入: ${AuthService.isLoggedIn ? '是' : '否'}');
 

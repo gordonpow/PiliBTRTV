@@ -28,6 +28,9 @@ class TvVideoCard extends StatelessWidget {
   /// 是否在播放數旁顯示彈幕數（預設不顯示，其他頁面外觀不變）
   final bool showDanmaku;
 
+  /// 是否啟用焦點預覽與預載（播放器內的相關影片要關閉，避免同時解碼兩個影片）
+  final bool enablePreview;
+
   const TvVideoCard({
     super.key,
     required this.video,
@@ -44,6 +47,7 @@ class TvVideoCard extends StatelessWidget {
     this.staggerIndex,
     this.onLongPress,
     this.showDanmaku = false,
+    this.enablePreview = true,
   });
 
   bool get _menuEnabled =>
@@ -66,7 +70,7 @@ class TvVideoCard extends StatelessWidget {
       onLongPress:
           onLongPress ??
           (_menuEnabled ? () => showVideoActionMenu(context, video) : null),
-      previewVideo: video.isLive ? null : video,
+      previewVideo: (video.isLive || !enablePreview) ? null : video,
       imageContent: Stack(
         fit: StackFit.expand,
         children: [

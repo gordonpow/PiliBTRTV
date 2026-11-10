@@ -235,7 +235,16 @@ public final class PlayerStats {
         // 非播放執行緒或已釋放：改用 onVideoDisabled 記下的值
       }
     }
+    Boolean tunneling = null;
+    if (p != null) {
+      try {
+        tunneling = p.isTunnelingEnabled();
+      } catch (Exception e) {
+        // 取不到就回 null（未知）
+      }
+    }
     Map<String, Object> m = new HashMap<>();
+    m.put("tunnelingActive", tunneling);
     synchronized (LOCK) {
       m.put("decoderName", decoderName);
       m.put("isHardware", isHardware);

@@ -13,12 +13,14 @@ class FavFolderState {
   final String title;
   final int mediaCount;
   final bool faved;
+  final bool isDefault; // 預設收藏夾（attr 第 1 位為 0）
 
   const FavFolderState({
     required this.id,
     required this.title,
     required this.mediaCount,
     required this.faved,
+    this.isDefault = false,
   });
 }
 
@@ -41,6 +43,7 @@ List<FavFolderState>? parseFavFolderStates(dynamic json) {
         title: (e['title'] ?? '').toString(),
         mediaCount: (e['media_count'] as num?)?.toInt() ?? 0,
         faved: ((e['fav_state'] as num?)?.toInt() ?? 0) == 1,
+        isDefault: e['attr'] is num && ((e['attr'] as num).toInt() & 2) == 0,
       ),
     );
   }

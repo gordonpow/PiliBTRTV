@@ -9,6 +9,9 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/video.dart' as models;
 import '../../../models/play_repeat.dart';
+import '../../../models/nav_target.dart';
+import '../../../services/play_session_history.dart';
+import '../../../utils/ugc_season_utils.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../services/settings_service.dart';
 import '../../../services/codec_service.dart';
@@ -156,6 +159,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
             cid ??= videoInfo['cid'];
             aid = videoInfo['aid']; // 儲存 aid 用於操作 API
+
+            // 由合集換片時，指定從該部影片的第 1 個分P開始
+            final startCid = widget.startCid;
+            if (startCid > 0 && episodes.any((e) => e['cid'] == startCid)) {
+              cid = startCid;
+            }
           });
           if (cid == null && episodes.isNotEmpty) {
             cid = episodes[0]['cid'];
@@ -287,6 +296,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
         isPreview = playInfo['isPreview'] == true;
         if (isPreview) {
           showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
+        }
+        if (playInfo['known4k60Capped'] == true) {
+          PerfLog.add('已知此裝置 4K60 不順，改從 1080P60 開始');
+          showZhToast(msg: '此裝置播放 4K 60 幀不順，已改用 1080P 60 幀');
         }
         qualities = List<Map<String, dynamic>>.from(
           playInfo['qualities'] ?? [],
@@ -970,8 +983,34 @@ mixin PlayerActionMixin on PlayerStateMixin {
       'hdr=${info?['hdr']} '
       '視圖=${SettingsService.playerTextureView ? '相容' : '原生'} '
       'btr=${btrUsed ? '用' : '不用'} '
-      '彈幕=${danmakuEnabled ? '開' : '關'}',
+      '彈幕=${danmakuEnabled ? '開' : '關'} '
+      '隧道=${SettingsService.playerTunneling ? '開' : '關'}',
     );
+    final tunnelActive = s?['tunnelingActive'];
+    if (SettingsService.playerTunneling && !SettingsService.playerTextureView) {
+      PerfLog.add(
+        '隧道播放 設定=開 實際=${tunnelActive == null ? '未知' : (tunnelActive == true ? '隧道模式' : '一般模式')}'
+        '${tunnelActive == true ? '（隧道模式，掉幀統計可能不準）' : ''}',
+      );
+    } else if (SettingsService.playerTunneling) {
+      PerfLog.add('隧道播放 設定=開，但畫面模式為相容，不會啟用');
+    }
+    final caps = await CodecService.getDecoderCaps(
+      codec: CodecService.codecFamily(codec?.toString() ?? '') ?? '',
+      width: 3840,
+      height: 2160,
+      fps: 60,
+      decoderName: s?['decoderName']?.toString(),
+    );
+    if (gen != perfGen) return;
+    if (caps != null) {
+      PerfLog.add(
+        '解碼器能力 name=${caps['name']} '
+        '隧道支援=${caps['tunnel']} '
+        '4K可達幀率=${caps['achievable']} '
+        '4K60效能點=${caps['perfPointOk']}',
+      );
+    }
     final modes = info?['supportedModes'];
     if (modes is List && modes.isNotEmpty) {
       PerfLog.add('支援螢幕模式 ${modes.join(' ')}');
@@ -1079,6 +1118,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
     final from = currentQuality;
     final prevRate = perfTracker.previousRate;
     perfTracker.commitDowngrade();
+    // 4K 高幀率觸發自動降畫質：記下此裝置 4K 60 幀不順，之後自動選畫質改從 1080P60 開始
+    if (is4kHighFps(qn: from, fps: _currentStreamFps) &&
+        !SettingsService.known4k60Bad) {
+      await SettingsService.setKnown4k60Bad(true);
+      PerfLog.add('已記錄此裝置 4K 60 幀不順');
+    }
     PerfLog.add(
       '事件 自動降畫質 $from->$target '
       '區間掉幀率=${(prevRate * 100).toStringAsFixed(1)}%,'
@@ -1332,45 +1377,95 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     final mode = SettingsService.playRepeat;
 
-    if (mode == PlayRepeat.pause) {
-      setState(() => showControls = true);
-      reportPlaybackProgress(overrideProgress: -1);
-      return;
+    switch (mode) {
+      case PlayRepeat.pause:
+        _stopAtEnd();
+      case PlayRepeat.singleCycle:
+        reportPlaybackProgress(overrideProgress: -1);
+        _replayCurrent();
+      case PlayRepeat.listCycle:
+        final target = resolveNext(wrap: true);
+        if (target == null) {
+          // 沒有分P、集數或合集：重播目前影片
+          reportPlaybackProgress(overrideProgress: -1);
+          _replayCurrent();
+        } else {
+          _advanceTo(target, countdown: false);
+        }
+      case PlayRepeat.playNext:
+      case PlayRepeat.countdownNext:
+        final target = resolveNext();
+        if (target == null) {
+          _stopAtEnd(); // 沒有下一部：停住
+        } else {
+          _advanceTo(target, countdown: mode == PlayRepeat.countdownNext);
+        }
     }
+  }
 
-    // 單個循環；列表循環遇到單一影片也是重播
-    if (mode == PlayRepeat.singleCycle ||
-        (mode == PlayRepeat.listCycle && episodes.length <= 1)) {
-      reportPlaybackProgress(overrideProgress: -1);
-      _replayCurrent();
-      return;
-    }
+  /// 停在結尾並顯示控制列
+  void _stopAtEnd() {
+    setState(() => showControls = true);
+    reportPlaybackProgress(overrideProgress: -1);
+  }
 
-    final next = _peekNext(mode);
-    if (next == null) {
-      // 沒有下一部：停住
-      setState(() => showControls = true);
-      reportPlaybackProgress(overrideProgress: -1);
-      return;
-    }
-
+  /// 播完後前往 [target]；[countdown] 為 true 時先倒數。
+  void _advanceTo(NavTarget target, {required bool countdown}) {
     // 暫停當前影片
     if (videoController != null && videoController!.value.isPlaying) {
       videoController!.pause();
     }
-    // 切集不上報完播（避免多 P／番劇中途被標成看完）；其他一律上報
-    if (!next.isEpisode) reportPlaybackProgress(overrideProgress: -1);
 
-    final seconds = SettingsService.upNextCountdown;
-    if (seconds == 0) {
+    if (target is RelatedFallback) {
+      // 番劇最後一集：暫停、提示並打開相關影片，不自動播放
+      reportPlaybackProgress(overrideProgress: -1);
       showZhToast(
-        msg: next.toast,
+        msg: '已播完最後一集',
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.TOP,
       );
-      next.info.play();
+      openRelatedStrip(focusFirstCard: true);
+      return;
+    }
+
+    // 切集不上報完播（避免多 P／番劇中途被標成看完）；其他一律上報
+    if (target is! EpisodeTarget) reportPlaybackProgress(overrideProgress: -1);
+
+    final info = _upNextInfoFor(target);
+    if (countdown) {
+      startUpNext(info, SettingsService.upNextCountdown);
     } else {
-      startUpNext(next.info, seconds);
+      showZhToast(
+        msg: '自動播放下一部: ${info.title}',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.TOP,
+      );
+      info.play();
+    }
+  }
+
+  /// 由導覽目標組出倒數卡片資訊
+  UpNextInfo _upNextInfoFor(NavTarget target) {
+    switch (target) {
+      case EpisodeTarget(:final index):
+        final ep = episodes[index];
+        final newCid = ep['cid'] as int;
+        final title = '${ep['title'] ?? ep['part'] ?? 'P${index + 1}'}';
+        final cover = (ep['first_frame'] ?? ep['cover'] ?? '') as String;
+        return UpNextInfo(
+          title: title,
+          cover: cover.isNotEmpty ? cover : getDisplayVideo().pic,
+          play: () => switchEpisode(newCid),
+        );
+      case VideoTarget(:final video, :final fromHistory):
+        return UpNextInfo(
+          title: video.title,
+          cover: video.pic,
+          play: () =>
+              navigateTo(video, record: !fromHistory, startCid: video.cid),
+        );
+      case RelatedFallback():
+        return UpNextInfo(title: '', cover: '', play: () {});
     }
   }
 
@@ -1386,72 +1481,228 @@ mixin PlayerActionMixin on PlayerStateMixin {
     startHideTimer();
   }
 
-  /// 依模式決定播完後要播的下一部；沒有則回傳 null。
-  ({UpNextInfo info, String toast, bool isEpisode})? _peekNext(
-    PlayRepeat mode,
-  ) {
-    // 1. 下一集（列表循環的最後一集回到第一集）
-    if (episodes.length > 1 && cid != null) {
-      final currentIndex = episodes.indexWhere((ep) => ep['cid'] == cid);
-      if (currentIndex >= 0) {
-        var nextIndex = currentIndex + 1;
-        if (nextIndex >= episodes.length) {
-          nextIndex = mode == PlayRepeat.listCycle ? 0 : -1;
-        }
-        if (nextIndex >= 0) {
-          final nextEp = episodes[nextIndex];
-          final nextCid = nextEp['cid'] as int;
-          final title =
-              '${nextEp['title'] ?? nextEp['part'] ?? 'P${nextIndex + 1}'}';
-          final cover =
-              (nextEp['first_frame'] ?? nextEp['cover'] ?? '') as String;
-          return (
-            info: UpNextInfo(
-              title: title,
-              cover: cover.isNotEmpty ? cover : getDisplayVideo().pic,
-              play: () => switchEpisode(nextCid),
-            ),
-            toast: '自動播放下一集: $title',
-            isEpisode: true,
-          );
-        }
-      }
+  // ───────────── 上一部／下一部 ─────────────
+
+  // 合集攤平結果的快取：來源資料與 bvid 沒變時重用
+  SeasonFlat _seasonCache = SeasonFlat.empty;
+  Object? _seasonCacheSrc;
+  String? _seasonCacheBvid;
+
+  /// 目前影片所屬的合集（番劇不處理合集）
+  SeasonFlat get _season {
+    if (isPgc) return SeasonFlat.empty;
+    final src = fullVideoInfo?['ugc_season'];
+    if (src == null) return SeasonFlat.empty;
+    if (!identical(src, _seasonCacheSrc) || _seasonCacheBvid != playingBvid) {
+      _seasonCache = flattenUgcSeason(fullVideoInfo, playingBvid);
+      _seasonCacheSrc = src;
+      _seasonCacheBvid = playingBvid;
+    }
+    return _seasonCache;
+  }
+
+  int get _currentEpisodeIndex =>
+      cid == null ? -1 : episodes.indexWhere((e) => e['cid'] == cid);
+
+  /// 把相關影片（Map）轉成 Video
+  models.Video _videoFromRelated(dynamic v) {
+    return models.Video(
+      bvid: v['bvid'] ?? '',
+      title: v['title'] ?? '',
+      pic: v['pic'] ?? '',
+      ownerName: v['owner']?['name'] ?? '',
+      ownerFace: v['owner']?['face'] ?? '',
+      duration: v['duration'] ?? 0,
+      pubdate: v['pubdate'] ?? 0,
+      view: v['stat']?['view'] ?? 0,
+    );
+  }
+
+  /// 下一部：下一個分P或集 → 合集下一部 → （[wrap]）回到第一個 →
+  /// 第一個相關影片（非番劇）→ 番劇為 [RelatedFallback]；其他為 null。
+  NavTarget? resolveNext({bool wrap = false}) {
+    final epIdx = _currentEpisodeIndex;
+    if (epIdx >= 0 && epIdx + 1 < episodes.length) {
+      return EpisodeTarget(epIdx + 1);
     }
 
-    // 2. 自動連播：番劇不跳推薦，其餘播第一個推薦影片
-    if (mode == PlayRepeat.autoPlayRelated &&
-        !isPgc &&
-        relatedVideos.isNotEmpty) {
-      final nextVideo = relatedVideos.first;
-      return (
-        info: UpNextInfo(
-          title: '${nextVideo['title'] ?? ''}',
-          cover: '${nextVideo['pic'] ?? ''}',
-          play: () {
-            if (!mounted) return;
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => PlayerScreen(
-                  video: models.Video(
-                    bvid: nextVideo['bvid'] ?? '',
-                    title: nextVideo['title'] ?? '',
-                    pic: nextVideo['pic'] ?? '',
-                    ownerName: nextVideo['owner']?['name'] ?? '',
-                    ownerFace: nextVideo['owner']?['face'] ?? '',
-                    duration: nextVideo['duration'] ?? 0,
-                    pubdate: nextVideo['pubdate'] ?? 0,
-                    view: nextVideo['stat']?['view'] ?? 0,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-        toast: '自動播放推薦影片',
-        isEpisode: false,
-      );
+    final season = _season;
+    if (season.index >= 0 && season.index + 1 < season.videos.length) {
+      return VideoTarget(season.videos[season.index + 1]);
+    }
+
+    if (wrap) {
+      if (season.videos.length > 1) return VideoTarget(season.videos.first);
+      if (episodes.length > 1 && epIdx >= 0) return const EpisodeTarget(0);
+      return null; // 呼叫端重播目前影片
+    }
+
+    if (!isPgc && relatedVideos.isNotEmpty) {
+      return VideoTarget(_videoFromRelated(relatedVideos.first));
+    }
+    if (isPgc) return const RelatedFallback();
+    return null;
+  }
+
+  /// 上一部：上一個分P或集 → 合集上一部 → 播放紀錄的前一部。
+  NavTarget? resolvePrev() {
+    final epIdx = _currentEpisodeIndex;
+    if (epIdx > 0) return EpisodeTarget(epIdx - 1);
+
+    final season = _season;
+    if (season.index > 0) {
+      return VideoTarget(season.videos[season.index - 1]);
+    }
+
+    // 跳過紀錄中「就是目前這部」的項目（例如返回後再開同一部）。
+    // 這裡不能修改紀錄：hasPrev 會在 build 中呼叫，換片時舊頁面重建也會呼叫，
+    // 若在這裡 pop，會把剛記下的上一部丟掉。
+    final last = _historyPrevEntry();
+    if (last != null) return VideoTarget(last, fromHistory: true);
+    return null;
+  }
+
+  /// 播放紀錄中，從頂端往下第一筆不是目前影片的項目（不修改紀錄）
+  models.Video? _historyPrevEntry() {
+    final items = PlaySessionHistory.items;
+    for (var i = items.length - 1; i >= 0; i--) {
+      if (items[i].bvid != playingBvid) return items[i];
     }
     return null;
+  }
+
+  /// 有沒有上一部（每次重新計算，不快取）
+  bool get hasPrev => resolvePrev() != null;
+
+  /// 有沒有下一部。[RelatedFallback] 不算。
+  bool get hasNext {
+    final t = resolveNext();
+    return t is EpisodeTarget || t is VideoTarget;
+  }
+
+  /// 立刻播上一部
+  Future<void> playPrev() async {
+    final target = resolvePrev();
+    if (target == null) return;
+    if (target is VideoTarget) {
+      // 從播放紀錄回去，或合集上一部剛好就是紀錄頂端：先 pop，避免再往前時回到同一部
+      if (target.fromHistory) {
+        // 連同頂端「就是目前這部」的項目，一起取出到目標為止
+        while (PlaySessionHistory.canPop) {
+          final popped = PlaySessionHistory.pop();
+          if (identical(popped, target.video)) break;
+        }
+      } else if (PlaySessionHistory.peek?.bvid == target.video.bvid) {
+        PlaySessionHistory.pop();
+      }
+    }
+    await _runTarget(target, record: false);
+  }
+
+  /// 立刻播下一部
+  Future<void> playNext() async {
+    final target = resolveNext();
+    if (target == null) return;
+    await _runTarget(target, record: true);
+  }
+
+  Future<void> _runTarget(NavTarget target, {required bool record}) async {
+    switch (target) {
+      case EpisodeTarget(:final index):
+        await switchEpisode(episodes[index]['cid'] as int);
+      case VideoTarget(:final video):
+        await navigateTo(video, record: record, startCid: video.cid);
+      case RelatedFallback():
+        openRelatedStrip(focusFirstCard: true);
+    }
+  }
+
+  /// 目前播放的影片（供播放紀錄使用）。不帶 cid，回去時依進度續播。
+  models.Video _currentForHistory() {
+    final d = getDisplayVideo();
+    final infoTitle = '${fullVideoInfo?['title'] ?? ''}';
+    return models.Video(
+      bvid: playingBvid,
+      title: isPgc
+          ? d.title
+          : (infoTitle.isNotEmpty ? infoTitle : widget.video.title),
+      pic: d.pic,
+      ownerName: d.ownerName,
+      ownerFace: d.ownerFace,
+      ownerMid: d.ownerMid,
+      duration: d.duration,
+      pubdate: d.pubdate,
+      seasonId: isPgc ? widget.video.seasonId : 0,
+      epId: isPgc ? currentEpId : 0,
+      aid: aid ?? 0,
+    );
+  }
+
+  /// 換到另一部影片的唯一入口。[record] 為 true 時，先把目前影片記進播放紀錄。
+  /// 上一部從播放紀錄 pop 回去時用 `record: false`。
+  /// [startCid] > 0 時，新頁面從該分P開始（只有合集換片使用）。
+  bool _navigating = false;
+
+  Future<void> navigateTo(
+    models.Video video, {
+    bool record = true,
+    int startCid = 0,
+  }) async {
+    if (!mounted || _navigating) return; // 換片進行中，忽略重入
+    _navigating = true;
+    if (record && video.bvid != playingBvid) {
+      PlaySessionHistory.push(_currentForHistory());
+    }
+    cancelUpNext();
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(video: video, startCid: startCid),
+      ),
+    );
+  }
+
+  /// 切換「播放完畢後」模式（[dir] 為 1 往後、-1 往前，循環），立刻存檔
+  Future<void> cyclePlayEndMode(int dir) async {
+    const modes = PlayRepeat.values;
+    final cur = SettingsService.playRepeat.index;
+    final next = modes[(cur + dir + modes.length) % modes.length];
+    await SettingsService.setPlayRepeat(next);
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  /// 控制列按鈕目前能不能用（沒有上一部／下一部時變暗）
+  bool isCtrlBtnEnabled(int index) {
+    if (index == CtrlBtn.prev) return hasPrev;
+    if (index == CtrlBtn.next) return hasNext;
+    return true;
+  }
+
+  /// 打開底部相關影片（一排）。影片繼續播放，只取消倒數與自動隱藏。
+  /// [focusFirstCard] 為 true（播完最後一集等自動開啟）時，收起後控制列的焦點回到播放/暫停。
+  void openRelatedStrip({bool focusFirstCard = false}) {
+    cancelUpNext();
+    hideTimer?.cancel();
+    setState(() {
+      showControls = false;
+      showRelatedPanel = true;
+      relatedExpanded = false;
+      if (focusFirstCard) focusedButtonIndex = CtrlBtn.playPause;
+    });
+  }
+
+  /// 收起相關影片，回到控制列
+  void closeRelatedStrip() {
+    if (!mounted) return;
+    setState(() {
+      showRelatedPanel = false;
+      relatedExpanded = false;
+      showControls = true;
+    });
+    startHideTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) playerFocusNode.requestFocus();
+    });
   }
 
   /// 開始倒數：隱藏控制列、顯示「接下來播放」卡片。
@@ -1592,7 +1843,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
   }
 
   void toggleControls() {
-    setState(() => showControls = true);
+    setState(() {
+      showControls = true;
+      // 焦點在不能用的按鈕（如換片後沒有上一部）時，改回播放/暫停
+      if (!isCtrlBtnEnabled(focusedButtonIndex)) {
+        focusedButtonIndex = CtrlBtn.playPause;
+      }
+    });
     if (!showSettingsPanel) {
       startHideTimer();
     }
@@ -1605,10 +1862,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     if (videoController?.value.isPlaying ?? false) {
       hideTimer = Timer(const Duration(seconds: 4), () {
         if (mounted) {
-          setState(() {
-            showControls = false;
-            showActionButtons = false;
-          });
+          setState(() => showControls = false);
         }
       });
     }
@@ -2114,6 +2368,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
         case 4:
           // 收藏：開收藏夾選擇對話框（關閉後焦點回到播放器）
           favoriteVideoFlow(context, aid);
+          break;
+        case 5:
+          cyclePlayEndMode(1);
           break;
       }
     } else if (settingsMenuType == SettingsMenuType.danmaku) {

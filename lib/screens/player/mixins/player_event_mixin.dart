@@ -1,13 +1,15 @@
+import 'dart:async';
+
 import 'package:bili_tv_app/utils/zh_toast.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../../../models/video.dart';
 import '../../up_space/up_space_screen.dart';
-import '../player_screen.dart';
 import '../widgets/settings_panel.dart';
 import '../focus/player_focus_handler.dart';
 import 'player_action_mixin.dart';
+import 'player_state_mixin.dart';
 
 /// 播放器按鍵事件 Mixin
 mixin PlayerEventMixin on PlayerActionMixin {
@@ -29,9 +31,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
     if (showSettingsPanel) {
       if (settingsMenuType != SettingsMenuType.main) {
         setState(() {
-          focusedSettingIndex = settingsMenuType == SettingsMenuType.cdn
-              ? 3
-              : 0;
+          focusedSettingIndex = _mainIndexAfterBack;
           settingsMenuType = SettingsMenuType.main;
         });
         return;
@@ -53,19 +53,13 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return;
     }
 
-    // 關閉更多影片面板
+    // 相關影片：展開時先收回一排，再返回就關閉
     if (showRelatedPanel) {
-      setState(() {
-        showRelatedPanel = false;
-        showControls = true;
-      });
-      startHideTimer();
-      return;
-    }
-
-    if (showActionButtons) {
-      setState(() => showActionButtons = false);
-      startHideTimer();
+      if (relatedExpanded) {
+        setState(() => relatedExpanded = false);
+      } else {
+        closeRelatedStrip();
+      }
       return;
     }
 
@@ -97,7 +91,82 @@ mixin PlayerEventMixin on PlayerActionMixin {
     }
   }
 
+  // ───────────── 彈幕按鈕長按 ─────────────
+
+  static const Duration _danmakuHoldDelay = Duration(milliseconds: 500);
+  Timer? _danmakuHoldTimer;
+  bool _danmakuHolding = false; // 確認鍵按下中，尚未判定短按或長按
+  bool _danmakuHoldFired = false; // 長按已觸發，後續的 Repeat 與 KeyUp 要吞掉
+
+  /// 取消彈幕按鈕的長按計時（控制列隱藏、焦點離開、dispose 時呼叫）
+  void cancelDanmakuHold() {
+    _danmakuHoldTimer?.cancel();
+    _danmakuHoldTimer = null;
+    _danmakuHolding = false;
+  }
+
+  bool get _canHoldDanmaku =>
+      showControls &&
+      focusedButtonIndex == CtrlBtn.danmaku &&
+      !showSettingsPanel &&
+      !showEpisodePanel &&
+      !showRelatedPanel &&
+      upNextSeconds == null;
+
+  void _fireDanmakuHold() {
+    _danmakuHoldTimer = null;
+    if (!mounted || !_danmakuHolding) return;
+    _danmakuHolding = false;
+    if (!_canHoldDanmaku) return;
+    _danmakuHoldFired = true;
+    hideTimer?.cancel();
+    setState(() {
+      settingsMenuType = SettingsMenuType.danmaku;
+      focusedSettingIndex = 0;
+      showSettingsPanel = true;
+    });
+  }
+
+  /// 彈幕按鈕的確認鍵：短按切換彈幕，按住 500ms 打開彈幕設定。
+  /// 回傳 null 表示這個事件與彈幕長按無關。
+  KeyEventResult? _handleDanmakuHold(KeyEvent event) {
+    if (!PlayerFocusHandler.isSelectKey(event)) {
+      // 按住時按了其他鍵（如左右鍵移開焦點）：取消，不判定短按
+      if (_danmakuHolding && event is KeyDownEvent) cancelDanmakuHold();
+      return null;
+    }
+    if (_danmakuHoldFired) {
+      if (event is KeyUpEvent) {
+        _danmakuHoldFired = false;
+        return KeyEventResult.handled;
+      }
+      if (event is KeyRepeatEvent) return KeyEventResult.handled;
+      _danmakuHoldFired = false; // 新的 KeyDown
+    }
+    if (event is KeyDownEvent) {
+      if (!_canHoldDanmaku) return null;
+      _danmakuHolding = true;
+      _danmakuHoldTimer?.cancel();
+      _danmakuHoldTimer = Timer(_danmakuHoldDelay, _fireDanmakuHold);
+      return KeyEventResult.handled;
+    }
+    if (!_danmakuHolding) return null;
+    if (event is KeyRepeatEvent) return KeyEventResult.handled;
+    if (event is KeyUpEvent) {
+      cancelDanmakuHold();
+      if (_canHoldDanmaku) {
+        toggleDanmaku(); // toggleDanmaku 內含 toast
+        startHideTimer();
+      }
+      return KeyEventResult.handled;
+    }
+    return null;
+  }
+
   KeyEventResult handleGlobalKeyEvent(FocusNode node, KeyEvent event) {
+    final holdResult = _handleDanmakuHold(event);
+    if (holdResult != null) return holdResult;
+
     // 處理 KeyUpEvent - 鬆開左右鍵時提交進度
     if (event is KeyUpEvent) {
       if (isProgressBarFocused && previewPosition != null) {
@@ -133,7 +202,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
             if (key != LogicalKeyboardKey.escape) backKeyJustHandled = true;
             cancelUpNext(showControlsAfter: true);
           } else if (key == LogicalKeyboardKey.arrowDown) {
-            _activateControlButton(3);
+            openRelatedStrip(); // 內含 cancelUpNext()
           }
         }
         return KeyEventResult.handled;
@@ -146,9 +215,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
         backKeyJustHandled = true;
         if (settingsMenuType != SettingsMenuType.main) {
           setState(() {
-            focusedSettingIndex = settingsMenuType == SettingsMenuType.cdn
-                ? 3
-                : 0;
+            focusedSettingIndex = _mainIndexAfterBack;
             settingsMenuType = SettingsMenuType.main;
           });
         } else {
@@ -181,26 +248,18 @@ mixin PlayerEventMixin on PlayerActionMixin {
       }
     }
 
-    // 相關影片面板返回處理
+    // 相關影片返回處理（方向鍵由 RelatedStrip 自己處理）：
+    // 展開時先收回一排，再返回就關閉
     if (showRelatedPanel) {
       if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
-        backKeyJustHandled = true;
-        setState(() {
-          showRelatedPanel = false;
-          showControls = true;
-        });
-        startHideTimer();
-        return KeyEventResult.handled;
-      }
-      return KeyEventResult.ignored;
-    }
-
-    // 點贊/投幣/收藏按鈕返回處理
-    if (showActionButtons) {
-      if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
-        backKeyJustHandled = true;
-        setState(() => showActionButtons = false);
-        startHideTimer();
+        if (event.logicalKey != LogicalKeyboardKey.escape) {
+          backKeyJustHandled = true;
+        }
+        if (relatedExpanded) {
+          setState(() => relatedExpanded = false);
+        } else {
+          closeRelatedStrip();
+        }
         return KeyEventResult.handled;
       }
       return KeyEventResult.ignored;
@@ -219,9 +278,29 @@ mixin PlayerEventMixin on PlayerActionMixin {
   KeyEventResult _handleControlsVisibleKeyEvent(KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
-    // 下鍵直接開「更多影片」面板
+    // 下鍵打開相關影片底部橫排
     if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      _activateControlButton(3);
+      openRelatedStrip();
+      return KeyEventResult.handled;
+    }
+
+    // 焦點在不能用的按鈕上時，改回播放/暫停
+    if (!isCtrlBtnEnabled(focusedButtonIndex)) {
+      focusedButtonIndex = CtrlBtn.playPause;
+    }
+
+    // 左右鍵：跳過變暗（不能用）的按鈕
+    final isLeft = event.logicalKey == LogicalKeyboardKey.arrowLeft;
+    if (isLeft || event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      final step = isLeft ? -1 : 1;
+      var i = focusedButtonIndex + step;
+      while (i >= 0 && i < CtrlBtn.count && !isCtrlBtnEnabled(i)) {
+        i += step;
+      }
+      if (i >= 0 && i < CtrlBtn.count && i != focusedButtonIndex) {
+        setState(() => focusedButtonIndex = i);
+        startHideTimer();
+      }
       return KeyEventResult.handled;
     }
 
@@ -229,7 +308,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
     final nav = PlayerFocusHandler.handleControlsNavigation(
       event,
       currentIndex: focusedButtonIndex,
-      maxIndex: 5,
+      maxIndex: CtrlBtn.count - 1,
       onSelect: _activateControlButton,
       onHide: () => setState(() => showControls = false),
     );
@@ -257,36 +336,45 @@ mixin PlayerEventMixin on PlayerActionMixin {
   /// 啟用控制欄按鈕
   void _activateControlButton(int index) {
     switch (index) {
-      case 0: // 播放/暫停（保持控制欄顯示）
+      case CtrlBtn.prev: // 上一部
+        if (hasPrev) playPrev();
+        break;
+      case CtrlBtn.playPause: // 播放/暫停（保持控制欄顯示）
         togglePlayPause();
         startHideTimer();
         break;
-      case 1: // 選集
+      case CtrlBtn.next: // 下一部
+        if (hasNext) playNext();
+        break;
+      case CtrlBtn.episodes: // 選集
         setState(() {
           showEpisodePanel = true;
           hideTimer?.cancel();
         });
         break;
-      case 2: // UP主
+      case CtrlBtn.up: // UP主
         _openUpSpace();
         break;
-      case 3: // 更多影片
-        cancelUpNext();
-        setState(() {
-          showRelatedPanel = true;
-          hideTimer?.cancel();
-        });
+      case CtrlBtn.danmaku: // 彈幕（短按；長按由 _handleDanmakuHold 處理）
+        toggleDanmaku();
         break;
-      case 4: // 設定
+      case CtrlBtn.settings: // 設定
         setState(() {
           showSettingsPanel = true;
           hideTimer?.cancel();
         });
         break;
-      case 5: // 點贊/投幣/收藏
-        setState(() {
-          showActionButtons = !showActionButtons;
-        });
+      case CtrlBtn.like: // 點讚
+        videoActions.toggleLike();
+        startHideTimer();
+        break;
+      case CtrlBtn.coin: // 投幣
+        videoActions.addCoin();
+        startHideTimer();
+        break;
+      case CtrlBtn.fav: // 收藏（直接切換）
+        videoActions.toggleFavorite();
+        startHideTimer();
         break;
     }
   }
@@ -328,9 +416,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
     if (!mounted) return;
 
     if (picked != null) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => PlayerScreen(video: picked!)),
-      );
+      navigateTo(picked);
       return;
     }
 
@@ -381,7 +467,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
 
     // 確認鍵顯示控制欄，焦點回到播放/暫停鈕（再按一次才暫停）
     if (PlayerFocusHandler.isSelectKey(event) && event is KeyDownEvent) {
-      setState(() => focusedButtonIndex = 0);
+      setState(() => focusedButtonIndex = CtrlBtn.playPause);
       toggleControls();
       return KeyEventResult.handled;
     }
@@ -458,7 +544,10 @@ mixin PlayerEventMixin on PlayerActionMixin {
     }
 
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      if (settingsMenuType == SettingsMenuType.main) {
+      if (settingsMenuType == SettingsMenuType.main &&
+          focusedSettingIndex == 5) {
+        cyclePlayEndMode(-1);
+      } else if (settingsMenuType == SettingsMenuType.main) {
         setState(() {
           showSettingsPanel = false;
           showControls = true;
@@ -494,6 +583,8 @@ mixin PlayerEventMixin on PlayerActionMixin {
             settingsMenuType = SettingsMenuType.cdn;
             focusedSettingIndex = 0;
           });
+        } else if (focusedSettingIndex == 5) {
+          cyclePlayEndMode(1);
         }
       } else if (settingsMenuType == SettingsMenuType.danmaku) {
         adjustDanmakuSetting(1);
@@ -515,9 +606,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
         startHideTimer();
       } else {
         setState(() {
-          focusedSettingIndex = settingsMenuType == SettingsMenuType.cdn
-              ? 3
-              : 0;
+          focusedSettingIndex = _mainIndexAfterBack;
           settingsMenuType = SettingsMenuType.main;
         });
       }
@@ -527,11 +616,18 @@ mixin PlayerEventMixin on PlayerActionMixin {
     return KeyEventResult.ignored;
   }
 
+  /// 從子選單返回主選單時，焦點回到進入的項目（CDN 3、彈幕 1）
+  int get _mainIndexAfterBack => switch (settingsMenuType) {
+    SettingsMenuType.cdn => 3,
+    SettingsMenuType.danmaku => 1,
+    _ => 0,
+  };
+
   /// 獲取當前設定選單的最大索引
   int _getSettingsMaxIndex() {
     switch (settingsMenuType) {
       case SettingsMenuType.main:
-        return 4;
+        return 5;
       case SettingsMenuType.danmaku:
         return 6;
       case SettingsMenuType.speed:

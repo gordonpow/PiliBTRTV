@@ -36,6 +36,29 @@ class CodecService {
     }
   }
 
+  /// 解碼器能力診斷：隧道支援、可達幀率、效能點；失敗回 null。
+  /// [decoderName] 有值時優先查該解碼器（目前播放中的）。
+  static Future<Map<String, dynamic>?> getDecoderCaps({
+    required String codec,
+    required int width,
+    required int height,
+    required double fps,
+    String? decoderName,
+  }) async {
+    try {
+      final r = await _channel.invokeMethod('decoderCaps', {
+        'codec': codec,
+        'width': width,
+        'height': height,
+        'fps': fps,
+        'decoderName': decoderName,
+      });
+      return r == null ? null : Map<String, dynamic>.from(r as Map);
+    } catch (e) {
+      return null;
+    }
+  }
+
   /// 效能記錄用裝置資訊（ABI、核心數、記憶體等級、螢幕模式、HDR）；失敗回 null
   static Future<Map<String, dynamic>?> getPerfDeviceInfo() async {
     try {

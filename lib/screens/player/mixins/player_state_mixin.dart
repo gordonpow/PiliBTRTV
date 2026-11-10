@@ -3,6 +3,7 @@ import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import '../player_screen.dart';
+import '../video_actions_controller.dart';
 import '../widgets/settings_panel.dart';
 import '../../../models/videoshot.dart';
 import '../../../services/playback_preparer.dart';
@@ -18,6 +19,21 @@ class UpNextInfo {
     required this.cover,
     required this.play,
   });
+}
+
+/// 控制列按鈕索引
+abstract final class CtrlBtn {
+  static const int prev = 0; // 上一部
+  static const int playPause = 1; // 播放/暫停
+  static const int next = 2; // 下一部
+  static const int episodes = 3; // 選集
+  static const int up = 4; // UP主
+  static const int danmaku = 5; // 彈幕
+  static const int settings = 6; // 設定
+  static const int like = 7; // 點讚
+  static const int coin = 8; // 投幣
+  static const int fav = 9; // 收藏
+  static const int count = 10;
 }
 
 /// 播放器狀態 Mixin
@@ -37,7 +53,15 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   bool isLoading = true;
   String? errorMessage;
   int? cid;
-  int? aid; // 影片 aid (用於點贊/投幣/收藏)
+  int? _aid; // 影片 aid (用於點贊/投幣/收藏)
+  int? get aid => _aid;
+  set aid(int? v) {
+    _aid = v;
+    if (v != null && v > 0) videoActions.load(v); // 換片時重新載入狀態
+  }
+
+  /// 控制列點讚／投幣／收藏的狀態與動作
+  final VideoActionsController videoActions = VideoActionsController();
 
   // 番劇 (PGC) 狀態：Video 不可變，切集時更新這些可變欄位
   String? currentBvid; // 當前集的 bvid (番劇由季資訊取得)
@@ -104,7 +128,7 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   SettingsMenuType settingsMenuType = SettingsMenuType.main;
   Timer? hideTimer;
   Timer? progressReportTimer;
-  int focusedButtonIndex = 0; // 0=播放/暫停, 1=選集, 2=UP主, 3=更多影片, 4=設定, 5=點贊/投幣/收藏
+  int focusedButtonIndex = CtrlBtn.playPause; // 見 CtrlBtn
   int focusedSettingIndex = 0;
 
   // 解析度
@@ -132,7 +156,7 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   // 新面板
   bool upSpaceOpen = false; // UP主全螢幕頁面開啟中（禁止播放器自行導航、防重入）
   bool showRelatedPanel = false;
-  bool showActionButtons = false;
+  bool relatedExpanded = false; // 相關影片：false = 一排，true = 展開
 
   // 進度條聚焦模式
   bool isProgressBarFocused = false;
