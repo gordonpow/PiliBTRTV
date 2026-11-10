@@ -6,6 +6,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../plugins/ad_filter_plugin.dart';
 import '../plugins/danmaku_enhance_plugin.dart';
 import '../core/plugin/plugin_manager.dart';
+import 'phone_feedback_page.dart';
+import 'phone_feedback_service.dart';
 import 'phone_login_page.dart';
 import 'phone_login_service.dart';
 import 'report_page.dart';
@@ -149,6 +151,12 @@ class LocalServer {
     // 手機查看錯誤報告：同樣不加 CORS 標頭
     if (reqPath == '/report' || reqPath == '/api/report') {
       await _handleReport(request);
+      return;
+    }
+
+    // 手機回報：同樣不加 CORS 標頭，也不放行 OPTIONS
+    if (reqPath == '/feedback' || reqPath == '/api/feedback') {
+      await _handlePhoneFeedback(request);
       return;
     }
 
@@ -350,6 +358,50 @@ class LocalServer {
     } catch (_) {}
   }
 
+  /// 手機回報路由（GET /feedback、POST /api/feedback）
+  Future<void> _handlePhoneFeedback(HttpRequest request) async {
+    final res = request.response;
+    res.headers.set('Cache-Control', 'no-store');
+    res.headers.set('Referrer-Policy', 'no-referrer');
+    try {
+      final service = PhoneFeedbackService.instance;
+      final path = request.uri.path;
+      final method = request.method;
+      final isPage = method == 'GET' && path == '/feedback';
+      final isSubmit = method == 'POST' && path == '/api/feedback';
+      if (!isPage && !isSubmit) {
+        _loginJson(res, {'error': '請求方式不正確'}, 405);
+      } else if (!service.checkToken(request.uri.queryParameters['t'])) {
+        _loginJson(res, {'error': '連結已失效，請在電視上重新產生 QR 碼'}, 403);
+      } else if (isPage) {
+        res.headers.contentType = ContentType.html;
+        res.write(phoneFeedbackPageHtml);
+      } else if (request.headers.contentType?.mimeType != 'application/json') {
+        _loginJson(res, {'error': '資料格式不正確'}, 415);
+      } else {
+        final body = await _readLimitedJson(request, maxBytes: 16 * 1024);
+        final type = FeedbackType.parse(body?['type']);
+        final rawText = body?['text'];
+        final text = rawText is String ? rawText.trim() : '';
+        if (type == null ||
+            text.isEmpty ||
+            text.length > kFeedbackMaxChars) {
+          _loginJson(res, {'error': '內容不正確：請輸入 1 到 2000 字'}, 400);
+        } else {
+          _loginJson(res, await service.submit(type, text));
+        }
+      }
+    } catch (_) {
+      // 只回固定訊息，不回傳例外內容
+      try {
+        _loginJson(res, {'error': '電視端發生錯誤，請稍後再試'}, 500);
+      } catch (_) {}
+    }
+    try {
+      await res.close();
+    } catch (_) {}
+  }
+
   void _loginJson(
     HttpResponse res,
     Map<String, dynamic> data, [
@@ -360,9 +412,12 @@ class LocalServer {
     res.write(jsonEncode(data));
   }
 
-  /// 讀取最多 8KB 的 JSON 物件；超過或格式不對回傳 null
-  Future<Map<String, dynamic>?> _readLimitedJson(HttpRequest request) async {
-    const limit = 8 * 1024;
+  /// 讀取最多 [maxBytes]（預設 8KB）的 JSON 物件；超過或格式不對回傳 null
+  Future<Map<String, dynamic>?> _readLimitedJson(
+    HttpRequest request, {
+    int maxBytes = 8 * 1024,
+  }) async {
+    final limit = maxBytes;
     if (request.contentLength > limit) return null;
     final bytes = <int>[];
     try {

@@ -121,8 +121,8 @@ class _AboutSettingsState extends State<AboutSettings> {
           sidebarFocusNode: widget.sidebarFocusNode,
         ),
         SettingActionRow(
-          label: '回報問題',
-          value: '送出錯誤報告給開發者',
+          label: '回報問題/建議',
+          value: '送出錯誤報告或功能建議給開發者',
           buttonLabel: '回報',
           sidebarFocusNode: widget.sidebarFocusNode,
           onTap: () async {

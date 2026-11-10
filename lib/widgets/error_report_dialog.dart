@@ -1,4 +1,6 @@
 import 'package:bili_tv_app/services/error_report_service.dart';
+import 'package:bili_tv_app/services/local_server.dart';
+import 'package:bili_tv_app/services/phone_feedback_service.dart';
 import 'package:bili_tv_app/services/report_send_service.dart';
 import 'package:bili_tv_app/services/report_share_service.dart';
 import 'package:bili_tv_app/services/report_status_service.dart';
@@ -17,7 +19,7 @@ Future<void> showErrorReportDialog(
   );
 }
 
-enum _Stage { select, sending, sent, failed, confirm, share }
+enum _Stage { select, sending, sent, failed, confirm, share, phone }
 
 class _ErrorReportDialog extends StatefulWidget {
   final String? crashSection;
@@ -37,6 +39,9 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
   ReportCategory? _lastCategory;
   String? _shareUrl;
   bool _shareReady = false;
+  bool _fromPhone = false;
+  String? _phoneUrl;
+  bool _phoneReady = false;
 
   static const _pink = Color(0xFFfb7299);
 
@@ -44,9 +49,104 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
       widget.crashSection != null && widget.crashSection!.trim().isNotEmpty;
 
   @override
+  void initState() {
+    super.initState();
+    PhoneFeedbackService.instance.lastSent.addListener(_onPhoneSent);
+  }
+
+  @override
   void dispose() {
+    PhoneFeedbackService.instance.lastSent.removeListener(_onPhoneSent);
+    PhoneFeedbackService.instance.stop();
     ReportShareService.instance.stop();
     super.dispose();
+  }
+
+  /// 手機送出成功：電視顯示編號（回報紀錄已由 service 寫入，下次開啟即可看到）
+  void _onPhoneSent() {
+    final event = PhoneFeedbackService.instance.lastSent.value;
+    if (event == null || !mounted) return;
+    setState(() {
+      _sentId = event.id;
+      _fromPhone = true;
+      _stage = _Stage.sent;
+    });
+  }
+
+  /// 產生手機輸入網址
+  Future<void> _startPhoneInput() async {
+    setState(() {
+      _stage = _Stage.phone;
+      _phoneReady = false;
+      _phoneUrl = null;
+    });
+    String? url;
+    try {
+      await LocalServer.instance.refreshAddress();
+      // 等待期間對話框可能已關閉；這時不能再產生有效的代碼
+      if (!mounted) return;
+      url = PhoneFeedbackService.instance.start();
+    } catch (_) {
+      url = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _phoneUrl = url;
+      _phoneReady = true;
+    });
+  }
+
+  Widget _phoneBody(TextStyle body) {
+    if (!_phoneReady) {
+      return const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 3),
+          ),
+          SizedBox(width: 16),
+          Text('準備中…', style: TextStyle(color: Colors.white70)),
+        ],
+      );
+    }
+    final url = _phoneUrl;
+    if (url == null) {
+      return Text('請把電視連上 Wi-Fi 或有線網路', style: body);
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          color: Colors.white,
+          child: QrImageView(data: url, size: 150),
+        ),
+        const SizedBox(width: 20),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('用同一個 Wi-Fi 的手機掃描 QR 碼，或開啟網址：', style: body),
+              const SizedBox(height: 6),
+              Text(
+                url,
+                style: const TextStyle(
+                  color: _pink,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text('在手機選擇「問題」或「建議」並輸入內容後送出。', style: body),
+              Text('網址 15 分鐘內有效，送出一次後即失效。', style: body),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   /// 產生手機查看網址；沒有區網位址時 _shareUrl 為 null
@@ -247,6 +347,7 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
           ],
         );
         actions = [
+          _btn('用手機輸入', _startPhoneInput),
           _btn('改用手機查看', _share),
           _btn('取消', () => Navigator.of(context).pop()),
         ];
@@ -269,7 +370,12 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('已送出，回報編號 $_sentId。開發者會透過 Email 收到這份報告。', style: body),
+            Text(
+              _fromPhone
+                  ? '已收到回報（編號 $_sentId）。開發者會透過 Email 收到。'
+                  : '已送出，回報編號 $_sentId。開發者會透過 Email 收到這份報告。',
+              style: body,
+            ),
             const Text('可在「設定 → 關於 → 回報紀錄」再次查看編號。', style: body),
           ],
         );
@@ -316,6 +422,16 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
           _btn('預覽', _preview),
           _btn('用手機查看', _share),
         ];
+      case _Stage.phone:
+        content = _phoneBody(body);
+        actions = [
+          _btn(
+            '關閉',
+            () => Navigator.of(context).pop(),
+            primary: true,
+            autofocus: true,
+          ),
+        ];
       case _Stage.share:
         content = _shareBody(body);
         actions = [
@@ -332,7 +448,7 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
     if (_hasCrash) {
       titleText = '上次 App 異常結束，是否回報錯誤？';
     } else {
-      titleText = '回報問題';
+      titleText = '回報問題/建議';
     }
 
     return PopScope(

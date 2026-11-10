@@ -96,6 +96,7 @@ class ReportHistory {
   static Future<void> add({
     required String id,
     required ReportCategory category,
+    String? categoryLabel,
     DateTime? time,
   }) async {
     try {
@@ -104,7 +105,7 @@ class ReportHistory {
       final rec = ReportRecord(
         id: id,
         time: time ?? DateTime.now(),
-        category: category.label,
+        category: categoryLabel ?? category.label,
       );
       await prefs.setString(
         kReportHistoryKey,
@@ -215,6 +216,7 @@ class ReportSendService {
     required ReportCategory category,
     required String report,
     String? reportId,
+    String? categoryLabel,
   }) async {
     final id = reportId ?? newReportId();
     final client = http.Client();
@@ -223,7 +225,7 @@ class ReportSendService {
       final payload = jsonEncode({
         'id': id,
         'installId': await installId(),
-        'category': category.label,
+        'category': categoryLabel ?? category.label,
         'version': btrVersion,
         'device': dev['device'] ?? '',
         'android': dev['android'] ?? '',

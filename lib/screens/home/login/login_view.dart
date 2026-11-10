@@ -396,7 +396,7 @@ class LoginViewState extends State<LoginView> {
       if (qrFailed) ('重新產生 QR Code', _manualRegenerate, _regenFocus),
       (_isWeb ? '改用 TV 掃碼' : '改用網頁版掃碼', _switchMode, _switchFocus),
       ('重新整理手機登入', _startPhoneLogin, _refreshFocus),
-      ('回報問題', () => showErrorReportDialog(context), _reportFocus),
+      ('回報問題/建議', () => showErrorReportDialog(context), _reportFocus),
     ];
     // 每個狀態只有一個 autofocus 按鈕，選擇與 focusDefault 相同
     final autofocusNode = _defaultFocusNode(qrFailed);
