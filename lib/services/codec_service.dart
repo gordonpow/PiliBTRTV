@@ -24,6 +24,38 @@ class CodecService {
     }
   }
 
+  /// 讀取播放器診斷統計（解碼器、輸入格式、掉幀數）；失敗回 null
+  static Future<Map<String, dynamic>?> getPlayerStats({
+    bool drain = true,
+  }) async {
+    try {
+      final r = await _channel.invokeMethod('getPlayerStats', {'drain': drain});
+      return r == null ? null : Map<String, dynamic>.from(r as Map);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// 效能記錄用裝置資訊（ABI、核心數、記憶體等級、螢幕模式、HDR）；失敗回 null
+  static Future<Map<String, dynamic>?> getPerfDeviceInfo() async {
+    try {
+      final r = await _channel.invokeMethod('getDeviceInfo');
+      return r == null ? null : Map<String, dynamic>.from(r as Map);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// App 行程累計 CPU jiffies 與取樣時間；失敗回 null
+  static Future<Map<String, dynamic>?> getProcessCpu() async {
+    try {
+      final r = await _channel.invokeMethod('getProcessCpu');
+      return r == null ? null : Map<String, dynamic>.from(r as Map);
+    } catch (e) {
+      return null;
+    }
+  }
+
   /// 檢查是否支援指定格式的硬體解碼
   static Future<bool> hasHardwareDecoder(String codec) async {
     final decoders = await getHardwareDecoders();

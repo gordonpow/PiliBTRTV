@@ -293,6 +293,14 @@ class PlaybackApi {
               videoUrl = selectedVideo['baseUrl'] ?? selectedVideo['base_url'];
               final selectedCodec = (selectedVideo['codecs'] as String? ?? '')
                   .toLowerCase();
+              debugPrint(
+                '🎬 [Stream] qn=${selectedVideo['id']} codec=$selectedCodec '
+                '${selectedVideo['width']}x${selectedVideo['height']} '
+                '@${selectedVideo['frameRate'] ?? selectedVideo['frame_rate']}fps '
+                'bw=${((selectedVideo['bandwidth'] as num?)?.toInt() ?? 0) ~/ 1000}kbps '
+                'hw=${await hwOk(selectedVideo)}',
+              );
+
               final parsedCodec = selectedCodec.startsWith('avc')
                   ? 'avc'
                   : (selectedCodec.startsWith('hev') ||

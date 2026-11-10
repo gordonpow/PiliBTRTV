@@ -19,6 +19,8 @@ import 'package:bili_tv_app/services/btr/btr_cdn.dart'
     show BtrNode, BtrNodePool, btrDio, http11Dio;
 import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'package:bili_tv_app/services/btr/btr_host_ranker.dart';
+import 'package:bili_tv_app/services/perf_log.dart';
+import 'package:bili_tv_app/services/playback_perf.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 
@@ -62,9 +64,17 @@ abstract final class BtrProxy {
     String url, {
     List<String> backups = const [],
     int bandwidth = 0,
+    int qn = 0,
+    int height = 0,
+    bool logSkip = true,
   }) async {
     try {
       if (!BtrConfig.playback || !isEligible(url)) return url;
+      // 32 位元裝置播 4K：代理本身吃 CPU，略過並讓播放器直連原始網址
+      if (shouldSkipBtr(is32Bit: isProcess32Bit(), qn: qn, height: height)) {
+        if (logSkip) PerfLog.add('32 位元裝置 4K 略過 BTR');
+        return url;
+      }
       final server = await _ensureServer();
       final src = _http2https(url);
       final id = _register(src, backups, bandwidth).id;

@@ -436,6 +436,18 @@ class SettingsService {
     await _prefs!.setBool(_playerTextureViewKey, value);
   }
 
+  // 卡頓時自動降畫質（預設開）
+  static const String _autoDowngradeOnDropsKey = 'auto_downgrade_on_drops';
+
+  static bool get autoDowngradeOnDrops {
+    return _prefs?.getBool(_autoDowngradeOnDropsKey) ?? true;
+  }
+
+  static Future<void> setAutoDowngradeOnDrops(bool value) async {
+    await init();
+    await _prefs!.setBool(_autoDowngradeOnDropsKey, value);
+  }
+
   // 快進預覽模式設定
   static const String _seekPreviewModeKey = 'seek_preview_mode';
 

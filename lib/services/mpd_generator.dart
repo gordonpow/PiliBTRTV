@@ -7,6 +7,15 @@ class MpdGenerator {
   static Future<String> generate(Map<String, dynamic> dashData) async {
     final buffer = StringBuffer();
 
+    // 選定的影片串流（MPD 只放一條）：32 位元裝置 4K 時整份 MPD 不經 BTR
+    int refQn = 0;
+    int refHeight = 0;
+    final vs = dashData['video'];
+    if (vs is List && vs.isNotEmpty && vs.first is Map) {
+      refQn = (vs.first['id'] as num?)?.toInt() ?? 0;
+      refHeight = (vs.first['height'] as num?)?.toInt() ?? 0;
+    }
+
     // MPD 頭部
     buffer.writeln('<?xml version="1.0" encoding="UTF-8"?>');
     buffer.writeln('<MPD xmlns="urn:mpeg:dash:schema:mpd:2011"');
@@ -29,7 +38,7 @@ class MpdGenerator {
         '    <AdaptationSet mimeType="video/mp4" contentType="video" subsegmentAlignment="true" subsegmentStartsWithSAP="1">',
       );
       for (var video in dashData['video']) {
-        await _writeRepresentation(buffer, video, true);
+        await _writeRepresentation(buffer, video, true, refQn, refHeight);
       }
       buffer.writeln('    </AdaptationSet>');
     }
@@ -40,7 +49,7 @@ class MpdGenerator {
         '    <AdaptationSet mimeType="audio/mp4" contentType="audio" subsegmentAlignment="true" subsegmentStartsWithSAP="1">',
       );
       for (var audio in dashData['audio']) {
-        await _writeRepresentation(buffer, audio, false);
+        await _writeRepresentation(buffer, audio, false, refQn, refHeight);
       }
       buffer.writeln('    </AdaptationSet>');
     }
@@ -63,6 +72,8 @@ class MpdGenerator {
     StringBuffer buffer,
     Map<String, dynamic> stream,
     bool isVideo,
+    int refQn,
+    int refHeight,
   ) async {
     // 基礎資訊
     final id = stream['id'];
@@ -96,6 +107,9 @@ class MpdGenerator {
         baseUrlStr,
         backups: backups,
         bandwidth: int.tryParse(bandwidth.toString()) ?? 0,
+        qn: refQn,
+        height: refHeight,
+        logSkip: isVideo,
       );
       if (wrapped != baseUrlStr) {
         buffer.writeln('        <BaseURL>${_xmlEscape(wrapped)}</BaseURL>');

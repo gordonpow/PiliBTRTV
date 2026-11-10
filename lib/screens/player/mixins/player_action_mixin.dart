@@ -1,6 +1,7 @@
 import 'package:bili_tv_app/utils/zh_convert.dart';
 import 'package:bili_tv_app/utils/zh_toast.dart';
 import 'dart:async';
+import 'dart:ffi' show Abi;
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
@@ -10,6 +11,7 @@ import '../../../models/video.dart' as models;
 import '../../../models/play_repeat.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../services/settings_service.dart';
+import '../../../services/codec_service.dart';
 import '../../../services/mpd_generator.dart';
 import '../../../services/local_server.dart';
 import '../../../services/api/videoshot_api.dart';
@@ -28,6 +30,9 @@ import '../../../services/play_params.dart';
 import '../../../services/prefetch_service.dart';
 import '../../../services/card_preview_service.dart';
 import '../../../services/playback_preparer.dart';
+import '../../../services/playback_perf.dart';
+import '../../../services/perf_log.dart';
+import '../../../services/btr/btr_config.dart';
 
 /// 播放器邏輯 Mixin
 mixin PlayerActionMixin on PlayerStateMixin {
@@ -287,6 +292,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         );
         currentQuality = playInfo['currentQuality'] ?? 80;
         currentCodec = playInfo['codec'] ?? '';
+        _recordStream(playInfo);
         currentAudioUrl = playInfo['audioUrl'];
         previewFrameUrl = playInfo['previewUrl'] as String?;
 
@@ -308,7 +314,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
                   .toList() ??
               const <String>[];
           playUrl = rawUrl.isNotEmpty
-              ? await BtrProxy.wrap(rawUrl, backups: backups)
+              ? await BtrProxy.wrap(
+                  rawUrl,
+                  backups: backups,
+                  qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
+                )
               : null;
         }
 
@@ -623,6 +633,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
     currentQuality = playInfo['currentQuality'] ?? 80;
     currentCodec = playInfo['codec'] ?? '';
+    _recordStream(playInfo);
     currentAudioUrl = playInfo['audioUrl'];
     previewFrameUrl = playInfo['previewUrl'] as String?;
 
@@ -819,6 +830,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       }
       currentQuality = playInfo['currentQuality'] ?? currentQuality;
       currentCodec = playInfo['codec'] ?? 'avc';
+      _recordStream(playInfo);
       currentAudioUrl = playInfo['audioUrl'];
       previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
@@ -836,7 +848,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 .toList() ??
             const <String>[];
         playUrl = rawUrl.isNotEmpty
-            ? await BtrProxy.wrap(rawUrl, backups: backups)
+            ? await BtrProxy.wrap(
+                rawUrl,
+                backups: backups,
+                qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
+              )
             : null;
       }
 
@@ -890,6 +906,189 @@ mixin PlayerActionMixin on PlayerStateMixin {
     if (videoController == null) return;
 
     videoController!.addListener(_onPlayerStateChange);
+    _startPlayerStatsTimer();
+  }
+
+  /// 記下選定的影片串流（DASH 只有一條），供效能記錄與掉幀率計算
+  void _recordStream(Map playInfo) {
+    final v = (playInfo['dashData'] as Map?)?['video'];
+    currentStream = (v is List && v.isNotEmpty && v.first is Map)
+        ? Map<String, dynamic>.from(v.first as Map)
+        : null;
+  }
+
+  double get _currentStreamFps => CodecService.parseFps(
+    currentStream?['frameRate'] ?? currentStream?['frame_rate'],
+  );
+
+  // 播放診斷：每次（重）建主播放器都呼叫一次。先取消舊計時器並讓舊的非同步結果作廢，
+  // 再重新對齊 10 秒區間；同一個 cid 保留降級次數，換 cid 才整個重置。
+  void _startPlayerStatsTimer() {
+    playerStatsTimer?.cancel();
+    final gen = ++perfGen;
+    if (perfCid != cid) {
+      perfTracker.resetForVideo();
+      perfCid = cid;
+    } else {
+      perfTracker.resetInterval();
+    }
+    // 新 decoder 的掉幀累計從 0 起算（原生端在 decoder 初始化時也會歸零）
+    lastStatsDropped = 0;
+    lastStatsDecoder = '';
+    perfPrevJiffies = null;
+    perfPrevElapsedMs = null;
+    unawaited(_logPlaybackStart(gen));
+    unawaited(_sampleCpu(gen));
+    playerStatsTimer = Timer.periodic(
+      const Duration(seconds: kPerfIntervalSeconds),
+      (_) => _perfTick(gen),
+    );
+  }
+
+  Future<void> _logPlaybackStart(int gen) async {
+    final info = await CodecService.getPerfDeviceInfo();
+    final s = await CodecService.getPlayerStats(drain: false);
+    if (gen != perfGen) return;
+    if (info != null) {
+      perfCores = (info['cores'] as num?)?.toInt() ?? 1;
+    }
+    final st = currentStream;
+    final codec = st?['codecs'] ?? currentCodec;
+    final btrUsed =
+        BtrConfig.playback &&
+        !shouldSkipBtr(
+          is32Bit: isProcess32Bit(),
+          qn: currentQuality,
+          height: (st?['height'] as num?)?.toInt(),
+        );
+    PerfLog.add(
+      '播放開始 abi=${Abi.current()} cores=${info?['cores']} '
+      'memClass=${info?['memoryClass']}MB lowRam=${info?['isLowRam']} '
+      'display=${info?['modeWidth']}x${info?['modeHeight']}@'
+      '${((info?['modeRefresh'] as num?) ?? 0).toStringAsFixed(1)}Hz '
+      'hdr=${info?['hdr']} '
+      '視圖=${SettingsService.playerTextureView ? '相容' : '原生'} '
+      'btr=${btrUsed ? '用' : '不用'} '
+      '彈幕=${danmakuEnabled ? '開' : '關'}',
+    );
+    final modes = info?['supportedModes'];
+    if (modes is List && modes.isNotEmpty) {
+      PerfLog.add('支援螢幕模式 ${modes.join(' ')}');
+    }
+    PerfLog.add(
+      '串流 qn=$currentQuality codec=$codec '
+      '${st?['width']}x${st?['height']}@${_currentStreamFps.toStringAsFixed(2)}fps '
+      'bw=${(((st?['bandwidth'] as num?)?.toInt() ?? 0) ~/ 1000)}kbps '
+      'decoder=${s?['decoderName']} hw=${s?['isHardware']}',
+    );
+  }
+
+  /// 取一次 /proc/self/stat 樣本，與上一次比較得 CPU 百分比；第一次回 null
+  Future<double?> _sampleCpu(int gen) async {
+    final r = await CodecService.getProcessCpu();
+    if (r == null || gen != perfGen) return null;
+    final j = (r['jiffies'] as num?)?.toInt();
+    final ms = (r['elapsedMs'] as num?)?.toInt();
+    final hz = (r['hz'] as num?)?.toInt();
+    if (j == null || ms == null) return null;
+    if (hz != null && hz > 0) perfHz = hz;
+    final pj = perfPrevJiffies;
+    final pm = perfPrevElapsedMs;
+    perfPrevJiffies = j;
+    perfPrevElapsedMs = ms;
+    if (pj == null || pm == null) return null;
+    return cpuPercent(
+      prevJiffies: pj,
+      prevElapsedMs: pm,
+      curJiffies: j,
+      curElapsedMs: ms,
+      hz: perfHz,
+      cores: perfCores,
+    );
+  }
+
+  Future<void> _perfTick(int gen) async {
+    final c = videoController;
+    if (c == null || !mounted || gen != perfGen) return;
+    final s = await CodecService.getPlayerStats();
+    if (s == null || gen != perfGen) return;
+
+    final events = s['events'];
+    if (events is List) {
+      for (final e in events) {
+        PerfLog.add('事件 $e');
+      }
+    }
+    final dropped = (s['droppedTotal'] as num?)?.toInt() ?? 0;
+    final value = c.value;
+    final cpu = await _sampleCpu(gen);
+    if (gen != perfGen) return;
+    if (!value.isInitialized || !value.isPlaying || value.isBuffering) {
+      // 暫停或緩衝中：這個區間不完整，不計入連續掉幀
+      lastStatsDropped = dropped;
+      perfTracker.resetInterval();
+      return;
+    }
+
+    final decoder = (s['decoderName'] as String?) ?? '';
+    final delta = dropped >= lastStatsDropped
+        ? dropped - lastStatsDropped
+        : dropped;
+    lastStatsDropped = dropped;
+    lastStatsDecoder = decoder;
+
+    var fps = _currentStreamFps;
+    if (fps <= 0) fps = (s['inputFps'] as num?)?.toDouble() ?? 0;
+    final rate = dropRate(delta, fps * playbackSpeed, kPerfIntervalSeconds);
+
+    var bufSec = 0.0;
+    for (final r in value.buffered) {
+      if (r.end >= value.position) {
+        bufSec = (r.end - value.position).inMilliseconds / 1000;
+      }
+    }
+    PerfLog.add(
+      formatPerfLine(
+        posSec: value.position.inSeconds,
+        droppedInterval: delta,
+        droppedTotal: dropped,
+        rate: rate,
+        offsetUs: (s['frameOffsetAvgUs'] as num?)?.toDouble() ?? 0,
+        rendered: (s['renderedTotal'] as num?)?.toInt() ?? 0,
+        bufSec: bufSec,
+        bandwidthBps: (s['bandwidthBps'] as num?)?.toDouble() ?? 0,
+        cpu: cpu,
+      ),
+    );
+
+    final shouldDowngrade = perfTracker.record(
+      rate,
+      enabled: SettingsService.autoDowngradeOnDrops,
+    );
+    if (!shouldDowngrade || isLoading || perfDowngrading) return;
+    final target = nextLowerQn(
+      qualities.map((q) => (q['qn'] as num?)?.toInt() ?? 0).where((q) => q > 0),
+      currentQuality,
+    );
+    if (target == null) {
+      perfTracker.noLowerLevel = true;
+      PerfLog.add('自動降畫質略過：已是最低畫質');
+      return;
+    }
+    final from = currentQuality;
+    final prevRate = perfTracker.previousRate;
+    perfTracker.commitDowngrade();
+    PerfLog.add(
+      '事件 自動降畫質 $from->$target '
+      '區間掉幀率=${(prevRate * 100).toStringAsFixed(1)}%,'
+      '${(rate * 100).toStringAsFixed(1)}%',
+    );
+    perfDowngrading = true;
+    try {
+      await switchQuality(target, auto: true);
+    } finally {
+      perfDowngrading = false;
+    }
   }
 
   void _onPlayerStateChange() {
@@ -987,6 +1186,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
   /// 清理播放器監聽器
   void cancelPlayerListeners() {
     videoController?.removeListener(_onPlayerStateChange);
+    // 播放器即將重建：讓舊計時器與進行中的取樣作廢，重建後 _setupPlayerListeners 會重新啟動
+    playerStatsTimer?.cancel();
+    playerStatsTimer = null;
+    perfGen++;
   }
 
   Future<void> disposePlayer() async {
@@ -1013,6 +1216,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
     seekIndicatorTimer?.cancel();
     autoSeekTimer?.cancel();
     onlineCountTimer?.cancel(); // 取消線上人數定時器
+    playerStatsTimer?.cancel();
+    playerStatsTimer = null;
     _clearSpritesFromMemory(); // 清理雪碧圖記憶體快取
     previewFrameUrl = null;
     FrameService.release();
@@ -1181,7 +1386,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
   }
 
   /// 依模式決定播完後要播的下一部；沒有則回傳 null。
-  ({UpNextInfo info, String toast, bool isEpisode})? _peekNext(PlayRepeat mode) {
+  ({UpNextInfo info, String toast, bool isEpisode})? _peekNext(
+    PlayRepeat mode,
+  ) {
     // 1. 下一集（列表循環的最後一集回到第一集）
     if (episodes.length > 1 && cid != null) {
       final currentIndex = episodes.indexWhere((ep) => ep['cid'] == cid);
@@ -1798,6 +2005,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       }
       currentQuality = playInfo['currentQuality'] ?? 80;
       currentCodec = playInfo['codec'] ?? currentCodec;
+      _recordStream(playInfo);
       currentAudioUrl = playInfo['audioUrl'];
       previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
@@ -1817,7 +2025,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 .toList() ??
             const <String>[];
         playUrl = rawUrl.isNotEmpty
-            ? await BtrProxy.wrap(rawUrl, backups: backups)
+            ? await BtrProxy.wrap(
+                rawUrl,
+                backups: backups,
+                qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
+              )
             : null;
       }
 
@@ -1913,7 +2125,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
-  Future<void> switchQuality(int qn) async {
+  /// [auto] 為 true 表示由卡頓自動降畫質觸發；使用者手動選擇會停止該影片的自動降級
+  Future<void> switchQuality(int qn, {bool auto = false}) async {
+    if (!auto) perfTracker.userPicked = true;
     final position = videoController?.value.position ?? Duration.zero;
 
     setState(() => isLoading = true);
@@ -1984,6 +2198,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       }
       currentQuality = playInfo['currentQuality'] ?? chosenQn;
       currentCodec = playInfo['codec'] ?? currentCodec;
+      _recordStream(playInfo);
       currentAudioUrl = playInfo['audioUrl'];
       previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(
@@ -2005,7 +2220,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 .toList() ??
             const <String>[];
         playUrl = rawUrl.isNotEmpty
-            ? await BtrProxy.wrap(rawUrl, backups: backups)
+            ? await BtrProxy.wrap(
+                rawUrl,
+                backups: backups,
+                qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
+              )
             : null;
       }
 
@@ -2040,7 +2259,11 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
       setState(() => isLoading = false);
 
-      showZhToast(msg: '已切換到 $currentQualityDesc');
+      showZhToast(
+        msg: auto
+            ? '播放不順，已自動降為 $currentQualityDesc'
+            : '已切換到 $currentQualityDesc',
+      );
     } catch (e) {
       if (_isDecoderError(e) && !isCurrentCodecAvc) {
         await _fallbackToAvc(

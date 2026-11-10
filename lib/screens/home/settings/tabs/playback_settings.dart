@@ -122,6 +122,17 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
           },
         ),
         const SizedBox(height: 16),
+        SettingToggleRow(
+          label: '卡頓時自動降畫質',
+          subtitle: '連續掉幀過多時，自動降為下一級畫質',
+          value: SettingsService.autoDowngradeOnDrops,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (value) async {
+            await SettingsService.setAutoDowngradeOnDrops(value);
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 16),
         SettingDropdownRow<VideoCodec>(
           label: '影片解碼器',
           subtitle: '自動=按硬體支援選最優，失敗時降級到其他格式',

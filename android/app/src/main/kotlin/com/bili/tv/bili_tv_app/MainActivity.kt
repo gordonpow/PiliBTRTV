@@ -94,8 +94,58 @@ class MainActivity : FlutterActivity() {
                     result.success(canHwDecode(codec, w, h, fps))
                 }
                 "isHdrDisplay" -> result.success(isHdrDisplay())
+                "getDeviceInfo" -> result.success(perfDeviceInfo())
+                "getProcessCpu" -> result.success(processCpu())
+                "getPlayerStats" -> result.success(
+                    io.flutter.plugins.videoplayer.PlayerStats.snapshot(call.argument<Boolean>("drain") ?: true)
+                )
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    // 效能記錄用：ABI、核心數、記憶體等級、螢幕模式與 HDR（不含個人資訊）
+    private fun perfDeviceInfo(): Map<String, Any?> {
+        val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            this.display
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay
+        }
+        val canMode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+        val mode = if (canMode) display?.mode else null
+        val modes = (if (canMode) display?.supportedModes?.toList() else null)?.map {
+            "${it.physicalWidth}x${it.physicalHeight}@${"%.1f".format(it.refreshRate)}"
+        } ?: emptyList()
+        return mapOf(
+            "abis" to Build.SUPPORTED_ABIS.toList(),
+            "cores" to Runtime.getRuntime().availableProcessors(),
+            "memoryClass" to am.memoryClass,
+            "isLowRam" to am.isLowRamDevice,
+            "modeWidth" to (mode?.physicalWidth ?: 0),
+            "modeHeight" to (mode?.physicalHeight ?: 0),
+            "modeRefresh" to (mode?.refreshRate?.toDouble() ?: (display?.refreshRate?.toDouble() ?: 0.0)),
+            "supportedModes" to modes,
+            "hdr" to isHdrDisplay()
+        )
+    }
+
+    // 讀 /proc/self/stat 的 utime+stime（jiffies）與目前時間，由 Dart 兩次取樣算 CPU 使用率
+    private fun processCpu(): Map<String, Any?>? {
+        return try {
+            val text = File("/proc/self/stat").readText()
+            // 第 2 欄 comm 可能含空白，從最後一個 ')' 之後切欄位；其後第 1 欄是第 3 欄 state
+            val rest = text.substring(text.lastIndexOf(')') + 2).split(" ")
+            val utime = rest[11].toLong()
+            val stime = rest[12].toLong()
+            mapOf(
+                "jiffies" to (utime + stime),
+                "elapsedMs" to android.os.SystemClock.elapsedRealtime(),
+                "hz" to android.system.Os.sysconf(android.system.OsConstants._SC_CLK_TCK)
+            )
+        } catch (e: Exception) {
+            null
         }
     }
 

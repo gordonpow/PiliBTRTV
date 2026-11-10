@@ -4,6 +4,7 @@ import 'package:bili_tv_app/btr_version.dart';
 import 'package:bili_tv_app/services/auth_service.dart';
 import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'package:bili_tv_app/services/log_service.dart';
+import 'package:bili_tv_app/services/perf_log.dart';
 import 'package:bili_tv_app/services/settings_service.dart';
 import 'package:flutter/services.dart';
 
@@ -71,9 +72,18 @@ class ErrorReportService {
     b.writeln(
       '執行緒: ${BtrConfig.autoThreads ? '自動' : '手動'} (${BtrConfig.playbackThreads})',
     );
+    b.writeln(
+      '畫面模式: ${SettingsService.playerTextureView ? 'textureView' : 'platformView'}',
+    );
     b.writeln('硬體解碼: ${SettingsService.useHardwareDecode ? '開' : '關'}');
     b.writeln('首選編碼: ${SettingsService.preferredCodec.name}');
     b.writeln('已登入: ${AuthService.isLoggedIn ? '是' : '否'}');
+
+    b.writeln();
+    b.writeln('== 播放效能 ==');
+    for (final line in PerfLog.lines) {
+      b.writeln(line);
+    }
 
     b.writeln();
     b.writeln('== 最近 log ==');

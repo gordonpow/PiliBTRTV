@@ -63,7 +63,11 @@ public class PlatformViewVideoPlayer extends VideoPlayer {
                   .setTrackSelector(trackSelector)
                   .setLoadControl(io.flutter.plugins.videoplayer.FastStartLoadControl.create())
                   .setMediaSourceFactory(asset.getMediaSourceFactory(context));
-          return builder.build();
+          ExoPlayer exoPlayer = builder.build();
+          io.flutter.plugins.videoplayer.PlayerStats.attach(exoPlayer);
+          exoPlayer.addAnalyticsListener(
+              io.flutter.plugins.videoplayer.PlayerStats.listener(exoPlayer));
+          return exoPlayer;
         });
   }
 

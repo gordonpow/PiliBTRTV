@@ -6,6 +6,7 @@ import '../player_screen.dart';
 import '../widgets/settings_panel.dart';
 import '../../../models/videoshot.dart';
 import '../../../services/playback_preparer.dart';
+import '../../../services/playback_perf.dart';
 
 /// 倒數連播的下一部資訊
 class UpNextInfo {
@@ -60,6 +61,20 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   // 線上觀看人數
   String? onlineCount;
   Timer? onlineCountTimer;
+
+  // 播放診斷統計計時器（每 10 秒）與上次快照
+  Timer? playerStatsTimer;
+  int lastStatsDropped = 0;
+  String lastStatsDecoder = '';
+  int perfGen = 0; // 每次重建播放器遞增，讓舊計時器的非同步結果作廢
+  int? perfCid; // 區間統計所屬的 cid，換片時重置
+  final DowngradeTracker perfTracker = DowngradeTracker();
+  bool perfDowngrading = false;
+  Map<String, dynamic>? currentStream; // 選定的影片串流（DASH）
+  int? perfPrevJiffies;
+  int? perfPrevElapsedMs;
+  int perfCores = 1;
+  int perfHz = 100;
 
   // 當前播放的音訊 URL (DASH 模式)
   String? currentAudioUrl;
