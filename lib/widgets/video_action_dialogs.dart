@@ -103,8 +103,16 @@ class _TvDialogButtonState extends State<TvDialogButton> {
 
 // ───────────────────────── 影片選項 ─────────────────────────
 
-/// 長按影片卡片的「影片選項」：收藏、稍後再看、取消
-Future<void> showVideoActionMenu(BuildContext context, Video video) async {
+/// 長按影片卡片的「影片選項」：收藏、稍後再看、（移除）、取消。
+/// [removeLabel]、[onRemove] 都有值時多一顆移除按鈕；回傳 true 表示已成功移除。
+Future<bool> showVideoActionMenu(
+  BuildContext context,
+  Video video, {
+  String? removeLabel,
+  String? removedMessage,
+  Future<String?> Function()? onRemove,
+}) async {
+  final canRemove = removeLabel != null && onRemove != null;
   final action = await showDialog<String>(
     context: context,
     builder: (ctx) => Dialog(
@@ -145,6 +153,14 @@ Future<void> showVideoActionMenu(BuildContext context, Video video) async {
                 icon: Icons.watch_later_outlined,
                 onPressed: () => Navigator.of(ctx).pop('later'),
               ),
+              if (canRemove) ...[
+                const SizedBox(height: 10),
+                TvDialogButton(
+                  label: removeLabel,
+                  icon: Icons.delete_outline,
+                  onPressed: () => Navigator.of(ctx).pop('remove'),
+                ),
+              ],
               const SizedBox(height: 10),
               TvDialogButton(
                 label: '取消',
@@ -156,12 +172,17 @@ Future<void> showVideoActionMenu(BuildContext context, Video video) async {
       ),
     ),
   );
-  if (!context.mounted || action == null) return;
+  if (!context.mounted || action == null) return false;
   if (action == 'fav') {
     await favoriteVideoFlow(context, video.resolvedAid);
   } else if (action == 'later') {
     await watchLaterFlow(context, video);
+  } else if (action == 'remove' && canRemove) {
+    final err = await onRemove();
+    _toast(err ?? removedMessage ?? '已移除');
+    return err == null;
   }
+  return false;
 }
 
 // ───────────────────────── 收藏夾選擇 ─────────────────────────

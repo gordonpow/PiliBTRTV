@@ -1,7 +1,9 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../../../models/video.dart';
 import '../../../services/api/fav_api.dart';
+import '../../../services/api/interaction_api.dart';
 import '../../../services/bilibili_api.dart';
+import '../../../widgets/video_action_dialogs.dart';
 import '../../../widgets/tv_tab_bar.dart';
 import 'video_grid.dart';
 
@@ -116,6 +118,48 @@ class FavViewState extends State<FavView> {
     });
   }
 
+  Future<void> _onLongPress(Video video, int index) async {
+    if (_folders.isEmpty) return;
+    final folder = _folders[_selected];
+    final gen = _gen;
+    final removed = await showVideoActionMenu(
+      context,
+      video,
+      removeLabel: '從此收藏夾移除',
+      removedMessage: '已從收藏夾移除',
+      onRemove: () async {
+        final aid = video.resolvedAid;
+        if (aid <= 0) return '無法取得影片資訊';
+        return InteractionApi.dealFavorite(aid: aid, delIds: [folder.id]);
+      },
+    );
+    // 期間若切換了收藏夾，清單已重載，不再動畫面
+    if (!removed || !mounted || gen != _gen) return;
+    setState(() {
+      _videos = _videos.where((v) => v != video).toList();
+      final i = _folders.indexWhere((f) => f.id == folder.id);
+      if (i >= 0) {
+        final f = _folders[i];
+        _folders = [..._folders]
+          ..[i] = FavFolder(
+            id: f.id,
+            title: f.title,
+            mediaCount: f.mediaCount > 0 ? f.mediaCount - 1 : 0,
+          );
+      }
+    });
+    // 長按結束時 BaseTvCard 會先還原長按前的焦點（microtask）；
+    // 這裡等下一個 frame 之後才移焦點，確保最後生效的是移除後的目標
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_videos.isEmpty) {
+        focusFolders();
+      } else {
+        _gridKey.currentState?.focusIndex(index);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loadingFolders) {
@@ -144,6 +188,7 @@ class FavViewState extends State<FavView> {
       content = HistoryVideoGrid(
         key: _gridKey,
         videos: _videos,
+        onLongPressVideo: _onLongPress,
         sidebarFocusNode: widget.sidebarFocusNode,
         isLoadingMore: _loadingMore,
         onMoveUpFromFirstRow: focusFolders,

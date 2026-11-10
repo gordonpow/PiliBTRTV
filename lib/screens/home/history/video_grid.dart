@@ -16,8 +16,12 @@ class HistoryVideoGrid extends StatefulWidget {
   final VoidCallback? onNeedMore;
   final bool isLoadingMore;
 
+  /// 長按卡片的動作；null 時使用卡片預設的「影片選項」
+  final Future<void> Function(Video video, int index)? onLongPressVideo;
+
   const HistoryVideoGrid({
     super.key,
+    this.onLongPressVideo,
     required this.videos,
     this.sidebarFocusNode,
     this.onMoveUpFromFirstRow,
@@ -38,6 +42,15 @@ class HistoryVideoGridState extends State<HistoryVideoGrid> {
   /// 聚焦第一張卡片
   void focusFirst() {
     if (widget.videos.isNotEmpty) _node(0).requestFocus();
+  }
+
+  /// 聚焦指定位置的卡片（超出範圍時夾到最後一張）。
+  /// 該節點已持有焦點時先放開再要求，讓卡片重新收到焦點事件（內容已換成別部影片）。
+  void focusIndex(int i) {
+    if (widget.videos.isEmpty) return;
+    final node = _node(i.clamp(0, widget.videos.length - 1));
+    if (node.hasPrimaryFocus) node.unfocus();
+    node.requestFocus();
   }
 
   @override
@@ -90,6 +103,9 @@ class HistoryVideoGridState extends State<HistoryVideoGrid> {
                 builder: (ctx) => TvVideoCard(
                   video: video,
                   focusNode: _node(index),
+                  onLongPress: widget.onLongPressVideo == null
+                      ? null
+                      : () => widget.onLongPressVideo!(video, index),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => PlayerScreen(video: video),

@@ -296,6 +296,28 @@ class InteractionApi {
     }
   }
 
+  /// 從稍後再看移除。回傳 null 表示成功，否則為錯誤訊息
+  static Future<String?> removeWatchLater(int aid) async {
+    if (!AuthService.isLoggedIn) return '請先登入';
+    try {
+      final csrf = AuthService.biliJct ?? '';
+      if (csrf.isEmpty) return '登入資訊不完整，請重新登入';
+      final response = await http.post(
+        Uri.parse('${BaseApi.apiBase}/x/v2/history/toview/del'),
+        headers: {...BaseApi.getHeaders(withCookie: true), ..._formHeaders},
+        body: 'aid=$aid&csrf=$csrf',
+      );
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['code'] == 0) return null;
+        return (json['message'] ?? '移除失敗 (${json['code']})').toString();
+      }
+      return 'HTTP ${response.statusCode}';
+    } catch (e) {
+      return '網路錯誤';
+    }
+  }
+
   /// 刪除觀看紀錄（kid 例如 archive_123、pgc_45）。回傳刪除失敗的筆數
   static Future<int> deleteHistory(List<String> kids) async {
     if (kids.isEmpty) return 0;
