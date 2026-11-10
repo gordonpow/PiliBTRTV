@@ -63,7 +63,9 @@ class ErrorReportService {
       );
     }
     b.writeln('系統語言: ${PlatformDispatcher.instance.locale.toLanguageTag()}');
-    b.writeln('App 語言設定: ${SettingsService.appLanguage} (0 跟隨系統, 1 繁體, 2 簡體)');
+    b.writeln(
+      'App 語言設定: ${SettingsService.appLanguage} (0 跟隨系統, 1 繁體, 2 簡體, 3 English)',
+    );
 
     b.writeln();
     b.writeln('== 設定摘要 ==');

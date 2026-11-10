@@ -1,0 +1,8 @@
+# exclude list: path (whole file) or path<TAB>text (lines containing text)
+lib/services/api/playback_api.dart	试看
+lib/utils/i18n_pack.dart
+lib/services/error_report_service.dart
+lib/services/playback_perf.dart
+lib/utils/format_count.dart
+lib/plugins/danmaku_enhance_plugin.dart	剧透
+lib/screens/player/mixins/player_action_mixin.dart	隧道播放 設定=開

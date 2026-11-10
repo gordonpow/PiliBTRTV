@@ -295,13 +295,7 @@ class Video {
 
   /// 格式化彈幕數
   String get danmakuFormatted {
-    if (danmaku >= 100000000) {
-      return '${(danmaku / 100000000).toStringAsFixed(1)}億';
-    }
-    if (danmaku >= 10000) {
-      return '${(danmaku / 10000).toStringAsFixed(1)}萬';
-    }
-    return danmaku.toString();
+    return formatCount(danmaku);
   }
 
   /// 格式化釋出時間

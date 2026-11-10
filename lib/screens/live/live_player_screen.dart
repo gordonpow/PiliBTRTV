@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/utils/format_count.dart';
 import 'package:bili_tv_app/utils/zh_convert.dart';
 import 'package:bili_tv_app/utils/zh_toast.dart';
 import 'dart:async';
@@ -91,11 +92,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
     WakelockPlus.enable();
     // Initialize online count from widget
     final initialOnline = widget.online ?? 0;
-    if (initialOnline >= 10000) {
-      _onlineCount = '${(initialOnline / 10000).toStringAsFixed(1)}萬';
-    } else {
-      _onlineCount = initialOnline.toString();
-    }
+    _onlineCount = formatCount(initialOnline);
 
     _loadSettings().then((_) {
       _initializePlayer();
@@ -412,11 +409,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
             // If we have a valid count, ignore 1 to avoid UI flicker.
             if (count <= 1) return;
 
-            if (count >= 10000) {
-              _onlineCount = '${(count / 10000).toStringAsFixed(1)}萬';
-            } else {
-              _onlineCount = count.toString();
-            }
+            _onlineCount = formatCount(count);
           });
         } else if (msg['type'] == 'error') {
           debugPrint('LiveSocket Error: ${msg['msg']}');
@@ -459,11 +452,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
           final online = info['online'] as int?;
           if (online != null && online > 1) {
             setState(() {
-              if (online >= 10000) {
-                _onlineCount = '${(online / 10000).toStringAsFixed(1)}萬';
-              } else {
-                _onlineCount = online.toString();
-              }
+              _onlineCount = formatCount(online);
             });
           }
         }

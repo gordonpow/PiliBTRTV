@@ -101,7 +101,7 @@ class _BtrSettingsState extends State<BtrSettings> {
         const SizedBox(height: 16),
         SettingActionRow(
           label: '自訂 CDN 節點',
-          value: customCount > 0 ? '$customCount 個' : '未設定',
+          value: customCount > 0 ? '$customCount 個節點' : '未設定',
           buttonLabel: '編輯',
           sidebarFocusNode: widget.sidebarFocusNode,
           onTap: _onCustomTap,

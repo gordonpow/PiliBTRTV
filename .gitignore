@@ -45,3 +45,8 @@ app.*.map.json
 /android/app/release
 build_apk.bat
 lib/config/env.dart
+
+# i18n 抽字串的自動產物，只有 en.json 進 git
+/i18n/*
+!/i18n/en.json
+__pycache__/

@@ -42,7 +42,7 @@ class _AboutSettingsState extends State<AboutSettings> {
   }
 
   static String _intervalLabel(int hours) =>
-      hours >= 48 ? '${hours ~/ 24} 天' : '$hours 小時';
+      hours >= 48 ? '每 ${hours ~/ 24} 天' : '每 $hours 小時';
 
   Future<void> _onCheckTap() async {
     final info = UpdateService.available.value;

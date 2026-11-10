@@ -25,11 +25,19 @@ abstract final class SettingsFocusTarget {
 
 /// 設定索引的一筆資料。
 class SettingsEntry {
-  const SettingsEntry(this.label, this.subtitle, this.category);
+  const SettingsEntry(
+    this.label,
+    this.subtitle,
+    this.category, {
+    this.englishOnly = false,
+  });
 
   final String label;
   final String subtitle;
   final SettingsCategory category;
+
+  /// 只在英文模式才有的項目（例如「更新語言包」），其他語言不列入搜尋結果。
+  final bool englishOnly;
 }
 
 /// 設定索引：與 tabs/*.dart 的 row label／subtitle 對應。
@@ -66,7 +74,17 @@ abstract final class SettingsIndex {
       '游標停在影片卡片上 1 秒，靜音預覽 10 秒',
       SettingsCategory.interface_,
     ),
-    SettingsEntry('語言', '切換繁體或簡體中文，重新啟動後生效', SettingsCategory.interface_),
+    SettingsEntry(
+      '語言',
+      '切換語言（繁體／簡體／English），重新啟動後生效',
+      SettingsCategory.interface_,
+    ),
+    SettingsEntry(
+      '更新語言包',
+      '下載最新的英文語言包',
+      SettingsCategory.interface_,
+      englishOnly: true,
+    ),
     SettingsEntry(
       '首頁分區',
       '分區開關、分區排序 推薦 熱門 番劇 影視 遊戲 知識 科技 音樂 舞蹈 生活 美食 動畫',
@@ -105,10 +123,20 @@ abstract final class SettingsIndex {
   }) {
     final q = normalize(query, convert: convert);
     if (q.isEmpty) return const [];
+    final conv = convert ?? ZhConvert.convert;
+    bool matches(SettingsEntry e) {
+      if (e.englishOnly && ZhConvert.script != ZhScript.english) return false;
+      if (normalize('${e.label} ${e.subtitle}', convert: convert).contains(q)) {
+        return true;
+      }
+      // 英文模式：也比對翻譯後的 label 與 subtitle
+      final translated = '${conv(e.label)} ${conv(e.subtitle)}';
+      return normalize(translated, convert: convert).contains(q);
+    }
+
     return [
       for (final e in source)
-        if (normalize('${e.label} ${e.subtitle}', convert: convert).contains(q))
-          e,
+        if (matches(e)) e,
     ];
   }
 }

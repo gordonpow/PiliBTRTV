@@ -64,7 +64,7 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
           subtitle: '「倒數後播下一部」模式播完後倒數幾秒',
           value: SettingsService.upNextCountdown,
           items: SettingsService.upNextCountdownOptions,
-          itemLabel: (v) => '$v 秒',
+          itemLabel: (v) => '$v 秒後',
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (v) async {
             if (v != null) {

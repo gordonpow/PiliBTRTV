@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/utils/format_count.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/settings_service.dart';
@@ -43,10 +44,7 @@ class TvLiveCard extends StatelessWidget {
     final uname = room['uname'] ?? '';
     final online = room['online'] ?? 0;
 
-    String onlineText = '$online';
-    if (online >= 10000) {
-      onlineText = '${(online / 10000).toStringAsFixed(1)}萬';
-    }
+    final onlineText = formatCount((online as num?)?.toInt() ?? 0);
 
     return BaseTvCard(
       autofocus: autofocus,

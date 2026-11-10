@@ -1,11 +1,14 @@
-import 'dart:ui' show PlatformDispatcher;
+import 'dart:ui' show Locale, PlatformDispatcher;
 
 import 'package:bili_tv_app/services/settings_service.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
+import 'package:bili_tv_app/utils/i18n_pack.dart';
+import 'package:flutter/foundation.dart'
+    show kDebugMode, debugPrint, visibleForTesting;
 import 'package:flutter/painting.dart' show InlineSpan, TextSpan;
 import 'package:flutter/services.dart' show rootBundle;
 
-enum ZhScript { traditional, simplified }
+/// [english] 顯示英文語言包（[I18nPack]）；語言包沒有的字串維持繁體中文。
+enum ZhScript { traditional, simplified, english }
 
 /// Converts text between Traditional and Simplified Chinese when it is
 /// shown. Data (server responses, user input, values compared in code)
@@ -27,17 +30,35 @@ abstract final class ZhConvert {
   // Map literals keep insertion order, which makes this an LRU cache.
   static final _cache = <String, String>{};
 
-  /// Script for the language setting ([SettingsService.appLanguage]).
+  /// 系統語言。測試時可換成假的。
+  @visibleForTesting
+  static Locale Function() localeProvider = () =>
+      PlatformDispatcher.instance.locale;
+
+  /// Script for the language setting ([SettingsService.appLanguage]):
+  /// 0 follow system, 1 Traditional, 2 Simplified, 3 English.
   static ZhScript resolve(int language) => switch (language) {
     1 => ZhScript.traditional,
     2 => ZhScript.simplified,
+    3 => ZhScript.english,
     _ => systemScript,
   };
 
-  /// Simplified for a Simplified Chinese system language, else Traditional.
+  /// 這個語言設定是否需要英文語言包：選 English，或跟隨系統且系統語言
+  /// 不是中文。與語言包是否已下載無關。
+  static bool needsEnglishPack(int language) =>
+      language == 3 || (language == 0 && _systemIsEnglish);
+
+  static bool get _systemIsEnglish =>
+      localeProvider().languageCode.toLowerCase() != 'zh';
+
+  /// zh-Hant／TW／HK／MO 為繁體，zh-Hans／CN／SG 為簡體；其他語言（含
+  /// 英文）為英文，但還沒有語言包時回傳繁體（背景下載後，下次啟動生效）。
   static ZhScript get systemScript {
-    final locale = PlatformDispatcher.instance.locale;
-    if (locale.languageCode != 'zh') return ZhScript.traditional;
+    final locale = localeProvider();
+    if (locale.languageCode.toLowerCase() != 'zh') {
+      return I18nPack.isLoaded ? ZhScript.english : ZhScript.traditional;
+    }
     final scriptCode = locale.scriptCode;
     if (scriptCode == 'Hans') return ZhScript.simplified;
     if (scriptCode == 'Hant') return ZhScript.traditional;
@@ -75,7 +96,18 @@ abstract final class ZhConvert {
   /// Loads the tables for the current setting. Call once on start, after
   /// the settings storage is open.
   static Future<void> init() async {
-    script = resolve(SettingsService.appLanguage);
+    final language = SettingsService.appLanguage;
+    final wantsEnglish = needsEnglishPack(language);
+    if (wantsEnglish) {
+      // 先載入語言包，resolve 才知道有沒有英文可用。load 不會丟例外。
+      await I18nPack.load();
+    }
+    script = resolve(language);
+    if (wantsEnglish) {
+      // 沒有語言包（首次啟動或檔案損毀）或到了檢查時間：背景下載，
+      // 失敗 24 小時內不重試，下次啟動生效。
+      I18nPack.maybeUpdateInBackground();
+    }
     try {
       final simplified = script == ZhScript.simplified;
       final raw = await rootBundle.loadString(
@@ -93,8 +125,23 @@ abstract final class ZhConvert {
     }
   }
 
+  /// 清除轉換快取（語言包更新後呼叫）。
+  static void clearCache() => _cache.clear();
+
+  /// 測試用：清除快取並回到繁體、沒有繁簡表的初始狀態。
+  @visibleForTesting
+  static void resetForTest() {
+    script = ZhScript.traditional;
+    _table = const {};
+    _maxLenByFirst = const {};
+    _exact = const {};
+    _cache.clear();
+  }
+
   static String convert(String text) {
-    if (text.isEmpty || _table.isEmpty) return text;
+    // 英文模式即使繁簡表載入失敗也要翻譯，所以先判斷這個。
+    if (text.isEmpty) return text;
+    if (_table.isEmpty && script != ZhScript.english) return text;
     final cacheable = text.length <= _cacheMaxLength;
     if (cacheable) {
       final hit = _cache.remove(text);
@@ -103,7 +150,14 @@ abstract final class ZhConvert {
         return hit;
       }
     }
-    final result = _exact[text] ?? _convert(text);
+    String result;
+    if (script == ZhScript.english) {
+      // 語言包優先；沒有的字串維持繁體中文。
+      final en = I18nPack.translate(text);
+      result = en == text ? _convert(text) : en;
+    } else {
+      result = _exact[text] ?? _convert(text);
+    }
     if (cacheable) {
       if (_cache.length >= _cacheSize) _cache.remove(_cache.keys.first);
       _cache[text] = result;
@@ -147,7 +201,10 @@ abstract final class ZhConvert {
   /// spans (for example WidgetSpan) stay as they are: the widgets in them
   /// convert their own text.
   static InlineSpan span(InlineSpan span) {
-    if (_table.isEmpty || span.runtimeType != TextSpan) return span;
+    if ((_table.isEmpty && script != ZhScript.english) ||
+        span.runtimeType != TextSpan) {
+      return span;
+    }
     span as TextSpan;
     return TextSpan(
       text: span.text == null ? null : convert(span.text!),

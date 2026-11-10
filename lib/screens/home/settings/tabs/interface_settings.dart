@@ -3,7 +3,11 @@ import 'package:flutter/services.dart';
 import '../../../../services/settings_service.dart';
 import '../../../../core/focus/focus_navigation.dart';
 import '../widgets/setting_toggle_row.dart';
-import '../widgets/setting_dropdown_row.dart';
+import '../widgets/setting_action_row.dart';
+import '../widgets/setting_picker_row.dart';
+import '../widgets/i18n_download_dialog.dart';
+import '../../../../utils/i18n_pack.dart';
+import '../../../../utils/zh_convert.dart';
 import '../../../../utils/app_restart.dart';
 import '../../../../services/card_preview_service.dart';
 
@@ -96,6 +100,45 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
     );
   }
 
+  bool _updatingPack = false;
+
+  /// 選了新語言：需要英文語言包而沒有時先下載（失敗則保持原值），
+  /// 存檔後詢問重新啟動。選相同的值不動作。
+  Future<void> _onLanguagePicked(int value) async {
+    if (value == SettingsService.appLanguage) return;
+    if (ZhConvert.needsEnglishPack(value)) {
+      if (!I18nPack.isLoaded) await I18nPack.load();
+      if (!I18nPack.isLoaded) {
+        if (!mounted) return;
+        final version = await showI18nDownloadDialog(context);
+        if (version == null) {
+          SettingsService.toast(null, '語言包下載失敗，請檢查網路');
+          return;
+        }
+        await I18nPack.load();
+      }
+    }
+    await SettingsService.setAppLanguage(value);
+    if (!mounted) return;
+    setState(() {});
+    await AppRestart.ask(context);
+  }
+
+  /// 手動下載最新語言包（不受背景檢查的間隔限制）。
+  Future<void> _updateLanguagePack() async {
+    setState(() => _updatingPack = true);
+    final version = await showI18nDownloadDialog(context);
+    if (version == null) {
+      SettingsService.toast(null, '語言包下載失敗，請檢查網路');
+    } else {
+      await I18nPack.load();
+      ZhConvert.clearCache();
+      SettingsService.toast(null, '語言包已更新');
+    }
+    if (!mounted) return;
+    setState(() => _updatingPack = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     // 獲取啟用的分區 (用於排序)
@@ -149,28 +192,36 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           },
         ),
         const SizedBox(height: 16),
-        // 語言（0 跟隨系統、1 繁體中文、2 簡體中文）
-        SettingDropdownRow<int>(
+        // 語言（0 跟隨系統、1 繁體中文、2 簡體中文、3 English）
+        SettingPickerRow<int>(
           label: '語言',
-          subtitle: '切換繁體或簡體中文，重新啟動後生效',
+          subtitle: '切換語言（繁體／簡體／English），重新啟動後生效',
           value: SettingsService.appLanguage,
-          items: const [0, 1, 2],
+          items: const [0, 1, 2, 3],
           itemLabel: (v) => switch (v) {
             1 => '繁體中文',
             2 => '簡體中文',
+            3 => 'English',
             _ => '跟隨系統',
           },
           onMoveUp: null,
           sidebarFocusNode: widget.sidebarFocusNode,
-          onChanged: (value) async {
-            if (value == null || value == SettingsService.appLanguage) return;
-            await SettingsService.setAppLanguage(value);
-            if (!context.mounted) return;
-            setState(() {});
-            await AppRestart.ask(context);
-          },
+          onChanged: _onLanguagePicked,
         ),
         const SizedBox(height: 16),
+        // 英文模式才有：手動更新語言包
+        if (ZhConvert.script == ZhScript.english) ...[
+          SettingActionRow(
+            label: '更新語言包',
+            value: I18nPack.version.isEmpty
+                ? '尚未載入'
+                : '目前版本 ${I18nPack.version}',
+            buttonLabel: _updatingPack ? '更新中…' : '更新',
+            onTap: _updatingPack ? null : _updateLanguagePack,
+            sidebarFocusNode: widget.sidebarFocusNode,
+          ),
+          const SizedBox(height: 16),
+        ],
 
         // 分區開關
         Padding(
