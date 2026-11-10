@@ -27,7 +27,12 @@ class LocalServer {
   String? _currentMpdContent;
   String? _localIp;
 
-  static const int port = 3322;
+  /// 預設埠；被佔用時依序改用後面的埠（見 [start]）
+  static const int defaultPort = 3322;
+  int _port = defaultPort;
+
+  /// 實際使用的埠
+  int get port => _port;
 
   /// 服務是否正在執行
   bool get isRunning => _server != null;
@@ -51,14 +56,27 @@ class LocalServer {
       // 獲取本地 IP（使用 NetworkInterface）
       _localIp = await _getLocalIp();
 
-      // 繫結到所有網路介面
-      _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
+      // 繫結到所有網路介面；預設埠被其他程式佔用時改用後面的埠，
+      // 都失敗就讓系統分配（否則播放用的本機 MPD 也會無法使用）
+      _server = await _bindAvailable();
+      _port = _server!.port;
       _server!.listen(_handleRequest);
 
       debugPrint('🌐 LocalServer started at http://$_localIp:$port');
     } catch (e) {
       debugPrint('❌ LocalServer failed to start: $e');
     }
+  }
+
+  static Future<HttpServer> _bindAvailable() async {
+    for (var p = defaultPort; p < defaultPort + 10; p++) {
+      try {
+        return await HttpServer.bind(InternetAddress.anyIPv4, p);
+      } on SocketException catch (e) {
+        debugPrint('⚠️ LocalServer port $p unavailable: ${e.osError?.message}');
+      }
+    }
+    return HttpServer.bind(InternetAddress.anyIPv4, 0);
   }
 
   /// 獲取本地 WiFi/乙太網路 IP 地址
