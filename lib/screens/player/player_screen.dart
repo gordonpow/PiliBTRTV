@@ -49,11 +49,16 @@ class _PlayerScreenState extends State<PlayerScreen>
   void initState() {
     super.initState();
     PlayerScreen.activeCount++;
-    // 第一個 await 之前同步接手暖機播放器；沒有就釋放卡片預覽的解碼器
-    warmPlayback = CardPreviewService.instance.take(widget.video.bvid);
+    // 第一個 await 之前同步接手暖機播放器；沒有就釋放卡片預覽的解碼器。
+    // 暖機播放器是 textureView：畫面模式為「原生」時不接手，改用 platformView
+    // 重新準備（textureView 無法隧道播放，部分裝置直式影片會出現綠塊）。
+    warmPlayback = SettingsService.playerTextureView
+        ? CardPreviewService.instance.take(widget.video.bvid)
+        : null;
     // 暖機還在準備且已保留給本頁時不要停掉它，initializePlayer 會等它完成
     if (warmPlayback == null &&
-        !CardPreviewService.instance.isPendingFor(widget.video.bvid)) {
+        (!SettingsService.playerTextureView ||
+            !CardPreviewService.instance.isPendingFor(widget.video.bvid))) {
       CardPreviewService.instance.stopAll();
     }
     SystemChannels.textInput.invokeMethod('TextInput.hide');

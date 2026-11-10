@@ -508,7 +508,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
     var prepared = warmPlayback;
     warmPlayback = null;
     // 按 OK 時暖機還在準備：等它完成後接手（比從頭再準備一次快）
+    // 「原生」畫面模式不接手 textureView 暖機播放器（見 PlayerScreen.initState）
     if (prepared == null &&
+        SettingsService.playerTextureView &&
         CardPreviewService.instance.isPendingFor(widget.video.bvid)) {
       prepared = await CardPreviewService.instance.waitAndTake(
         widget.video.bvid,
