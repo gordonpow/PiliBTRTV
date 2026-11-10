@@ -247,3 +247,10 @@
 - 發布 v1.2.2-btr.13：版本 commit `cf4ee75`（`1.2.2+17`），`--split-per-abi` 建置，簽章 `17fcf8ed…`、versionCode 2017／1017；GitHub Release 附 arm64-v8a（23.9MB）、armeabi-v7a（21.7MB）。發布說明在 `docs/work/player-nav-feedback/release-notes-btr.13.md`。未實機驗證，待 BRAVIA 使用者回報。
 - 使用者要求移除「記住此裝置 4K 60 幀不順、之後從 1080P60 開始」與設定頁「重設 4K 60 幀偵測」：Sonnet 刪除 8 個檔案中的相關程式（保留播放中依掉幀自動降畫質）；`flutter analyze` 無問題、148 項測試通過。尚未 commit。
 - 發布 v1.2.2-btr.14：commit `2992ca3`（移除 4K60 不順記錄）、`4196abb`（版本 `1.2.2+18`），簽章 `17fcf8ed…`、versionCode 2018／1018；GitHub Release 附 arm64-v8a、armeabi-v7a。發布說明在 `docs/work/player-nav-feedback/release-notes-btr.14.md`。未實機驗證。
+- 分析 report-Y6WQM3（btr.14，BRAVIA）：全部進入隧道模式，HEVC 4K60 約 60fps；AV1 4K60 在隧道模式三次卡在緩衝（23–46 秒）。
+- 修正 AV1 卡住（`docs/work/av1-tunnel-stall/`）：A＝隧道＋原生＋auto 編碼播 4K 高幀率時優先 HEVC；B＝原生 playWhenReady＋BUFFERING 持續 8 秒且已緩衝 ≥ 10 秒判定解碼卡住，依 AV1→HEVC→AVC 換編碼重載（不寫永久設定）。Sonnet 規格審查 8 條採用 7 條，Sonnet 實作；`flutter analyze` 無問題、164 項測試通過、原生 Java 編譯成功。尚未 commit、未實機驗證。
+- 模擬器 App 內更新失敗：x86_64 版 versionCode 4015，Release 只有 ARM（2018），被判降版（INSTALL_FAILED_VERSION_DOWNGRADE）；改用 adb 裝 btr.14 x86_64（4018）。
+- 模擬器手動選真彩 HDR 黑畫面：HEVC Main10 超出解碼能力 → 永久改用 AVC 且標籤錯誤。修正（`docs/work/hdr-fallback-direct-speed/`）：HDR／10-bit 失敗只降到較低非 HDR 畫質、不寫永久設定；畫質標籤用實際串流；非 HDR 螢幕隱藏 125／126；CDN 狀態直連時顯示直連速度與估計頻寬。
+- 兩項（AV1 卡住、HDR）合併 diff 審查（Sonnet）5 條：#1～#4 與 #5 的彈幕索引、降畫質計數採用並修正；`isPreview` toast 未採用（影響小）。`flutter analyze` 無問題、171 項測試通過。尚未 commit、未實機驗證。
+- 補修重載剛結束時新播放器出錯被略過的時序問題（finally 後再檢查一次 hasError）。
+- 發布 v1.2.2-btr.15：commit `f7c55d8`（AV1 卡住、HDR 回退、畫質標籤）、`1b7126b`（直連網速）、`581469e`（規格）、`3dc53ba`（版本 `1.2.2+19`）；簽章 `17fcf8ed…`、versionCode 2019／1019；GitHub Release 附 arm64-v8a、armeabi-v7a。發布說明在 `docs/work/av1-tunnel-stall/release-notes-btr.15.md`。未實機驗證，待 BRAVIA 使用者回報。
