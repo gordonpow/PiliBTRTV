@@ -254,3 +254,9 @@
 - 兩項（AV1 卡住、HDR）合併 diff 審查（Sonnet）5 條：#1～#4 與 #5 的彈幕索引、降畫質計數採用並修正；`isPreview` toast 未採用（影響小）。`flutter analyze` 無問題、171 項測試通過。尚未 commit、未實機驗證。
 - 補修重載剛結束時新播放器出錯被略過的時序問題（finally 後再檢查一次 hasError）。
 - 發布 v1.2.2-btr.15：commit `f7c55d8`（AV1 卡住、HDR 回退、畫質標籤）、`1b7126b`（直連網速）、`581469e`（規格）、`3dc53ba`（版本 `1.2.2+19`）；簽章 `17fcf8ed…`、versionCode 2019／1019；GitHub Release 附 arm64-v8a、armeabi-v7a。發布說明在 `docs/work/av1-tunnel-stall/release-notes-btr.15.md`。未實機驗證，待 BRAVIA 使用者回報。
+- 使用者回報：側邊欄「觀看歷史」按右鍵焦點落在中間卡片。修正：比照直播／個人頁，按右鍵呼叫 `HistoryTabState.focusFirstItem()`，落在目前分頁第一個項目。
+- 使用者回報：搜尋一次後無法直接再搜尋，要按返回。修正：結果頁上方關鍵字改為可聚焦搜尋框（排序列按上、按確定回鍵盤），側邊欄搜尋在結果頁再按確定也回鍵盤；回鍵盤時帶入上次關鍵字並聚焦搜尋框。`flutter analyze` 無問題；尚未 commit、未在模擬器測試。
+- 使用者回報：側邊欄設定按右鍵跳到上次停留的「關於軟體」。修正：`focusFirstCategory()` 一律聚焦第一個分類「播放設定」（聚焦即切換內容）。尚未 commit。
+- 使用者提醒每個問題都要開 issue：補開 #6～#15（#6～#11 已發布並關閉，#12～#15 待發布／實作中）。
+- 英文介面（`docs/work/english-ui/`）：比照 PiliBTR 執行時字典翻譯，語言改選單一次選定，README 英文＋繁中。Sonnet 規格審查 11 條採用 10 條；Sonnet／Haiku diff 審查兩份，採用並修正（下載互斥、60 秒時限、損毀重下、tv_live_card 型別、字典清理、抽字串閘門）。另把「天／個／秒」單位改為可翻譯寫法。`flutter analyze` 無問題、188 項測試通過、語言包 558 條未翻譯 0。
+- 發布 v1.2.2-btr.16：commit `bed06ba`（#12）、`a7aab1c`（#13）、`0b4c235`（#14）、`45b4c15`（#15 英文介面）、`5db7eaf`（README）、`691b24d`（規格）、`31dc437`（版本 `1.2.2+20`）；簽章 `17fcf8ed…`、versionCode 2020／1020；`i18n/en.json` 已推到 main 並確認可下載。關閉 #12～#15。發布說明 `docs/work/english-ui/release-notes-btr.16.md`。未實機／模擬器驗證英文畫面排版。
