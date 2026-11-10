@@ -243,3 +243,5 @@
 - 使用者回報 Google TV Streamer 直式影片右側有綠塊（report-WC3UPC 的 log 沒涵蓋那次播放）。畫面上影像寬度剛好是框的 9/16，推測是 textureView 尺寸錯位，同樣來自暖機接手。
 - 修正（尚未 commit、尚未實機驗證）：畫面模式為「原生」時不接手 textureView 暖機播放器，改用 platformView 重新準備；「相容」模式維持暖機秒開。改動在 `lib/screens/player/player_screen.dart`、`lib/screens/player/mixins/player_action_mixin.dart`。
 - 模擬器測試前一律先靜音（使用者要求）。
+- 修正 commit `6825538`（原生畫面模式不接手 textureView 暖機播放器）並推送。
+- 發布 v1.2.2-btr.13：版本 commit `cf4ee75`（`1.2.2+17`），`--split-per-abi` 建置，簽章 `17fcf8ed…`、versionCode 2017／1017；GitHub Release 附 arm64-v8a（23.9MB）、armeabi-v7a（21.7MB）。發布說明在 `docs/work/player-nav-feedback/release-notes-btr.13.md`。未實機驗證，待 BRAVIA 使用者回報。
