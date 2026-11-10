@@ -41,25 +41,6 @@ int _bigTierHeight(int qn) {
   return 0;
 }
 
-/// 4K 高幀率：qn >= 120 且 fps > 30
-bool is4kHighFps({required int qn, required double fps}) =>
-    qn >= 120 && fps > 30;
-
-/// 已知此裝置 4K 60 幀不順時，自動選畫質的上限 qn（1080P60）
-const int kKnownBad4k60CapQn = 116;
-
-/// 自動選畫質的上限：已知 4K 60 幀不順、候選是 4K 高幀率、且不是使用者手動選時，
-/// 回 [kKnownBad4k60CapQn]；其餘回 [qn] 本身（不限制）。
-int autoQnCap({
-  required int qn,
-  required double fps,
-  required bool known4k60Bad,
-  required bool manual,
-}) {
-  if (manual || !known4k60Bad) return qn;
-  return is4kHighFps(qn: qn, fps: fps) ? kKnownBad4k60CapQn : qn;
-}
-
 /// 在可用畫質中找比 [current] 低的下一級（qn 由大到小）。
 /// 目前為 4K／8K 時，跳過同解析度的畫質（如 126／125／120），直接降到更低解析度。
 int? nextLowerQn(Iterable<int> available, int current) {

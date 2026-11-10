@@ -122,35 +122,4 @@ void main() {
       expect(t.autoCount, 0);
     });
   });
-
-  group('autoQnCap', () {
-    test('已知不順且是 4K 60 幀：上限 116', () {
-      expect(
-        autoQnCap(qn: 120, fps: 60, known4k60Bad: true, manual: false),
-        116,
-      );
-    });
-    test('4K 30 幀不受影響', () {
-      expect(
-        autoQnCap(qn: 120, fps: 30, known4k60Bad: true, manual: false),
-        120,
-      );
-    });
-    test('手動選 4K 不限制', () {
-      expect(
-        autoQnCap(qn: 120, fps: 60, known4k60Bad: true, manual: true),
-        120,
-      );
-    });
-    test('沒有記錄不限制；1080P60 不限制', () {
-      expect(
-        autoQnCap(qn: 120, fps: 60, known4k60Bad: false, manual: false),
-        120,
-      );
-      expect(
-        autoQnCap(qn: 116, fps: 60, known4k60Bad: true, manual: false),
-        116,
-      );
-    });
-  });
 }

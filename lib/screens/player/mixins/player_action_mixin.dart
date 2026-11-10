@@ -297,10 +297,6 @@ mixin PlayerActionMixin on PlayerStateMixin {
         if (isPreview) {
           showZhToast(msg: '此集為大會員專屬，目前僅提供試看', toastLength: Toast.LENGTH_LONG);
         }
-        if (playInfo['known4k60Capped'] == true) {
-          PerfLog.add('已知此裝置 4K60 不順，改從 1080P60 開始');
-          showZhToast(msg: '此裝置播放 4K 60 幀不順，已改用 1080P 60 幀');
-        }
         qualities = List<Map<String, dynamic>>.from(
           playInfo['qualities'] ?? [],
         );
@@ -1120,12 +1116,6 @@ mixin PlayerActionMixin on PlayerStateMixin {
     final from = currentQuality;
     final prevRate = perfTracker.previousRate;
     perfTracker.commitDowngrade();
-    // 4K 高幀率觸發自動降畫質：記下此裝置 4K 60 幀不順，之後自動選畫質改從 1080P60 開始
-    if (is4kHighFps(qn: from, fps: _currentStreamFps) &&
-        !SettingsService.known4k60Bad) {
-      await SettingsService.setKnown4k60Bad(true);
-      PerfLog.add('已記錄此裝置 4K 60 幀不順');
-    }
     PerfLog.add(
       '事件 自動降畫質 $from->$target '
       '區間掉幀率=${(prevRate * 100).toStringAsFixed(1)}%,'

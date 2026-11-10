@@ -152,7 +152,8 @@ class SettingsService {
 
   // 播放完畢後行為
   static const String _legacyAutoPlayKey = 'auto_play'; // 舊設定，只用於遷移
-  static const String _legacyPlayRepeatKey = 'play_repeat'; // 舊 enum index，只用於遷移
+  static const String _legacyPlayRepeatKey =
+      'play_repeat'; // 舊 enum index，只用於遷移
   static const String _playEndModeKey = 'play_end_mode'; // 新設定，存 enum 名稱
   static const String _upNextCountdownKey = 'up_next_countdown';
 
@@ -470,24 +471,6 @@ class SettingsService {
   static Future<void> setPlayerTunneling(bool value) async {
     await init();
     await _prefs!.setBool(_playerTunnelingKey, value);
-  }
-
-  // 此裝置 4K 高幀率（60fps）播放不順：觸發過自動降畫質就記下來
-  static const String _known4k60BadKey = 'known_4k60_bad';
-
-  static bool get known4k60Bad {
-    return _prefs?.getBool(_known4k60BadKey) ?? false;
-  }
-
-  static Future<void> setKnown4k60Bad(bool value) async {
-    await init();
-    await _prefs!.setBool(_known4k60BadKey, value);
-  }
-
-  /// 清除「4K 60 幀不順」記錄
-  static Future<void> clearKnown4k60Bad() async {
-    await init();
-    await _prefs!.remove(_known4k60BadKey);
   }
 
   // 快進預覽模式設定

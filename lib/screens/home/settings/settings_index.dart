@@ -52,11 +52,6 @@ abstract final class SettingsIndex {
       '4K 60 幀不順時可試試，只在「原生」畫面模式有效；黑畫面或沒聲音請關閉',
       SettingsCategory.playback,
     ),
-    SettingsEntry(
-      '重設 4K 60 幀偵測',
-      '清除此裝置 4K 60 幀不順的記錄',
-      SettingsCategory.playback,
-    ),
     // 線程撕裂者
     SettingsEntry('播放加速', '播放時從多個 CDN 節點並行下載，減少卡頓', SettingsCategory.btr),
     SettingsEntry('CDN 模式', '節點輪換使用，連續兩次 0 KiB 的節點會被停用', SettingsCategory.btr),
