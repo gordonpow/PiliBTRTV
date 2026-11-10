@@ -8,7 +8,9 @@ import 'bilibili_api.dart';
 import 'btr/btr_proxy.dart';
 import 'local_server.dart';
 import 'mpd_generator.dart';
+import 'perf_log.dart';
 import 'play_params.dart';
+import 'playback_perf.dart';
 import 'playback_progress_cache.dart';
 import 'prefetch_service.dart';
 import 'settings_service.dart';
@@ -68,6 +70,7 @@ class PlaybackPreparer {
   }
 
   /// [videoInfo] 已取得時傳入（呼叫端已處理 redirect）；null 則自行取得。
+  /// [onHdrFallback] 非暖機時 HDR 解碼失敗、改以較低非 HDR 畫質重試後呼叫（由呼叫端 toast）。
   /// [onDecoderFallback] 非暖機時解碼器失敗、已改用 AVC 後呼叫（由呼叫端 toast）。
   /// [isCancelled] 在寫入 LocalServer 前與建立 controller 後檢查。
   static Future<PrepareOutcome> prepare(
@@ -78,6 +81,7 @@ class PlaybackPreparer {
     bool Function()? isCancelled,
     void Function(String step)? onStep,
     void Function()? onDecoderFallback,
+    void Function()? onHdrFallback,
   }) async {
     bool cancelled() => isCancelled?.call() ?? false;
     void step(String s) => onStep?.call(s);
@@ -247,6 +251,36 @@ class PlaybackPreparer {
             // 暖機失敗：靜默，不改任何設定、不 toast
             debugPrint('🎬 [Warm] initialize failed: $e');
             return PrepareOutcome(error: '播放器初始化失敗: $e');
+          }
+
+          // HDR／10-bit 串流解碼失敗：不寫永久設定，改以較低非 HDR 畫質重試
+          if (_isDecoderError(e) && !isAvc) {
+            final video = (playInfo['dashData'] as Map?)?['video'];
+            final stream =
+                (video is List && video.isNotEmpty && video.first is Map)
+                ? video.first as Map
+                : null;
+            if (isHdrStream(
+              qn: currentQn,
+              codecs: (stream?['codecs'] ?? '').toString(),
+            )) {
+              final hdrTarget = nonHdrFallbackQn(
+                ((playInfo['qualities'] as List?) ?? const [])
+                    .map((q) => ((q as Map)['qn'] as num?)?.toInt() ?? 0)
+                    .where((q) => q > 0),
+                currentQn,
+              );
+              if (hdrTarget != null) {
+                debugPrint(
+                  '🎬 [Codec] HDR decoder error during initialize: $e',
+                );
+                PerfLog.add('事件 HDR 解碼失敗 $currentQn->$hdrTarget');
+                currentQn = hdrTarget;
+                onHdrFallback?.call();
+                lastError = '播放器初始化失敗: $e';
+                continue codecLoop;
+              }
+            }
           }
 
           // 解碼器失敗且非 AVC：直接改用 AVC

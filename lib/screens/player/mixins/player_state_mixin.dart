@@ -94,6 +94,13 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   int? perfCid; // 區間統計所屬的 cid，換片時重置
   final DowngradeTracker perfTracker = DowngradeTracker();
   bool perfDowngrading = false;
+
+  // 解碼卡住偵測（每 2 秒讀原生狀態）：緩衝起點、已試過的編碼家族、重新載入防重入
+  Timer? stallTimer;
+  DateTime? bufferingSince;
+  final Set<String> stallTriedCodecs = {};
+  bool stallSwitching = false;
+  int reloadGen = 0; // 每次 _reloadWithCodec 遞增，讓舊流程作廢
   Map<String, dynamic>? currentStream; // 選定的影片串流（DASH）
   int? perfPrevJiffies;
   int? perfPrevElapsedMs;

@@ -6,6 +6,7 @@ import 'base_api.dart';
 import 'sign_utils.dart';
 import '../auth_service.dart';
 import '../codec_service.dart';
+import '../playback_perf.dart';
 import '../settings_service.dart';
 
 /// 播放相關 API (影片詳情、播放地址、彈幕、進度上報)
@@ -142,7 +143,13 @@ class PlaybackApi {
           final qualities = <Map<String, dynamic>>[];
           final acceptQuality = data['accept_quality'] as List? ?? [];
           final acceptDesc = data['accept_description'] as List? ?? [];
+          // 螢幕不支援 HDR 時，不列出 125（HDR）、126（杜比視界）
+          final hdrDisplay = await CodecService.isHdrDisplay();
           for (int i = 0; i < acceptQuality.length; i++) {
+            if (!hdrDisplay &&
+                (acceptQuality[i] == 125 || acceptQuality[i] == 126)) {
+              continue;
+            }
             qualities.add({
               'qn': acceptQuality[i],
               'desc': i < acceptDesc.length
@@ -262,9 +269,21 @@ class PlaybackApi {
                   }, orElse: () => null);
                 } else {
                   // 使用者設定是"自動"，智慧選硬解最優: AV1 > HEVC > AVC
-                  final order = fallbackToAvc
-                      ? const ['avc']
-                      : const ['av1', 'hevc', 'avc'];
+                  // 隧道模式 + 4K 高幀率：AV1 可能卡住，HEVC 優先
+                  final preferHevc =
+                      SettingsService.tunnelWillBeActive &&
+                      candidateVideos.any(
+                        (v) => is4kHighFps(
+                          height: (v['height'] as num?)?.toInt() ?? 0,
+                          fps: CodecService.parseFps(
+                            v['frameRate'] ?? v['frame_rate'],
+                          ),
+                        ),
+                      );
+                  final order = autoCodecOrder(
+                    fallbackToAvc: fallbackToAvc,
+                    preferHevc: preferHevc,
+                  );
                   for (final family in order) {
                     for (final v in candidateVideos) {
                       if (CodecService.codecFamily(
@@ -368,7 +387,9 @@ class PlaybackApi {
                   'url': videoUrl,
                   'audioUrl': audioUrl,
                   'qualities': qualities,
-                  'currentQuality': data['quality'] ?? qn,
+                  // 實際選到的串流 id（可能與 data['quality'] 不同，例如 HDR 被改播 AVC）
+                  'currentQuality':
+                      selectedVideo['id'] ?? data['quality'] ?? qn,
                   'isDash': isDash,
                   'codec': parsedCodec,
                   // MPD 只放選定的影片串流，避免 ExoPlayer 自行選到無法硬解的軌

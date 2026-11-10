@@ -243,8 +243,31 @@ public final class PlayerStats {
         // 取不到就回 null（未知）
       }
     }
+    Boolean playWhenReady = null;
+    Integer playbackState = null;
+    Long bufferedAheadMs = null;
+    if (p != null) {
+      try {
+        playWhenReady = p.getPlayWhenReady();
+      } catch (Exception e) {
+        // 取不到就回 null
+      }
+      try {
+        playbackState = p.getPlaybackState();
+      } catch (Exception e) {
+        // 取不到就回 null
+      }
+      try {
+        bufferedAheadMs = p.getTotalBufferedDuration();
+      } catch (Exception e) {
+        // 取不到就回 null
+      }
+    }
     Map<String, Object> m = new HashMap<>();
     m.put("tunnelingActive", tunneling);
+    m.put("playWhenReady", playWhenReady);
+    m.put("playbackState", playbackState);
+    m.put("bufferedAheadMs", bufferedAheadMs);
     synchronized (LOCK) {
       m.put("decoderName", decoderName);
       m.put("isHardware", isHardware);

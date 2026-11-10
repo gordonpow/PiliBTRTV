@@ -468,6 +468,9 @@ class SettingsService {
     return _prefs?.getBool(_playerTunnelingKey) ?? false;
   }
 
+  /// 依設定推論隧道模式會啟用（需原生視圖；不保證裝置真的進隧道）
+  static bool get tunnelWillBeActive => playerTunneling && !playerTextureView;
+
   static Future<void> setPlayerTunneling(bool value) async {
     await init();
     await _prefs!.setBool(_playerTunnelingKey, value);

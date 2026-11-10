@@ -1,6 +1,7 @@
 import 'dart:ffi' show Abi;
 
 import 'package:bili_tv_app/services/playback_perf.dart';
+import 'package:bili_tv_app/services/settings_service.dart' show VideoCodec;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -120,6 +121,127 @@ void main() {
       expect(t.autoCount, 1);
       t.resetForVideo();
       expect(t.autoCount, 0);
+    });
+  });
+
+  group('autoCodecOrder', () {
+    test('一般順序 AV1 > HEVC > AVC', () {
+      expect(autoCodecOrder(fallbackToAvc: false, preferHevc: false), [
+        'av1',
+        'hevc',
+        'avc',
+      ]);
+    });
+    test('隧道 4K 高幀率 HEVC 優先', () {
+      expect(autoCodecOrder(fallbackToAvc: false, preferHevc: true), [
+        'hevc',
+        'av1',
+        'avc',
+      ]);
+    });
+    test('fallbackToAvc 只回 avc', () {
+      expect(autoCodecOrder(fallbackToAvc: true, preferHevc: true), ['avc']);
+    });
+    test('is4kHighFps', () {
+      expect(is4kHighFps(height: 2160, fps: 60), isTrue);
+      expect(is4kHighFps(height: 2160, fps: 0), isTrue);
+      expect(is4kHighFps(height: 2160, fps: 30), isFalse);
+      expect(is4kHighFps(height: 1080, fps: 60), isFalse);
+    });
+  });
+
+  group('isDecoderStall', () {
+    bool f({
+      bool want = true,
+      int? state = 2,
+      int sec = 8,
+      int? ahead = 10000,
+    }) => isDecoderStall(
+      playWhenReady: want,
+      playbackState: state,
+      bufferingFor: Duration(seconds: sec),
+      bufferedAheadMs: ahead,
+    );
+    test('達門檻判定卡住', () => expect(f(), isTrue));
+    test('使用者暫停不算', () => expect(f(want: false), isFalse));
+    test('非緩衝狀態不算', () => expect(f(state: 3), isFalse));
+    test('緩衝未滿 8 秒不算', () => expect(f(sec: 7), isFalse));
+    test('已緩衝不足 10 秒不算（網路慢）', () => expect(f(ahead: 9999), isFalse));
+    test('取不到已緩衝量不算', () => expect(f(ahead: null), isFalse));
+  });
+
+  group('nextStallCodec', () {
+    test('av01 -> hevc', () {
+      expect(nextStallCodec('av01.0.13M.08', {'av01'}), VideoCodec.hevc);
+    });
+    test('hev -> avc', () {
+      expect(nextStallCodec('hev1.1.6.L153', {'hev'}), VideoCodec.avc);
+    });
+    test('avc -> null', () {
+      expect(nextStallCodec('avc1.640034', {'avc'}), isNull);
+    });
+    test('已試過的家族跳過', () {
+      expect(nextStallCodec('av01.0.13M.08', {'av01', 'hev'}), VideoCodec.avc);
+      expect(nextStallCodec('av01.0.13M.08', {'av01', 'hev', 'avc'}), isNull);
+    });
+  });
+
+  group('formatStallLog', () {
+    test('有目標編碼', () {
+      expect(
+        formatStallLog(
+          from: 'av01',
+          to: 'hev',
+          bufferingSec: 8,
+          bufferedAheadSec: 12.34,
+        ),
+        '事件 解碼卡住 av01->hev 緩衝=8s 已緩衝=12.3s',
+      );
+    });
+    test('已是 AVC', () {
+      expect(
+        formatStallLog(
+          from: 'avc',
+          to: null,
+          bufferingSec: 9,
+          bufferedAheadSec: 11,
+        ),
+        '事件 解碼卡住 已是 AVC，不再切換 緩衝=9s 已緩衝=11.0s',
+      );
+    });
+  });
+
+  group('isHdrStream', () {
+    test('qn 125／126', () {
+      expect(isHdrStream(qn: 125, codecs: 'avc1.640033'), isTrue);
+      expect(isHdrStream(qn: 126, codecs: ''), isTrue);
+    });
+    test('HEVC Main10', () {
+      expect(isHdrStream(qn: 120, codecs: 'hvc1.2.4.L153.90'), isTrue);
+      expect(isHdrStream(qn: 80, codecs: 'hev1.2.4.L120.90'), isTrue);
+      expect(isHdrStream(qn: 120, codecs: 'hev1.1.6.L153.90'), isFalse);
+    });
+    test('AV1 位元深度', () {
+      expect(isHdrStream(qn: 80, codecs: 'av01.0.13M.10'), isTrue);
+      expect(isHdrStream(qn: 80, codecs: 'av01.0.13M.12'), isTrue);
+      expect(isHdrStream(qn: 80, codecs: 'av01.0.13M.08'), isFalse);
+    });
+    test('AVC 非 HDR', () {
+      expect(isHdrStream(qn: 80, codecs: 'avc1.64001F'), isFalse);
+    });
+  });
+
+  group('nonHdrFallbackQn', () {
+    test('跳過 125／126 取最高較低畫質', () {
+      expect(nonHdrFallbackQn([127, 126, 125, 120, 116, 80], 125), 120);
+      expect(nonHdrFallbackQn([126, 125, 120, 80], 126), 120);
+    });
+    test('不選比目前高的', () {
+      expect(nonHdrFallbackQn([120, 80, 64], 80), 64);
+    });
+    test('沒有更低畫質回 null', () {
+      expect(nonHdrFallbackQn([126, 125], 125), isNull);
+      expect(nonHdrFallbackQn(const [], 125), isNull);
     });
   });
 }

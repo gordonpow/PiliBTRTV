@@ -367,6 +367,24 @@ mixin PlayerActionMixin on PlayerStateMixin {
             await videoController?.dispose();
             videoController = null;
 
+            // HDR／10-bit 串流解碼失敗：不寫永久設定，改以較低非 HDR 畫質重試
+            if (_isDecoderError(e) && !isCurrentCodecAvc) {
+              final hdrTarget = _hdrFallbackTarget();
+              if (hdrTarget != null) {
+                debugPrint(
+                  '🎬 [Codec] HDR decoder error during initialize: $e',
+                );
+                PerfLog.add('事件 HDR 解碼失敗 $currentQuality->$hdrTarget');
+                showZhToast(
+                  msg: '此裝置無法播放 HDR，已改用較低畫質',
+                  toastLength: Toast.LENGTH_LONG,
+                );
+                currentQuality = hdrTarget;
+                lastError = '播放器初始化失敗: $e';
+                continue codecLoop;
+              }
+            }
+
             // 解碼器失敗 (MediaCodec / Decoder) 且非 AVC：直接改用 AVC，不浪費時間重試同編碼
             if (_isDecoderError(e) && !isCurrentCodecAvc) {
               debugPrint('🎬 [Codec] Decoder error during initialize: $e');
@@ -553,6 +571,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
         onStep: mark,
         onDecoderFallback: () => showZhToast(
           msg: '此裝置無法解碼 H.265／AV1，已改用 H.264',
+          toastLength: Toast.LENGTH_LONG,
+        ),
+        onHdrFallback: () => showZhToast(
+          msg: '此裝置無法播放 HDR，已改用較低畫質',
           toastLength: Toast.LENGTH_LONG,
         ),
       );
@@ -789,12 +811,68 @@ mixin PlayerActionMixin on PlayerStateMixin {
     return msg.contains('mediacodec') || msg.contains('decoder');
   }
 
+  /// 目前串流為 HDR／10-bit 時，回傳可退回的較低非 HDR 畫質；否則回 null
+  int? _hdrFallbackTarget() {
+    final codecs = (currentStream?['codecs'] ?? '').toString();
+    if (!isHdrStream(qn: currentQuality, codecs: codecs)) return null;
+    return nonHdrFallbackQn(
+      qualities.map((q) => (q['qn'] as num?)?.toInt() ?? 0).where((q) => q > 0),
+      currentQuality,
+    );
+  }
+
+  /// HDR 解碼失敗：以同編碼設定（不指定 codec）重新載入較低非 HDR 畫質，位置不變
+  Future<void> _fallbackFromHdr(int target, {Duration? resume}) async {
+    final from = currentQuality;
+    PerfLog.add('事件 HDR 解碼失敗 $from->$target');
+    showZhToast(msg: '此裝置無法播放 HDR，已改用較低畫質', toastLength: Toast.LENGTH_LONG);
+    await _reloadWithCodec(null, qn: target, resume: resume);
+  }
+
   /// 解碼失敗時自動降級改用 AVC (H.264)
   Future<void> _fallbackToAvc({
     Duration? resumePosition,
     String? originalError,
   }) async {
     if (isFallingBackToAvc) return;
+    if (stallSwitching) {
+      PerfLog.add('事件 解碼失敗回退略過：正在重新載入');
+      return;
+    }
+
+    // HDR／10-bit 串流解碼失敗：只是此裝置不能播 HDR，改播較低非 HDR 畫質，
+    // 不寫入永久的「僅用 AVC」設定。找不到更低畫質才沿用 AVC 退路。
+    final hdrTarget = _hdrFallbackTarget();
+    if (hdrTarget != null) {
+      isFallingBackToAvc = true;
+      try {
+        await _fallbackFromHdr(
+          hdrTarget,
+          resume: resumePosition ?? lastPlaybackPosition,
+        );
+      } finally {
+        isFallingBackToAvc = false;
+      }
+      return;
+    }
+
+    // 與 _reloadWithCodec 互斥
+    stallSwitching = true;
+    reloadGen++;
+    try {
+      await _fallbackToAvcCore(
+        resumePosition: resumePosition,
+        originalError: originalError,
+      );
+    } finally {
+      stallSwitching = false;
+    }
+  }
+
+  Future<void> _fallbackToAvcCore({
+    Duration? resumePosition,
+    String? originalError,
+  }) async {
     isFallingBackToAvc = true;
 
     debugPrint(
@@ -941,6 +1019,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     if (perfCid != cid) {
       perfTracker.resetForVideo();
       perfCid = cid;
+      stallTriedCodecs.clear();
     } else {
       perfTracker.resetInterval();
     }
@@ -955,6 +1034,251 @@ mixin PlayerActionMixin on PlayerStateMixin {
       const Duration(seconds: kPerfIntervalSeconds),
       (_) => _perfTick(gen),
     );
+    stallTimer?.cancel();
+    bufferingSince = null;
+    stallTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => unawaited(_stallTick(gen)),
+    );
+  }
+
+  /// 每 2 秒讀原生狀態判斷解碼卡住（不 drain，避免吃掉 _perfTick 的事件）
+  Future<void> _stallTick(int gen) async {
+    if (videoController == null || !mounted || gen != perfGen) return;
+    final s = await CodecService.getPlayerStats(drain: false);
+    if (s == null || !mounted || gen != perfGen) return;
+
+    final state = (s['playbackState'] as num?)?.toInt();
+    if (state == 2) {
+      bufferingSince ??= DateTime.now();
+    } else {
+      bufferingSince = null;
+    }
+    final since = bufferingSince;
+    if (since == null) return;
+    final bufferingFor = DateTime.now().difference(since);
+    final aheadMs = (s['bufferedAheadMs'] as num?)?.toInt();
+    final stalled = isDecoderStall(
+      playWhenReady: s['playWhenReady'] == true,
+      playbackState: state,
+      bufferingFor: bufferingFor,
+      bufferedAheadMs: aheadMs,
+    );
+    if (!stalled ||
+        isLoading ||
+        stallSwitching ||
+        isFallingBackToAvc ||
+        perfDowngrading) {
+      return;
+    }
+
+    final codecs = currentCodec.toLowerCase();
+    final cur = codecs.startsWith('av01') || codecs.startsWith('av1')
+        ? 'av01'
+        : (codecs.startsWith('hev') || codecs.startsWith('hvc')
+              ? 'hev'
+              : 'avc');
+    stallTriedCodecs.add(cur);
+    final next = nextStallCodec(currentCodec, stallTriedCodecs);
+    final bufSec = bufferingFor.inSeconds;
+    final aheadSec = (aheadMs ?? 0) / 1000;
+    if (next == null) {
+      PerfLog.add(
+        formatStallLog(
+          from: cur,
+          to: null,
+          bufferingSec: bufSec,
+          bufferedAheadSec: aheadSec,
+        ),
+      );
+      // 避免重複記錄：重新起算緩衝時間
+      bufferingSince = DateTime.now();
+      return;
+    }
+    PerfLog.add(
+      formatStallLog(
+        from: cur,
+        to: next.prefix,
+        bufferingSec: bufSec,
+        bufferedAheadSec: aheadSec,
+      ),
+    );
+    showZhToast(
+      msg: '播放卡住，改用 ${next == VideoCodec.hevc ? 'H.265' : 'H.264'} 重新載入',
+      toastLength: Toast.LENGTH_LONG,
+    );
+    // 同時記下目標家族：forceCodec 找不到時 API 可能又回原編碼，避免重載迴圈
+    stallTriedCodecs.add(next.prefix);
+    await _reloadWithCodec(next, resume: lastPlaybackPosition);
+  }
+
+  /// 卡住時以指定編碼重新載入同一畫質與位置。不寫入任何永久設定。
+  /// [codec] 為 null 時不指定編碼；[qn] 有值時改載入該畫質（HDR 解碼失敗退路）。
+  Future<void> _reloadWithCodec(
+    VideoCodec? codec, {
+    int? qn,
+    Duration? resume,
+  }) async {
+    if (stallSwitching) return;
+    stallSwitching = true;
+    final startCid = cid;
+    final startQuality = qn ?? currentQuality;
+    final token = ++reloadGen;
+    final pos = resume ?? lastPlaybackPosition;
+    try {
+      try {
+        await _reloadAttempt(codec, startCid, startQuality, token, pos, qn);
+      } catch (e) {
+        // 重載時又遇到解碼失敗且不是 AVC：以 AVC、同畫質、同位置再試一次（不寫永久設定）
+        if (_isDecoderError(e) &&
+            codec != VideoCodec.avc &&
+            !isCurrentCodecAvc &&
+            mounted &&
+            cid == startCid &&
+            reloadGen == token) {
+          debugPrint('🎬 [StallReload] decoder error, retry with AVC: $e');
+          await _reloadAttempt(
+            VideoCodec.avc,
+            startCid,
+            startQuality,
+            token,
+            pos,
+            qn,
+          );
+        } else {
+          rethrow;
+        }
+      }
+    } catch (e) {
+      debugPrint('🎬 [StallReload] reload failed: $e');
+      if (mounted && cid == startCid && reloadGen == token) {
+        setState(() {
+          errorMessage = '播放器初始化失敗: $e';
+          isLoading = false;
+        });
+      }
+    } finally {
+      stallSwitching = false;
+    }
+    // 重載期間新播放器已出錯時，_fallbackToAvc 會因 stallSwitching 略過；
+    // 這裡補做一次錯誤檢查，避免畫面停在錯誤狀態
+    if (mounted &&
+        cid == startCid &&
+        reloadGen == token &&
+        videoController?.value.hasError == true) {
+      _onPlayerStateChange();
+    }
+  }
+
+  /// 單次重載；失敗時清掉自己建立的 controller 後拋出例外
+  Future<void> _reloadAttempt(
+    VideoCodec? codec,
+    int? startCid,
+    int startQuality,
+    int token,
+    Duration pos,
+    int? qn,
+  ) async {
+    bool alive() => mounted && cid == startCid && reloadGen == token;
+    VideoPlayerController? created;
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+      cancelPlayerListeners();
+      final old = videoController;
+      videoController = null;
+      await old?.dispose();
+      LocalServer.instance.clearMpdContent();
+      if (!alive()) return;
+
+      final playInfo = await BilibiliApi.getVideoPlayUrl(
+        bvid: playingBvid,
+        cid: startCid!,
+        qn: startQuality,
+        forceCodec: codec,
+        epId: isPgc ? currentEpId : null,
+      );
+      if (!alive()) return;
+      if (playInfo == null || playInfo['error'] != null) {
+        throw Exception(playInfo?['error'] ?? '無法取得播放網址，請稍後再試');
+      }
+
+      isPreview = playInfo['isPreview'] == true;
+      currentQuality = playInfo['currentQuality'] ?? currentQuality;
+      currentCodec = playInfo['codec'] ?? currentCodec;
+      if (qn == null && currentQuality != startQuality) {
+        PerfLog.add('事件 解碼卡住換編碼後畫質 $startQuality->$currentQuality');
+      }
+      _recordStream(playInfo);
+      currentAudioUrl = playInfo['audioUrl'];
+      previewFrameUrl = playInfo['previewUrl'] as String?;
+      qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
+
+      String? playUrl;
+      if (playInfo['dashData'] != null) {
+        final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
+        if (!alive()) return;
+        LocalServer.instance.setMpdContent(mpdContent);
+        playUrl = LocalServer.instance.mpdUrl;
+      } else {
+        final rawUrl = playInfo['url'] as String? ?? '';
+        final backups =
+            (playInfo['backupUrls'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const <String>[];
+        playUrl = rawUrl.isNotEmpty
+            ? await BtrProxy.wrap(
+                rawUrl,
+                backups: backups,
+                qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
+              )
+            : null;
+        if (!alive()) return;
+      }
+      if (playUrl == null || playUrl.isEmpty) {
+        throw Exception('無法取得播放網址，請稍後再試');
+      }
+
+      created = VideoPlayerController.networkUrl(
+        Uri.parse(playUrl),
+        httpHeaders: {
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+          'Referer': 'https://www.bilibili.com/',
+          'Origin': 'https://www.bilibili.com',
+          if (BaseApi.cookieHeader != null) 'Cookie': BaseApi.cookieHeader!,
+        },
+        viewType: SettingsService.playerTextureView
+            ? VideoViewType.textureView
+            : VideoViewType.platformView,
+      );
+      await created.initialize();
+      if (!alive()) {
+        await created.dispose();
+        created = null;
+        return;
+      }
+      videoController = created;
+      if (pos > Duration.zero) {
+        await created.seekTo(pos);
+        if (!alive()) return;
+        resetDanmakuIndex(pos);
+      }
+      _setupPlayerListeners();
+      await created.play();
+      if (!alive()) return;
+      created.setPlaybackSpeed(playbackSpeed);
+      created = null; // 已交給 videoController，不再由失敗路徑釋放
+      setState(() => isLoading = false);
+    } catch (_) {
+      // 失敗時不殘留沒有監聽的 controller
+      if (created != null) await created.dispose();
+      if (identical(videoController, created)) videoController = null;
+      rethrow;
+    }
   }
 
   Future<void> _logPlaybackStart(int gen) async {
@@ -1103,7 +1427,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
       rate,
       enabled: SettingsService.autoDowngradeOnDrops,
     );
-    if (!shouldDowngrade || isLoading || perfDowngrading) return;
+    if (!shouldDowngrade || isLoading || perfDowngrading || stallSwitching) {
+      return;
+    }
     final target = nextLowerQn(
       qualities.map((q) => (q['qn'] as num?)?.toInt() ?? 0).where((q) => q > 0),
       currentQuality,
@@ -1227,6 +1553,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
     // 播放器即將重建：讓舊計時器與進行中的取樣作廢，重建後 _setupPlayerListeners 會重新啟動
     playerStatsTimer?.cancel();
     playerStatsTimer = null;
+    stallTimer?.cancel();
+    stallTimer = null;
+    bufferingSince = null;
     perfGen++;
   }
 
@@ -1256,6 +1585,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
     onlineCountTimer?.cancel(); // 取消線上人數定時器
     playerStatsTimer?.cancel();
     playerStatsTimer = null;
+    stallTimer?.cancel();
+    stallTimer = null;
     _clearSpritesFromMemory(); // 清理雪碧圖記憶體快取
     previewFrameUrl = null;
     FrameService.release();
@@ -2381,6 +2712,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
   /// [auto] 為 true 表示由卡頓自動降畫質觸發；使用者手動選擇會停止該影片的自動降級
   Future<void> switchQuality(int qn, {bool auto = false}) async {
+    if (stallSwitching) return;
     if (!auto) perfTracker.userPicked = true;
     final position = videoController?.value.position ?? Duration.zero;
 
