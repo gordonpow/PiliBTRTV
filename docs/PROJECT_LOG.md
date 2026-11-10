@@ -245,3 +245,5 @@
 - 模擬器測試前一律先靜音（使用者要求）。
 - 修正 commit `6825538`（原生畫面模式不接手 textureView 暖機播放器）並推送。
 - 發布 v1.2.2-btr.13：版本 commit `cf4ee75`（`1.2.2+17`），`--split-per-abi` 建置，簽章 `17fcf8ed…`、versionCode 2017／1017；GitHub Release 附 arm64-v8a（23.9MB）、armeabi-v7a（21.7MB）。發布說明在 `docs/work/player-nav-feedback/release-notes-btr.13.md`。未實機驗證，待 BRAVIA 使用者回報。
+- 使用者要求移除「記住此裝置 4K 60 幀不順、之後從 1080P60 開始」與設定頁「重設 4K 60 幀偵測」：Sonnet 刪除 8 個檔案中的相關程式（保留播放中依掉幀自動降畫質）；`flutter analyze` 無問題、148 項測試通過。尚未 commit。
+- 發布 v1.2.2-btr.14：commit `2992ca3`（移除 4K60 不順記錄）、`4196abb`（版本 `1.2.2+18`），簽章 `17fcf8ed…`、versionCode 2018／1018；GitHub Release 附 arm64-v8a、armeabi-v7a。發布說明在 `docs/work/player-nav-feedback/release-notes-btr.14.md`。未實機驗證。
