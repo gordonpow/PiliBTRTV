@@ -33,6 +33,12 @@ textarea{min-height:110px;resize:vertical}
 .ok-box{text-align:center;padding:24px 8px;font-size:18px;color:#1a8a3a}
 .hint{font-size:13px;color:#666;line-height:1.5}
 a{color:#fb7299}
+details{margin:10px 0;border:1px solid #e1e4e8;border-radius:8px;padding:0 10px}
+summary{padding:10px 0;font-size:15px;font-weight:600;color:#444}
+.step{margin:0 0 18px}
+.step p{margin:0 0 8px;font-size:14px;line-height:1.6}
+.step img{display:block;max-width:100%;width:320px;height:auto;margin:0 auto;border:1px solid #ccd0d5;border-radius:8px}
+.em{color:#d93025;font-weight:700}
 </style>
 </head>
 <body>
@@ -83,6 +89,33 @@ a{color:#fb7299}
       </div>
 
       <div id="p-cookie" class="hidden">
+        <div id="ck-tip" class="hint">iPhone 無法用這個方式（Safari 不允許讀取登入用的 Cookie），請改用 Android 手機操作，或在電視上試試「改用網頁版掃碼」</div>
+        <p class="hint">全程用手機完成，大約 10 分鐘。需要 Firefox 瀏覽器和 Cookie-Editor 附加元件（第一次使用才要安裝）。</p>
+        <details id="g1">
+          <summary>第一段：第一次使用，安裝 Firefox 與 Cookie-Editor</summary>
+          <div class="step"><p><b>1.</b> 本頁先不要關。按手機的主畫面鍵，打開「Play 商店」，搜尋「Firefox」，按「安裝」。安裝完成後按「開啟」。</p><img data-guide="01" alt="步驟 1 截圖" loading="lazy"></div>
+          <div class="step"><p><b>2.</b> Firefox 歡迎畫面按「繼續」。問要不要設為預設瀏覽器時按「取消」，下一頁按「現在不要」，就會看到 Firefox 首頁。</p><img data-guide="02" alt="步驟 2 截圖" loading="lazy"></div>
+          <div class="step"><p><b>3.</b> 按 Firefox 的「⋮」選單，選「擴充套件」。</p><img data-guide="03" alt="步驟 3 截圖" loading="lazy"></div>
+          <div class="step"><p><b>4.</b> 擴充套件清單拉到最下面，按「尋找更多擴充套件」。</p><img data-guide="04" alt="步驟 4 截圖" loading="lazy"></div>
+          <div class="step"><p><b>5.</b> 在網站上方的搜尋框輸入「Cookie-Editor」，點第一個結果（餅乾圖示、作者 cgagnier）。頁面上「未經 Mozilla 主動檢查」的提醒是一般說明，可以繼續。</p><img data-guide="05" alt="步驟 5 截圖" loading="lazy"></div>
+          <div class="step"><p><b>6.</b> 按「新增至 Firefox」。</p><img data-guide="06" alt="步驟 6 截圖" loading="lazy"></div>
+          <div class="step"><p><b>7.</b> 跳出「安裝 Cookie-Editor」時按「新增」，看到「已安裝」再按「確定」。這個權限是讀取網站 Cookie 必需的，用完可以移除。</p><img data-guide="07" alt="步驟 7 截圖" loading="lazy"></div>
+        </details>
+        <details id="g2">
+          <summary>第二段：登入 B 站並複製 Cookie</summary>
+          <div class="step"><p><b>8.</b> 在 Firefox 網址列輸入「m.bilibili.com」打開 B 站，按右上角的頭像圖示。</p><img data-guide="08" alt="步驟 8 截圖" loading="lazy"></div>
+          <div class="step"><p><b>9.</b> 出現「已在APP内登录？」時，不要按打開 App，按下方的「其他方式登录」。</p><img data-guide="09" alt="步驟 9 截圖" loading="lazy"></div>
+          <div class="step"><p><b>10.</b> 用手機號碼簡訊登入（國碼可改成 +886），或按「账号密码登录」改用帳號密碼。出現滑塊或圖形驗證時照畫面完成。</p><img data-guide="10" alt="步驟 10 截圖" loading="lazy"></div>
+          <div class="step"><p><b>11.</b> 登入後回到 B 站首頁，右上角變成自己的頭像就表示登入成功。</p><img data-guide="11" alt="步驟 11 截圖" loading="lazy"></div>
+          <div class="step"><p><b>12.</b> 按「⋮」選單，點「擴充套件」右邊的箭頭展開，再按「Cookie-Editor」。</p><img data-guide="12" alt="步驟 12 截圖" loading="lazy"></div>
+          <div class="step"><p><b>13.</b> Cookie-Editor 畫面是英文：按下方的「Export」，再選「Header String」。看到「Cookies exported to clipboard as Header String」就是已複製。上方若出現「Buy me a coffee」橫幅，按「Not interested」關掉即可。</p><img data-guide="13" alt="步驟 13 截圖" loading="lazy"></div>
+        </details>
+        <details id="g3" open>
+          <summary>第三段：貼上並登入</summary>
+          <div class="step"><p><b>14.</b> 按手機的「最近使用的應用程式」鍵（或從底部往上滑並停住），左右滑動找到開著本頁的瀏覽器（例如 Chrome），點它切回來。</p><img data-guide="14" alt="步驟 14 截圖" loading="lazy"></div>
+          <div class="step"><p><b>15.</b> 在本頁點「Cookie」分頁，長按下方的輸入框，選「貼上」，再按「登入」。</p><img data-guide="15" alt="步驟 15 截圖" loading="lazy"></div>
+          <div class="step"><p><b>16.</b> 本頁顯示「登入成功，可以關閉這個網頁」，電視也會進入已登入的畫面。之後可以移除 Cookie-Editor，但<strong class="em">請不要在 Firefox 登出 B 站</strong>：登出會讓這組 Cookie 失效，電視也會跟著被登出。</p><img data-guide="16" alt="步驟 16 截圖" loading="lazy"></div>
+        </details>
         <label for="ck">貼上 Cookie（需含 SESSDATA、bili_jct、DedeUserID）</label>
         <textarea id="ck" autocapitalize="off" spellcheck="false"></textarea>
         <p class="hint">Cookie 登入不支援投幣，其他功能正常。</p>
@@ -138,6 +171,24 @@ a{color:#fb7299}
   function setBtns(d){
     var bs=document.querySelectorAll('.btn');
     for(var i=0;i<bs.length;i++)bs[i].disabled=d;
+  }
+
+  // Cookie 教學：圖片、UA 判斷
+  var ua=navigator.userAgent||'';
+  var isIos=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+  var guideImgs=document.querySelectorAll('img[data-guide]');
+  for(var gi=0;gi<guideImgs.length;gi++){(function(im){
+    im.onerror=function(){im.style.display='none'};
+    im.src='/login/guide/'+im.getAttribute('data-guide')+'.webp?t='+encodeURIComponent(token);
+  })(guideImgs[gi])}
+  if(isIos){
+    $('ck-tip').className='warn';
+    for(var di=1;di<=3;di++){
+      var dt=$('g'+di);dt.removeAttribute('open');
+      var sm=dt.querySelector('summary');sm.textContent=sm.textContent+'（僅限 Android）';
+    }
+  }else if(/Firefox/.test(ua)){
+    var s1=$('g1').querySelector('summary');s1.textContent=s1.textContent+'（已完成可略過）';
   }
 
   // 分頁
