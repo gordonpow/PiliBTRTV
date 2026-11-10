@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bili_tv_app/widgets/zh_material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../core/focus/focus_navigation.dart';
 import '../models/video.dart';
@@ -22,6 +23,10 @@ class BaseTvCard extends StatefulWidget {
   final VoidCallback? onBack;
   final bool autofocus;
   final FocusNode? focusNode;
+
+  /// 長按確認鍵（約 0.5 秒）或觸控長按的動作；null 表示不啟用，行為與原本相同。
+  /// 動作結束後焦點會還給長按前的元件。
+  final Future<void> Function()? onLongPress;
 
   /// 焦點預覽用的影片（null 表示此卡片不預覽，如直播、合集）
   final Video? previewVideo;
@@ -52,6 +57,7 @@ class BaseTvCard extends StatefulWidget {
     this.autofocus = false,
     this.focusNode,
     this.previewVideo,
+    this.onLongPress,
     this.isFirst = false,
     this.isLast = false,
   });
@@ -67,6 +73,12 @@ class _BaseTvCardState extends State<BaseTvCard>
 
   bool _isFocused = false;
   Timer? _startTimer;
+
+  /// 長按偵測：確認鍵按住的門檻
+  static const Duration _longPressDelay = Duration(milliseconds: 500);
+  Timer? _longPressTimer;
+  bool _selectDown = false; // 確認鍵目前處於按下（尚未放開、尚未觸發長按）
+  bool _longPressRunning = false;
 
   /// 已按下確認鍵進入播放：之後的失焦不取消預載，讓播放器能用到結果
   bool _keepPrefetch = false;
@@ -98,6 +110,7 @@ class _BaseTvCardState extends State<BaseTvCard>
     _mounted.remove(this);
     _startTimer?.cancel();
     _startTimer = null;
+    _longPressTimer?.cancel();
     if (!_keepPrefetch) PrefetchService.instance.cancel(this);
     // 避免在 widget 樹卸載期間通知監聽者，延後到 microtask
     Future.microtask(() => CardPreviewService.instance.stop(this));
@@ -119,6 +132,8 @@ class _BaseTvCardState extends State<BaseTvCard>
         _scheduleStart(video, NavSettle.instance.onFocusArrived());
       }
     } else {
+      _longPressTimer?.cancel();
+      _selectDown = false;
       _animController.reverse();
       _startTimer?.cancel();
       _startTimer = null;
@@ -184,6 +199,63 @@ class _BaseTvCardState extends State<BaseTvCard>
     ]);
   }
 
+  static bool _isSelectKey(LogicalKeyboardKey k) =>
+      k == LogicalKeyboardKey.select ||
+      k == LogicalKeyboardKey.enter ||
+      k == LogicalKeyboardKey.numpadEnter ||
+      k == LogicalKeyboardKey.gameButtonA;
+
+  /// 確認鍵長按偵測：按下開始計時，≥500ms 觸發長按；
+  /// 放開時若尚未觸發長按才當作短按。重複事件一律吞掉。
+  KeyEventResult _preKey(KeyEvent event) {
+    if (widget.onLongPress == null || !_isSelectKey(event.logicalKey)) {
+      return KeyEventResult.ignored;
+    }
+    if (event is KeyDownEvent) {
+      _selectDown = true;
+      _longPressTimer?.cancel();
+      _longPressTimer = Timer(_longPressDelay, _fireLongPress);
+      return KeyEventResult.handled;
+    }
+    if (event is KeyRepeatEvent) {
+      // 長按觸發後殘留的重複事件不應再落到短按邏輯
+      return KeyEventResult.handled;
+    }
+    if (event is KeyUpEvent) {
+      if (!_selectDown) return KeyEventResult.handled; // 長按已觸發，放開不做事
+      _selectDown = false;
+      _longPressTimer?.cancel();
+      _handleSelect();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _fireLongPress() {
+    if (!mounted || !_selectDown) return;
+    _selectDown = false;
+    _runLongPress();
+  }
+
+  Future<void> _runLongPress() async {
+    final action = widget.onLongPress;
+    if (action == null || _longPressRunning) return;
+    _longPressRunning = true;
+    // 記住原本的焦點，動作（對話框）結束後還回去
+    final previous = FocusManager.instance.primaryFocus;
+    try {
+      await action();
+    } finally {
+      _longPressRunning = false;
+      if (previous != null &&
+          previous.context != null &&
+          previous.canRequestFocus &&
+          !previous.hasPrimaryFocus) {
+        previous.requestFocus();
+      }
+    }
+  }
+
   void _handleSelect() {
     // 只取消尚未觸發的計時器；已開始的預載保留給播放器
     _startTimer?.cancel();
@@ -237,6 +309,16 @@ class _BaseTvCardState extends State<BaseTvCard>
 
   @override
   Widget build(BuildContext context) {
+    final scope = _buildScope();
+    if (widget.onLongPress == null) return scope;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onLongPress: _runLongPress,
+      child: scope,
+    );
+  }
+
+  Widget _buildScope() {
     return TvFocusScope(
       pattern: FocusPattern.grid,
       focusNode: widget.focusNode,
@@ -247,6 +329,7 @@ class _BaseTvCardState extends State<BaseTvCard>
       onExitUp: widget.onMoveUp,
       onExitDown: widget.onMoveDown,
       onSelect: _handleSelect,
+      preKeyHandler: widget.onLongPress == null ? null : _preKey,
       isFirst: widget.isFirst,
       isLast: widget.isLast,
       enableKeyRepeat: true, // 網格導航支援按住快速移動

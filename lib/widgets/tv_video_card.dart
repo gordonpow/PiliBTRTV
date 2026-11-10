@@ -6,6 +6,7 @@ import 'staggered_image.dart';
 import 'conditional_marquee.dart';
 import '../services/settings_service.dart'; // 包含 BiliCacheManager
 import '../utils/image_url_utils.dart';
+import 'video_action_dialogs.dart';
 
 class TvVideoCard extends StatelessWidget {
   final Video video;
@@ -20,6 +21,9 @@ class TvVideoCard extends StatelessWidget {
   final bool disableCache;
   final FocusNode? focusNode;
   final int? staggerIndex;
+
+  /// 長按動作；預設為「影片選項」（收藏／稍後再看），番劇、直播、無 BV 號者不啟用
+  final Future<void> Function()? onLongPress;
 
   /// 是否在播放數旁顯示彈幕數（預設不顯示，其他頁面外觀不變）
   final bool showDanmaku;
@@ -38,8 +42,12 @@ class TvVideoCard extends StatelessWidget {
     this.disableCache = false,
     this.focusNode,
     this.staggerIndex,
+    this.onLongPress,
     this.showDanmaku = false,
   });
+
+  bool get _menuEnabled =>
+      !video.isPgc && !video.isLive && video.bvid.isNotEmpty;
 
   String get _durationText => video.durationFormatted;
 
@@ -55,6 +63,9 @@ class TvVideoCard extends StatelessWidget {
       onMoveUp: onMoveUp,
       onMoveDown: onMoveDown,
       onBack: onBack,
+      onLongPress:
+          onLongPress ??
+          (_menuEnabled ? () => showVideoActionMenu(context, video) : null),
       previewVideo: video.isLive ? null : video,
       imageContent: Stack(
         fit: StackFit.expand,

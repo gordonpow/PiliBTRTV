@@ -1,3 +1,4 @@
+import '../utils/fav_utils.dart';
 import '../utils/format_count.dart';
 
 /// 影片資料模型
@@ -23,6 +24,8 @@ class Video {
   final int seasonId; // 番劇 season_id (> 0 表示 PGC 番劇)
   final int epId; // 番劇 ep_id (選用)
   final String epIndexText; // 番劇集數資訊 (如 "全12話")
+  final int aid; // 影片 aid (0 表示未知，可由 bvid 換算)
+  final String historyKid; // 觀看歷史刪除用 kid (如 archive_123)，非歷史項目為空
 
   Video({
     required this.bvid,
@@ -46,6 +49,8 @@ class Video {
     this.seasonId = 0,
     this.epId = 0,
     this.epIndexText = '',
+    this.aid = 0,
+    this.historyKid = '',
   }) : badge = _filterBadge(badge);
 
   static String _filterBadge(String badge) {
@@ -56,6 +61,9 @@ class Video {
 
   /// 是否為 PGC 番劇
   bool get isPgc => seasonId > 0;
+
+  /// 影片 aid：優先用欄位，否則由 bvid 換算（失敗回傳 0）
+  int get resolvedAid => aid > 0 ? aid : bvidToAid(bvid);
 
   /// 從分區 feed (region/feed/rcmd) 的 archives 項目解析
   factory Video.fromRegionFeed(Map<String, dynamic> json) {
@@ -149,6 +157,12 @@ class Video {
       historyPage: history['page'] ?? 0,
       historyPart: history['part'] ?? '',
       historyVideos: videos, // 分P總數 (多P > 1)
+      aid: history['business'] == 'archive' ? _toInt(history['oid']) : 0,
+      historyKid: buildHistoryKid(
+        business: (history['business'] ?? '').toString(),
+        oid: _toInt(history['oid']),
+        kid: _toInt(json['kid']),
+      ),
       badge: json['badge'] ?? '',
       // live_status: 0:未直播, 1:直播中
       isLive:

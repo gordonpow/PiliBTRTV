@@ -194,6 +194,13 @@ class _SettingsPanelState extends State<SettingsPanel> {
           value: BtrConfig.playback ? 'BTR' : '直連',
           onTap: () => widget.onNavigate(SettingsMenuType.cdn, 0),
         ),
+        _buildSettingItem(
+          index: 4,
+          icon: Icons.star_border,
+          title: '收藏',
+          value: '選擇收藏夾',
+          onTap: () {},
+        ),
       ],
     );
   }

@@ -5,6 +5,47 @@ import 'package:flutter/foundation.dart';
 import 'app_sign.dart';
 import 'sign_utils.dart';
 import '../auth_service.dart';
+import '../../utils/fav_utils.dart';
+
+/// 收藏夾與「此影片是否已在其中」
+class FavFolderState {
+  final int id;
+  final String title;
+  final int mediaCount;
+  final bool faved;
+
+  const FavFolderState({
+    required this.id,
+    required this.title,
+    required this.mediaCount,
+    required this.faved,
+  });
+}
+
+/// 解析 fav/folder/created/list-all 回應；格式不符回傳 null
+List<FavFolderState>? parseFavFolderStates(dynamic json) {
+  if (json is! Map || json['code'] != 0) return null;
+  final data = json['data'];
+  if (data is! Map) return null;
+  final list = data['list'];
+  if (list == null) return <FavFolderState>[];
+  if (list is! List) return null;
+  final out = <FavFolderState>[];
+  for (final e in list) {
+    if (e is! Map) continue;
+    final id = (e['id'] as num?)?.toInt() ?? 0;
+    if (id == 0) continue;
+    out.add(
+      FavFolderState(
+        id: id,
+        title: (e['title'] ?? '').toString(),
+        mediaCount: (e['media_count'] as num?)?.toInt() ?? 0,
+        faved: ((e['fav_state'] as num?)?.toInt() ?? 0) == 1,
+      ),
+    );
+  }
+  return out;
+}
 
 /// 使用者互動相關 API (點贊/投幣/收藏/關注)
 class InteractionApi {
@@ -175,6 +216,114 @@ class InteractionApi {
       // 忽略錯誤
     }
     return false;
+  }
+
+  static const _formHeaders = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+
+  /// 取得收藏夾清單。[aid] > 0 時 fav_state 表示該影片是否已在其中；失敗回傳 null
+  static Future<List<FavFolderState>?> getFavFoldersForVideo(int aid) async {
+    try {
+      final mid = AuthService.mid;
+      if (mid == null) return null;
+      final params = {'up_mid': mid.toString(), 'type': '2'};
+      if (aid > 0) params['rid'] = aid.toString();
+      final uri = Uri.parse(
+        '${BaseApi.apiBase}/x/v3/fav/folder/created/list-all',
+      ).replace(queryParameters: params);
+      final response = await http.get(
+        uri,
+        headers: BaseApi.getHeaders(withCookie: true),
+      );
+      if (response.statusCode == 200) {
+        return parseFavFolderStates(jsonDecode(response.body));
+      }
+    } catch (e) {
+      debugPrint('getFavFoldersForVideo error: $e');
+    }
+    return null;
+  }
+
+  /// 加入／移出多個收藏夾。回傳 null 表示成功，否則為錯誤訊息
+  static Future<String?> dealFavorite({
+    required int aid,
+    List<int> addIds = const [],
+    List<int> delIds = const [],
+  }) async {
+    if (!AuthService.isLoggedIn) return '請先登入';
+    if (addIds.isEmpty && delIds.isEmpty) return null;
+    try {
+      final csrf = AuthService.biliJct ?? '';
+      if (csrf.isEmpty) return '登入資訊不完整，請重新登入';
+      final response = await http.post(
+        Uri.parse('${BaseApi.apiBase}/x/v3/fav/resource/deal'),
+        headers: {...BaseApi.getHeaders(withCookie: true), ..._formHeaders},
+        body:
+            'rid=$aid&type=2&add_media_ids=${joinIds(addIds)}'
+            '&del_media_ids=${joinIds(delIds)}&csrf=$csrf',
+      );
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['code'] == 0) return null;
+        return (json['message'] ?? '收藏失敗 (${json['code']})').toString();
+      }
+      return 'HTTP ${response.statusCode}';
+    } catch (e) {
+      return '網路錯誤';
+    }
+  }
+
+  /// 加入稍後再看。回傳 null 表示成功，否則為錯誤訊息
+  static Future<String?> addWatchLater(int aid) async {
+    if (!AuthService.isLoggedIn) return '請先登入';
+    try {
+      final csrf = AuthService.biliJct ?? '';
+      if (csrf.isEmpty) return '登入資訊不完整，請重新登入';
+      final response = await http.post(
+        Uri.parse('${BaseApi.apiBase}/x/v2/history/toview/add'),
+        headers: {...BaseApi.getHeaders(withCookie: true), ..._formHeaders},
+        body: 'aid=$aid&csrf=$csrf',
+      );
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['code'] == 0) return null;
+        return (json['message'] ?? '加入失敗 (${json['code']})').toString();
+      }
+      return 'HTTP ${response.statusCode}';
+    } catch (e) {
+      return '網路錯誤';
+    }
+  }
+
+  /// 刪除觀看紀錄（kid 例如 archive_123、pgc_45）。回傳刪除失敗的筆數
+  static Future<int> deleteHistory(List<String> kids) async {
+    if (kids.isEmpty) return 0;
+    if (!AuthService.isLoggedIn) return kids.length;
+    final csrf = AuthService.biliJct ?? '';
+    if (csrf.isEmpty) return kids.length;
+    var failed = 0;
+    for (var i = 0; i < kids.length; i += 50) {
+      final batch = kids.sublist(
+        i,
+        i + 50 > kids.length ? kids.length : i + 50,
+      );
+      try {
+        final response = await http.post(
+          Uri.parse('${BaseApi.apiBase}/x/v2/history/delete'),
+          headers: {...BaseApi.getHeaders(withCookie: true), ..._formHeaders},
+          body: 'kid=${Uri.encodeQueryComponent(batch.join(','))}&csrf=$csrf',
+        );
+        var ok = false;
+        if (response.statusCode == 200) {
+          ok = jsonDecode(response.body)['code'] == 0;
+        }
+        if (!ok) failed += batch.length;
+      } catch (e) {
+        failed += batch.length;
+      }
+    }
+    return failed;
   }
 
   /// 獲取預設收藏夾 ID

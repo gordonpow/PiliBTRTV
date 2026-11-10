@@ -231,6 +231,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           return;
         }
 
+        if (_selectedTabIndex == 4 &&
+            (_historyTabKey.currentState?.handleBack() ?? false)) {
+          // 觀看歷史多選 -> 離開多選
+          return;
+        }
+
         if (_selectedTabIndex == 5 &&
             (_profileTabKey.currentState?.handleBack() ?? false)) {
           // 登入畫面 → 回個人頁

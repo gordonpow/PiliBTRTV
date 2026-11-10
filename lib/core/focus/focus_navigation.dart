@@ -185,6 +185,9 @@ class TvFocusScope extends StatelessWidget {
   /// 是否支援按鍵重複（適用於快速滾動場景）
   final bool enableKeyRepeat;
 
+  /// 先於一般導航處理的按鍵攔截；回傳 handled 表示事件已消化（例如確認鍵長按偵測）
+  final KeyEventResult Function(KeyEvent event)? preKeyHandler;
+
   const TvFocusScope({
     super.key,
     required this.pattern,
@@ -204,6 +207,7 @@ class TvFocusScope extends StatelessWidget {
     this.isFirst = false,
     this.isLast = false,
     this.enableKeyRepeat = false,
+    this.preKeyHandler,
   });
 
   @override
@@ -218,6 +222,10 @@ class TvFocusScope extends StatelessWidget {
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (preKeyHandler != null) {
+      final pre = preKeyHandler!(event);
+      if (pre == KeyEventResult.handled) return pre;
+    }
     final handler = enableKeyRepeat
         ? TvKeyHandler.handleNavigationWithRepeat
         : TvKeyHandler.handleNavigation;

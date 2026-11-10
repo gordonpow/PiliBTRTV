@@ -6,6 +6,9 @@ import '../../models/video.dart';
 import '../../services/bilibili_api.dart';
 import 'package:keframe/keframe.dart';
 import '../../services/auth_service.dart';
+import '../../services/api/interaction_api.dart';
+import '../../utils/zh_toast.dart';
+import '../../widgets/video_action_dialogs.dart';
 import '../../widgets/history_video_card.dart';
 import '../../widgets/time_display.dart';
 import '../../widgets/tv_tab_bar.dart';
@@ -41,6 +44,12 @@ class HistoryTabState extends State<HistoryTab> {
   int _tab = 0;
   final List<FocusNode> _tabNodes = List.generate(3, (_) => FocusNode());
   final FocusNode _refreshNode = FocusNode();
+
+  // 多選模式（僅觀看歷史）
+  bool _selecting = false;
+  final Set<String> _selected = {};
+  int _lastFocusedIndex = 0;
+  final List<FocusNode> _barNodes = List.generate(5, (_) => FocusNode());
   final GlobalKey<FavViewState> _favKey = GlobalKey();
   final GlobalKey<WatchLaterViewState> _laterKey = GlobalKey();
 
@@ -76,6 +85,9 @@ class HistoryTabState extends State<HistoryTab> {
       node.dispose();
     }
     _refreshNode.dispose();
+    for (final node in _barNodes) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -93,8 +105,207 @@ class HistoryTabState extends State<HistoryTab> {
     }
   }
 
+  String _selKey(Video v) => v.historyKid.isNotEmpty ? v.historyKid : v.bvid;
+
+  List<Video> get _selectedVideos =>
+      _videos.where((v) => _selected.contains(_selKey(v))).toList();
+
+  void _enterSelect(Video v) {
+    setState(() {
+      _selecting = true;
+      _selected
+        ..clear()
+        ..add(_selKey(v));
+    });
+  }
+
+  void _toggleSelect(Video v) {
+    setState(() {
+      final k = _selKey(v);
+      if (!_selected.remove(k)) _selected.add(k);
+    });
+  }
+
+  /// 離開多選並把焦點還給卡片（多選按鈕列消失後焦點會遺失）
+  void _exitSelect() {
+    if (!_selecting) return;
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _videos.isEmpty) return;
+      final i = _lastFocusedIndex.clamp(0, _videos.length - 1);
+      _getFocusNode(i).requestFocus();
+    });
+  }
+
+  /// 返回鍵：多選中離開多選。回傳 true 表示已處理
+  bool handleBack() {
+    if (!_selecting) return false;
+    _exitSelect();
+    return true;
+  }
+
+  void _selectAll() {
+    setState(() {
+      final all = _videos.map(_selKey).toSet();
+      if (_selected.length == all.length) {
+        _selected.clear();
+      } else {
+        _selected
+          ..clear()
+          ..addAll(all);
+      }
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    final vids = _selectedVideos;
+    if (vids.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '刪除 ${vids.length} 筆觀看紀錄？',
+                style: const TextStyle(color: Colors.white, fontSize: 22),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TvDialogButton(
+                    label: '取消',
+                    autofocus: true,
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                  ),
+                  const SizedBox(width: 12),
+                  TvDialogButton(
+                    label: '刪除',
+                    primary: true,
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final kids = [
+      for (final v in vids)
+        if (v.historyKid.isNotEmpty) v.historyKid,
+    ];
+    final noKid = vids.length - kids.length;
+    final failed = await InteractionApi.deleteHistory(kids) + noKid;
+    if (!mounted) return;
+    if (failed == 0) {
+      setState(() {
+        final keys = vids.map(_selKey).toSet();
+        _videos = _videos.where((v) => !keys.contains(_selKey(v))).toList();
+      });
+      showZhToast(msg: '已刪除 ${vids.length} 筆觀看紀錄');
+    } else {
+      showZhToast(msg: '刪除失敗 $failed 筆');
+      refreshSilently();
+    }
+    _exitSelect();
+  }
+
+  Future<void> _favSelected() async {
+    final vids = _selectedVideos;
+    if (vids.isEmpty) return;
+    final r = await batchFavoriteFlow(context, vids);
+    if (r != null && mounted) _exitSelect();
+  }
+
+  Future<void> _laterSelected() async {
+    final vids = _selectedVideos;
+    if (vids.isEmpty) return;
+    final r = await batchWatchLaterFlow(vids);
+    if (r != null && mounted) _exitSelect();
+  }
+
+  Widget _buildSelectionBar() {
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          if (_videos.isNotEmpty) {
+            _getFocusNode(
+              _lastFocusedIndex.clamp(0, _videos.length - 1),
+            ).requestFocus();
+          }
+          return KeyEventResult.handled;
+        }
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Container(
+        color: const Color(0xFF121212),
+        padding: const EdgeInsets.fromLTRB(30, 4, 30, 8),
+        child: Row(
+          children: [
+            Text(
+              '已選 ${_selected.length} 部',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 24),
+            TvDialogButton(
+              focusNode: _barNodes[0],
+              label: '全選',
+              onPressed: _selectAll,
+            ),
+            const SizedBox(width: 10),
+            TvDialogButton(
+              focusNode: _barNodes[1],
+              label: '刪除',
+              onPressed: _deleteSelected,
+            ),
+            const SizedBox(width: 10),
+            TvDialogButton(
+              focusNode: _barNodes[2],
+              label: '加入收藏',
+              onPressed: _favSelected,
+            ),
+            const SizedBox(width: 10),
+            TvDialogButton(
+              focusNode: _barNodes[3],
+              label: '稍後再看',
+              onPressed: _laterSelected,
+            ),
+            const SizedBox(width: 10),
+            TvDialogButton(
+              focusNode: _barNodes[4],
+              label: '取消',
+              onPressed: _exitSelect,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// 公開的重新整理方法 - 供外部呼叫
   void refresh() {
+    _selecting = false;
+    _selected.clear();
     _hasLoaded = true; // 標記已載入，避免切換時重複載入
     _loadHistory(reset: true);
   }
@@ -211,7 +422,9 @@ class HistoryTabState extends State<HistoryTab> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Positioned.fill(top: 64, child: body),
+        Positioned.fill(top: _selecting && _tab == 0 ? 120 : 64, child: body),
+        if (_selecting && _tab == 0 && AuthService.isLoggedIn)
+          Positioned(top: 64, left: 0, right: 0, child: _buildSelectionBar()),
         Positioned(
           top: 0,
           left: 0,
@@ -227,7 +440,11 @@ class HistoryTabState extends State<HistoryTab> {
                     focusNodes: _tabNodes,
                     selectedIndex: _tab,
                     fontSize: 22,
-                    onSelect: (i) => setState(() => _tab = i),
+                    onSelect: (i) => setState(() {
+                      _tab = i;
+                      _selecting = false;
+                      _selected.clear();
+                    }),
                     onMoveLeftAtFirst: () =>
                         widget.sidebarFocusNode?.requestFocus(),
                     onMoveDown: _focusContent,
@@ -415,7 +632,18 @@ class HistoryTabState extends State<HistoryTab> {
                         return HistoryVideoCard(
                           video: video,
                           focusNode: _getFocusNode(index),
-                          onTap: () => _onVideoTap(video),
+                          selectionMode: _selecting,
+                          selected: _selected.contains(_selKey(video)),
+                          onTap: () => _selecting
+                              ? _toggleSelect(video)
+                              : _onVideoTap(video),
+                          onLongPress: () async {
+                            if (_selecting) {
+                              _toggleSelect(video);
+                            } else {
+                              _enterSelect(video);
+                            }
+                          },
                           // 最左列按左鍵跳到側邊欄
                           onMoveLeft: (index % 4 == 0)
                               ? () => widget.sidebarFocusNode?.requestFocus()
@@ -427,12 +655,14 @@ class HistoryTabState extends State<HistoryTab> {
                           // 嚴格按列向上移動（4個一行）
                           onMoveUp: index >= 4
                               ? () => _getFocusNode(index - 4).requestFocus()
-                              : () => _tabNodes[0].requestFocus(), // 回到分頁列
+                              : () => (_selecting ? _barNodes[0] : _tabNodes[0])
+                                    .requestFocus(), // 回到分頁列／多選按鈕列
                           // 嚴格按列向下移動
                           onMoveDown: (index + 4 < _videos.length)
                               ? () => _getFocusNode(index + 4).requestFocus()
                               : null,
                           onFocus: () {
+                            _lastFocusedIndex = index;
                             if (!_scrollController.hasClients) return;
 
                             final RenderObject? object = ctx.findRenderObject();

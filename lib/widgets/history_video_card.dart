@@ -25,6 +25,13 @@ class HistoryVideoCard extends StatelessWidget {
   final bool autofocus;
   final FocusNode? focusNode;
 
+  /// 長按動作（進入多選）
+  final Future<void> Function()? onLongPress;
+
+  /// 多選模式：短按改為切換勾選，卡片顯示勾選框
+  final bool selectionMode;
+  final bool selected;
+
   const HistoryVideoCard({
     super.key,
     required this.video,
@@ -37,6 +44,9 @@ class HistoryVideoCard extends StatelessWidget {
     this.onBack,
     this.autofocus = false,
     this.focusNode,
+    this.onLongPress,
+    this.selectionMode = false,
+    this.selected = false,
   });
 
   /// 是否已播完（B站API返回 progress == -1 表示已看完）
@@ -70,7 +80,13 @@ class HistoryVideoCard extends StatelessWidget {
     return BaseTvCard(
       focusNode: focusNode,
       autofocus: autofocus,
+      onLongPress: onLongPress,
       onTap: () {
+        // 多選模式：一律交給上層切換勾選，不播放
+        if (selectionMode) {
+          onTap();
+          return;
+        }
         // 只有當是直播且沒有 BVID 時（表示是直播間而非回放影片）才跳轉直播播放器
         // "直播回放"通常有 BVID，應作為普通影片播放
         if (video.isLive && video.bvid.isEmpty) {
@@ -110,6 +126,19 @@ class HistoryVideoCard extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           _buildImage(),
+          if (selectionMode && selected)
+            Container(color: const Color(0xFFfb7299).withValues(alpha: 0.25)),
+          if (selectionMode)
+            Positioned(
+              left: 6,
+              top: 6,
+              child: Icon(
+                selected ? Icons.check_circle : Icons.radio_button_unchecked,
+                size: 26,
+                color: selected ? const Color(0xFFfb7299) : Colors.white70,
+                shadows: const [Shadow(color: Colors.black54, blurRadius: 4)],
+              ),
+            ),
           // 角標 (付費/充電專屬)
           if (video.badge.isNotEmpty)
             Positioned(

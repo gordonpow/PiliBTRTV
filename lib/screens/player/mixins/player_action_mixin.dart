@@ -17,6 +17,7 @@ import '../../../services/local_server.dart';
 import '../../../services/api/videoshot_api.dart';
 import '../../../services/api/base_api.dart';
 import '../widgets/settings_panel.dart';
+import '../../../widgets/video_action_dialogs.dart';
 import '../player_screen.dart';
 import '../widgets/quality_picker_sheet.dart';
 import 'player_state_mixin.dart';
@@ -2109,6 +2110,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
             settingsMenuType = SettingsMenuType.cdn;
             focusedSettingIndex = 0;
           });
+          break;
+        case 4:
+          // 收藏：開收藏夾選擇對話框（關閉後焦點回到播放器）
+          favoriteVideoFlow(context, aid);
           break;
       }
     } else if (settingsMenuType == SettingsMenuType.danmaku) {
