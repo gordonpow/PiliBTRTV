@@ -318,6 +318,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             ? () {
                                 _liveTabKey.currentState?.focusFirstItem();
                               }
+                            : index == 4
+                            ? () =>
+                                  _historyTabKey.currentState?.focusFirstItem()
                             : isUserTab
                             ? () =>
                                   _profileTabKey.currentState?.focusFirstItem()

@@ -543,6 +543,18 @@ class HistoryTabState extends State<HistoryTab> {
     );
   }
 
+  /// 側邊欄按右鍵：焦點放到目前分頁的第一個項目（左上角），
+  /// 不交給預設方向導航（它會依位置挑到中間的卡片）
+  void focusFirstItem() {
+    if (AuthService.isLoggedIn && (_tab != 0 || _videos.isNotEmpty)) {
+      _focusContent();
+      return;
+    }
+    // 沒有內容（未登入或列表空）：改到分頁列
+    final tabNode = _tabNodes[_tab];
+    if (tabNode.context != null) tabNode.requestFocus();
+  }
+
   /// 分頁列按下鍵：進入目前分頁內容
   void _focusContent() {
     if (!AuthService.isLoggedIn) return;
