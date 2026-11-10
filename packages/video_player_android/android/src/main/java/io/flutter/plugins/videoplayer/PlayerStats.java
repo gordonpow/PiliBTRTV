@@ -40,6 +40,8 @@ public final class PlayerStats {
   private static long frameOffsetSumUs = 0;
   private static long frameOffsetCount = 0;
   private static long bandwidthBps = 0;
+  // 累計已載入位元組（onBandwidthEstimate 各取樣區間的 totalBytesLoaded 加總），供直連網速計算
+  private static long bytesLoadedTotal = 0;
   private static int bufferingCount = 0;
   private static long bufferingStartMs = -1;
   private static long bufferingTotalMs = 0;
@@ -60,6 +62,7 @@ public final class PlayerStats {
       inputHeight = 0;
       inputFps = 0f;
       bandwidthBps = 0;
+      bytesLoadedTotal = 0;
       droppedTotal = 0;
       renderedTotal = 0;
       frameOffsetSumUs = 0;
@@ -177,6 +180,7 @@ public final class PlayerStats {
         if (!isCurrent()) return;
         synchronized (LOCK) {
           bandwidthBps = bitrateEstimate;
+          bytesLoadedTotal += totalBytesLoaded;
         }
       }
 
@@ -282,6 +286,7 @@ public final class PlayerStats {
           frameOffsetCount > 0 ? (double) frameOffsetSumUs / frameOffsetCount : 0.0);
       m.put("frameOffsetCount", frameOffsetCount);
       m.put("bandwidthBps", bandwidthBps);
+      m.put("bytesLoadedTotal", bytesLoadedTotal);
       m.put("bufferingCount", bufferingCount);
       m.put("bufferingTotalMs", bufferingTotalMs);
       m.put("events", new ArrayList<String>(events));
