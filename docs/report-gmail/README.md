@@ -41,7 +41,7 @@
 
 ## 五、測試（curl）
 
-先確認網址是公開的（應回 `{"ok":true,"service":"PiliBTRTV report"}`）：
+先確認網址是公開的（應回 `{"ok":true,"service":"PiliBTR report"}`）：
 
 ```
 curl -L "https://script.google.com/macros/s/xxxx/exec"
@@ -73,3 +73,14 @@ curl -L -X POST "https://script.google.com/macros/s/xxxx/exec" \
 
 - App 顯示「送出失敗（腳本未公開）」：「誰可以存取」沒設成「所有人」，請依第二節重新部署。
 - 收不到信：檢查垃圾郵件，或到 Apps Script 左側「執行作業」看錯誤。
+
+## 更新腳本（網址不變）
+
+PiliBTR（手機版）也用同一個腳本，送出時帶 `"app":"PiliBTR"`，信件標題會是 `[PiliBTR 回報 編號]`；PiliBTRTV 不帶 `app`，標題維持 `[PiliBTRTV 回報 編號]`。
+
+更新腳本後要重新部署，網址才會套用新版：
+
+1. 在 script.google.com 打開專案，把 `apps_script.gs` 的新內容貼上並儲存。
+2. 「部署」>「管理部署作業」，選現有的部署作業，按鉛筆圖示編輯。
+3. 「版本」選「新版本」，按「部署」。網址不會改變。
+4. 用 `curl -L "<網址>"` 確認回應是 `{"ok":true,"service":"PiliBTR report"}`。

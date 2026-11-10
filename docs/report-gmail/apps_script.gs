@@ -1,4 +1,5 @@
-// PiliBTRTV 一鍵回報：接收 App 的 POST，寄信到開發者信箱。
+// PiliBTRTV／PiliBTR 一鍵回報：接收 App 的 POST，寄信到開發者信箱。
+// payload 的 app 欄位分辨來源（PiliBTR 會送 "PiliBTR"；沒有時視為 PiliBTRTV）。
 // 部署：執行身分必須是「我」，存取權「所有人」。步驟見 README.md。
 
 // 收件信箱；留空則寄給部署者自己（Session.getEffectiveUser）
@@ -37,9 +38,11 @@ function doPost(e) {
     }
 
     const to = TO || Session.getEffectiveUser().getEmail();
-    const subject = '[PiliBTRTV 回報 ' + id + '] ' + s(d.category) + '｜' +
+    const app = s(d.app) || 'PiliBTRTV';
+    const subject = '[' + app + ' 回報 ' + id + '] ' + s(d.category) + '｜' +
       s(d.version) + '｜' + s(d.device);
     const body = [
+      'App：' + app,
       '回報編號：' + id,
       '類型：' + s(d.category),
       '版本：' + s(d.version),
@@ -71,7 +74,7 @@ function doPost(e) {
 
 // 瀏覽器直接開網址時的簡單回應（檢查部署是否公開）
 function doGet() {
-  return out({ ok: true, service: 'PiliBTRTV report' });
+  return out({ ok: true, service: 'PiliBTR report' });
 }
 
 function s(v) {
