@@ -161,7 +161,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _handleSideBarTap(int index) {
     // 如果已經在當前標籤，點選重新整理
     if (index == _selectedTabIndex) {
-      if (index == 1) {
+      if (index == 0) {
+        _searchTabKey.currentState?.showKeyboard();
+      } else if (index == 1) {
         _homeTabKey.currentState?.refreshCurrentCategory();
       } else if (index == 2) {
         _dynamicTabKey.currentState?.refresh();

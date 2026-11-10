@@ -24,6 +24,7 @@ class SearchTab extends StatefulWidget {
 class SearchTabState extends State<SearchTab> {
   String _searchText = '';
   bool _showResults = false; // true: 顯示影片結果, false: 顯示建議
+  bool _returnedFromResults = false; // 從結果回到鍵盤：帶入關鍵字並聚焦搜尋框
 
   // 防止返回鍵重複處理
   DateTime? _lastBackHandled;
@@ -50,8 +51,14 @@ class SearchTabState extends State<SearchTab> {
     _lastBackHandled = DateTime.now(); // 記錄處理時間，防止重複
     setState(() {
       _showResults = false;
+      _returnedFromResults = true;
       // _searchText remains to show what was searched, allowing modification
     });
+  }
+
+  /// 側邊欄在搜尋頁再按確定：結果頁直接回到鍵盤重新搜尋
+  void showKeyboard() {
+    if (_showResults) _backToKeyboard();
   }
 
   void _onSearch(String query) {
@@ -75,6 +82,8 @@ class SearchTabState extends State<SearchTab> {
                 sidebarFocusNode: widget.sidebarFocusNode,
                 onBackToHome: widget.onBackToHome,
                 onSearch: _onSearch,
+                initialText: _returnedFromResults ? _searchText : '',
+                autofocusBox: _returnedFromResults,
               ),
         const Positioned(top: 20, right: 30, child: TimeDisplay()),
       ],

@@ -38,6 +38,9 @@ class _SearchResultsViewState extends State<SearchResultsView> {
 
   // Focus Management
   late final List<FocusNode> _sortFocusNodes;
+  // 上方的搜尋框：按確定回到鍵盤重新搜尋
+  final FocusNode _queryFocus = FocusNode(debugLabel: 'searchAgain');
+  bool _queryFocused = false;
   final Map<int, FocusNode> _videoFocusNodes = {};
   bool _shouldFocusFirstResult = false;
 
@@ -64,6 +67,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
     for (final node in _sortFocusNodes) {
       node.dispose();
     }
+    _queryFocus.dispose();
     for (final node in _videoFocusNodes.values) {
       node.dispose();
     }
@@ -317,14 +321,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '搜尋結果: ${widget.query}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+                _buildQueryBox(),
                 const SizedBox(height: 15),
                 Row(
                   children: _sortOptions.entries.toList().asMap().entries.map((
@@ -339,6 +336,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
                         label: entry.value,
                         isSelected: isSelected,
                         focusNode: _sortFocusNodes[idx],
+                        onUp: () => _queryFocus.requestFocus(),
                         onTap: () {
                           if (!isSelected) {
                             setState(() => _currentOrder = entry.key);
@@ -362,6 +360,73 @@ class _SearchResultsViewState extends State<SearchResultsView> {
       ],
     );
   }
+
+  /// 搜尋框：顯示目前關鍵字；按確定回到鍵盤重新搜尋，按下到排序列
+  Widget _buildQueryBox() {
+    return Focus(
+      focusNode: _queryFocus,
+      onFocusChange: (f) => setState(() => _queryFocused = f),
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.select) {
+          widget.onBackToKeyboard();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown) {
+          _sortFocusNodes.first.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          widget.sidebarFocusNode?.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowUp ||
+            key == LogicalKeyboardKey.arrowRight) {
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: _queryFocused ? 0.2 : 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _queryFocused ? Colors.white : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search, color: Colors.white70, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              widget.query,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            if (_queryFocused) ...[
+              const SizedBox(width: 12),
+              Text(
+                '按確定重新搜尋',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SortButton extends StatefulWidget {
@@ -370,6 +435,7 @@ class _SortButton extends StatefulWidget {
   final FocusNode focusNode;
   final VoidCallback onTap;
   final VoidCallback onFocus;
+  final VoidCallback onUp;
 
   const _SortButton({
     required this.label,
@@ -377,6 +443,7 @@ class _SortButton extends StatefulWidget {
     required this.focusNode,
     required this.onTap,
     required this.onFocus,
+    required this.onUp,
   });
 
   @override
@@ -399,6 +466,11 @@ class _SortButtonState extends State<_SortButton> {
             (event.logicalKey == LogicalKeyboardKey.enter ||
                 event.logicalKey == LogicalKeyboardKey.select)) {
           widget.onTap();
+          return KeyEventResult.handled;
+        }
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          widget.onUp();
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;

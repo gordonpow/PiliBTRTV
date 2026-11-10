@@ -28,11 +28,19 @@ class SearchKeyboardView extends StatefulWidget {
   final VoidCallback? onBackToHome;
   final ValueChanged<String> onSearch;
 
+  /// 從搜尋結果回來時帶入上次的關鍵字，方便修改後再搜尋
+  final String initialText;
+
+  /// 建立後把焦點放到搜尋框（從搜尋結果回來時，舊焦點已隨結果頁移除）
+  final bool autofocusBox;
+
   const SearchKeyboardView({
     super.key,
     this.sidebarFocusNode,
     this.onBackToHome,
     required this.onSearch,
+    this.initialText = '',
+    this.autofocusBox = false,
   });
 
   @override
@@ -102,6 +110,12 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
     _textFocus.addListener(_onTextFocusChanged);
     _controller.addListener(_onControllerChanged);
     WidgetsBinding.instance.addObserver(this);
+    if (widget.initialText.isNotEmpty) _setText(widget.initialText);
+    if (widget.autofocusBox) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _boxFocus.requestFocus();
+      });
+    }
   }
 
   @override
