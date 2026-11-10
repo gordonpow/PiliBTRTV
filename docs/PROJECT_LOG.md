@@ -234,3 +234,12 @@
   - APK 簽章 17fcf8ed…，versionCode 2016／1016。
   - 發布說明在 `docs/work/player-nav-feedback/release-notes-btr.12.md`。
 - 備註：agy CLI 在這台電腦上沒有安裝，所以沒有詢問 agy。
+
+### 2026-11-10（晚上）：4K 卡頓 log 與直式影片綠塊
+- 分析 Sony BRAVIA VH22 的 4K 卡頓報告（report-FHEQR9、report-VYVM2X）：
+  - 隧道模式播 HEVC 4K60 約 60fps 不掉幀；一般模式（textureView／隧道關）掉幀 42–86%。
+  - 卡的那幾次都是按 OK 接手卡片預覽的暖機播放器；暖機強制 textureView，所以隧道不會生效。
+  - qn=125 HDR 的長時間緩衝是網路瓶頸（32 位元裝置跳過 BTR，海外 CDN 約 16–20Mbps）。
+- 使用者回報 Google TV Streamer 直式影片右側有綠塊（report-WC3UPC 的 log 沒涵蓋那次播放）。畫面上影像寬度剛好是框的 9/16，推測是 textureView 尺寸錯位，同樣來自暖機接手。
+- 修正（尚未 commit、尚未實機驗證）：畫面模式為「原生」時不接手 textureView 暖機播放器，改用 platformView 重新準備；「相容」模式維持暖機秒開。改動在 `lib/screens/player/player_screen.dart`、`lib/screens/player/mixins/player_action_mixin.dart`。
+- 模擬器測試前一律先靜音（使用者要求）。
