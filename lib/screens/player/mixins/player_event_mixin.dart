@@ -4,7 +4,9 @@ import 'package:bili_tv_app/utils/zh_toast.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import '../../../models/play_repeat.dart';
 import '../../../models/video.dart';
+import '../../../services/settings_service.dart';
 import '../../up_space/up_space_screen.dart';
 import '../widgets/settings_panel.dart';
 import '../focus/player_focus_handler.dart';
@@ -544,10 +546,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
     }
 
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      if (settingsMenuType == SettingsMenuType.main &&
-          focusedSettingIndex == 5) {
-        cyclePlayEndMode(-1);
-      } else if (settingsMenuType == SettingsMenuType.main) {
+      if (settingsMenuType == SettingsMenuType.main) {
         setState(() {
           showSettingsPanel = false;
           showControls = true;
@@ -561,6 +560,11 @@ mixin PlayerEventMixin on PlayerActionMixin {
         setState(() {
           settingsMenuType = SettingsMenuType.main;
           focusedSettingIndex = 3;
+        });
+      } else if (settingsMenuType == SettingsMenuType.playEnd) {
+        setState(() {
+          settingsMenuType = SettingsMenuType.main;
+          focusedSettingIndex = 5;
         });
       }
       return KeyEventResult.handled;
@@ -584,7 +588,10 @@ mixin PlayerEventMixin on PlayerActionMixin {
             focusedSettingIndex = 0;
           });
         } else if (focusedSettingIndex == 5) {
-          cyclePlayEndMode(1);
+          setState(() {
+            settingsMenuType = SettingsMenuType.playEnd;
+            focusedSettingIndex = SettingsService.playRepeat.index;
+          });
         }
       } else if (settingsMenuType == SettingsMenuType.danmaku) {
         adjustDanmakuSetting(1);
@@ -620,6 +627,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
   int get _mainIndexAfterBack => switch (settingsMenuType) {
     SettingsMenuType.cdn => 3,
     SettingsMenuType.danmaku => 1,
+    SettingsMenuType.playEnd => 5,
     _ => 0,
   };
 
@@ -632,6 +640,8 @@ mixin PlayerEventMixin on PlayerActionMixin {
         return 6;
       case SettingsMenuType.speed:
         return availableSpeeds.length - 1;
+      case SettingsMenuType.playEnd:
+        return PlayRepeat.values.length - 1;
       default:
         return 0;
     }

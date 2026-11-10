@@ -1984,16 +1984,6 @@ mixin PlayerActionMixin on PlayerStateMixin {
     );
   }
 
-  /// 切換「播放完畢後」模式（[dir] 為 1 往後、-1 往前，循環），立刻存檔
-  Future<void> cyclePlayEndMode(int dir) async {
-    const modes = PlayRepeat.values;
-    final cur = SettingsService.playRepeat.index;
-    final next = modes[(cur + dir + modes.length) % modes.length];
-    await SettingsService.setPlayRepeat(next);
-    if (!mounted) return;
-    setState(() {});
-  }
-
   /// 控制列按鈕目前能不能用（沒有上一部／下一部時變暗）
   bool isCtrlBtnEnabled(int index) {
     if (index == CtrlBtn.prev) return hasPrev;
@@ -2693,7 +2683,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
           favoriteVideoFlow(context, aid);
           break;
         case 5:
-          cyclePlayEndMode(1);
+          setState(() {
+            settingsMenuType = SettingsMenuType.playEnd;
+            focusedSettingIndex = SettingsService.playRepeat.index;
+          });
           break;
       }
     } else if (settingsMenuType == SettingsMenuType.danmaku) {
@@ -2707,6 +2700,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
       setState(() => playbackSpeed = speed);
       videoController?.setPlaybackSpeed(speed);
       showZhToast(msg: '倍速已設定為 ${speed}x');
+    } else if (settingsMenuType == SettingsMenuType.playEnd) {
+      final mode = PlayRepeat.values[focusedSettingIndex];
+      SettingsService.setPlayRepeat(mode);
+      setState(() {
+        settingsMenuType = SettingsMenuType.main;
+        focusedSettingIndex = 5;
+      });
     }
   }
 

@@ -1,9 +1,11 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 
+import '../../../models/play_repeat.dart';
 import '../../../services/btr/btr_config.dart';
+import '../../../services/settings_service.dart';
 import 'cdn_status_view.dart';
 
-enum SettingsMenuType { main, quality, danmaku, speed, cdn }
+enum SettingsMenuType { main, quality, danmaku, speed, cdn, playEnd }
 
 class SettingsPanel extends StatefulWidget {
   final SettingsMenuType menuType;
@@ -99,6 +101,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     if (widget.menuType == SettingsMenuType.speed) title = '倍速播放';
     if (widget.menuType == SettingsMenuType.quality) title = '畫質選擇';
     if (widget.menuType == SettingsMenuType.cdn) title = 'CDN 狀態';
+    if (widget.menuType == SettingsMenuType.playEnd) title = '播放完畢後';
 
     return Positioned(
       top: 0,
@@ -156,6 +159,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
         return _buildDanmakuSettingsList();
       case SettingsMenuType.speed:
         return _buildSpeedSettingsList();
+      case SettingsMenuType.playEnd:
+        return _buildPlayEndSettingsList();
       case SettingsMenuType.cdn:
         return const CdnStatusView();
       case SettingsMenuType.main:
@@ -208,7 +213,10 @@ class _SettingsPanelState extends State<SettingsPanel> {
           icon: Icons.repeat,
           title: '播放完畢後',
           value: widget.playEndLabel,
-          onTap: () {},
+          onTap: () => widget.onNavigate(
+            SettingsMenuType.playEnd,
+            SettingsService.playRepeat.index,
+          ),
         ),
       ],
     );
@@ -284,6 +292,22 @@ class _SettingsPanelState extends State<SettingsPanel> {
           icon: Icons.speed,
           title: '${speed}x',
           value: isSelected ? '當前' : '',
+          onTap: () {},
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildPlayEndSettingsList() {
+    final current = SettingsService.playRepeat;
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: PlayRepeat.values.map((mode) {
+        return _buildSettingItem(
+          index: mode.index,
+          icon: Icons.repeat,
+          title: mode.label,
+          value: mode == current ? '當前' : '',
           onTap: () {},
         );
       }).toList(),
