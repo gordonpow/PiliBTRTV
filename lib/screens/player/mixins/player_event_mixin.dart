@@ -437,6 +437,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
             mid: mid,
             name: widget.video.ownerName,
             face: widget.video.ownerFace,
+            returnSelection: true,
           ),
         ),
       );

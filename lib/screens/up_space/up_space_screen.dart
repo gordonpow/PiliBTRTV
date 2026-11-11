@@ -7,6 +7,7 @@ import '../../models/space_data.dart';
 import '../../models/video.dart';
 import '../../services/bilibili_api.dart';
 import '../../utils/format_count.dart';
+import '../player/player_screen.dart';
 import 'tabs/space_tab.dart';
 import 'tabs/up_contribute_tab.dart';
 import 'tabs/up_dynamic_tab.dart';
@@ -24,12 +25,17 @@ class UpSpaceScreen extends StatefulWidget {
   /// 看自己的空間：隱藏關注按鈕，且不查詢關注狀態。
   final bool isSelf;
 
+  /// true：選影片時 pop 回傳給呼叫端（播放器內開啟用）；
+  /// false：直接在本頁上方開啟播放器，返回後仍停在 UP 主頁面。
+  final bool returnSelection;
+
   const UpSpaceScreen({
     super.key,
     required this.mid,
     required this.name,
     required this.face,
     this.isSelf = false,
+    this.returnSelection = false,
   });
 
   @override
@@ -223,7 +229,15 @@ class _UpSpaceScreenState extends State<UpSpaceScreen> {
     });
   }
 
-  void _select(Video video) => Navigator.pop(context, video);
+  void _select(Video video) {
+    if (widget.returnSelection) {
+      Navigator.pop(context, video);
+      return;
+    }
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => PlayerScreen(video: video)));
+  }
 
   // ===== 畫面 =====
 
