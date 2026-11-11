@@ -67,6 +67,19 @@ class LoginViewState extends State<LoginView> {
   bool _phoneReady = false;
   bool _loginHandled = false;
 
+  /// 輪詢請求是否進行中（避免重疊請求）
+  bool _polling = false;
+
+  /// 輪詢序號與起始時間：舊輪詢晚到的結果仍會處理（成功回應只能用一次，不能丟），
+  /// 但只有序號相符的輪詢才能清除進行中旗標
+  int _pollSeq = 0;
+  DateTime _pollStartedAt = DateTime.now();
+  static const Duration _pollWatchdog = Duration(seconds: 20);
+
+  /// 「已掃描」超過 60 秒後顯示額外提示
+  Timer? _scannedHintTimer;
+  bool _showScannedHint = false;
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +95,7 @@ class LoginViewState extends State<LoginView> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _scannedHintTimer?.cancel();
     _phone.loggedIn.removeListener(_onPhoneLoggedIn);
     _phone.stop();
     _regenFocus.dispose();
@@ -117,7 +131,14 @@ class LoginViewState extends State<LoginView> {
   Future<void> _completeLogin() async {
     if (_loginHandled) return;
     _loginHandled = true;
-    await BilibiliApi.fetchAndSaveUserInfo();
+    try {
+      // 取不到使用者資訊不應阻擋登入完成
+      await BilibiliApi.fetchAndSaveUserInfo().timeout(
+        const Duration(seconds: 8),
+      );
+    } catch (e) {
+      debugPrint('Login: 取得使用者資訊失敗 ${e.runtimeType}');
+    }
     if (!mounted) return;
     setState(() => _status = 'success');
     widget.onLoginSuccess?.call();
@@ -128,6 +149,10 @@ class LoginViewState extends State<LoginView> {
   Future<void> _generateQrCode() async {
     final gen = ++_qrGen;
     final web = _isWeb;
+    _pollTimer?.cancel();
+    _polling = false;
+    _pollSeq++;
+    _resetScannedHint();
     setState(() {
       _status = 'loading';
       _is48007 = false;
@@ -171,6 +196,9 @@ class LoginViewState extends State<LoginView> {
   /// 切換 TV／網頁版掃碼
   void _switchMode() {
     _pollTimer?.cancel();
+    _polling = false;
+    _pollSeq++;
+    _resetScannedHint();
     _expiredCount = 0;
     _qrGen++;
     setState(() {
@@ -181,10 +209,28 @@ class LoginViewState extends State<LoginView> {
     _generateQrCode();
   }
 
-  /// 狀態改變時才更新（網頁版同時寫 log）
+  void _resetScannedHint() {
+    _scannedHintTimer?.cancel();
+    _scannedHintTimer = null;
+    _showScannedHint = false;
+  }
+
+  /// 狀態改變時才更新（TV／網頁版皆寫 log，不含任何憑證）
   void _setStatus(String next) {
-    if (_isWeb && _status != next) {
-      debugPrint('WebLogin: 狀態 $_status→$next');
+    if (_status != next) {
+      debugPrint('${_isWeb ? 'WebLogin' : 'TvLogin'}: 狀態 $_status→$next');
+      if (next == 'scanned') {
+        // 暫時性網路錯誤後回到 scanned 不重新計時
+        if (_scannedHintTimer == null && !_showScannedHint) {
+          _scannedHintTimer = Timer(const Duration(seconds: 60), () {
+            if (mounted && (_status == 'scanned' || _status == 'network')) {
+              setState(() => _showScannedHint = true);
+            }
+          });
+        }
+      } else if (next != 'network' || _status != 'scanned') {
+        _resetScannedHint();
+      }
     }
     setState(() => _status = next);
   }
@@ -193,27 +239,52 @@ class LoginViewState extends State<LoginView> {
     _pollTimer?.cancel();
     final web = _isWeb;
     _pollTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      // 上一次輪詢尚未回來就略過這一輪，避免重疊請求
+      if (_polling &&
+          DateTime.now().difference(_pollStartedAt) < _pollWatchdog) {
+        return;
+      }
       final key = web ? _webQrKey : _authCode;
       if (key == null) {
         timer.cancel();
         return;
       }
-      final result = web
-          ? await BilibiliApi.pollWebQrLogin(key)
-          : await BilibiliApi.pollTvLogin(key);
-      final status = result['status'] as String?;
-
-      if (gen != _qrGen || !mounted || _loginHandled) {
-        // 此計時器已過期（世代已換）或頁面已結束，直接停掉
-        timer.cancel();
-        return;
+      final seq = ++_pollSeq;
+      _polling = true;
+      _pollStartedAt = DateTime.now();
+      try {
+        await _pollOnce(timer, gen, web, key);
+      } catch (e) {
+        debugPrint('${web ? 'WebLogin' : 'TvLogin'}: 輪詢例外 ${e.runtimeType}');
+      } finally {
+        if (seq == _pollSeq) _polling = false;
       }
+    });
+  }
 
-      switch (status) {
-        case 'success':
-          // 先停輪詢並遞增世代，避免後續 await 期間重疊回應覆蓋成功狀態
-          timer.cancel();
-          _qrGen++;
+  Future<void> _pollOnce(Timer timer, int gen, bool web, String key) async {
+    if (gen != _qrGen || !mounted || _loginHandled) {
+      timer.cancel();
+      return;
+    }
+    // 不加 timeout：成功回應只能用一次，晚到也要處理（由 watchdog 允許新輪詢）
+    final result = await (web
+        ? BilibiliApi.pollWebQrLogin(key)
+        : BilibiliApi.pollTvLogin(key));
+    final status = result['status'] as String?;
+
+    if (gen != _qrGen || !mounted || _loginHandled) {
+      // 此計時器已過期（世代已換）或頁面已結束，直接停掉
+      timer.cancel();
+      return;
+    }
+
+    switch (status) {
+      case 'success':
+        // 先停輪詢並遞增世代，避免後續 await 期間重疊回應覆蓋成功狀態
+        timer.cancel();
+        _qrGen++;
+        try {
           if (web) {
             await _finishWebLogin(
               Map<String, String>.from(result['cookies'] as Map),
@@ -231,50 +302,59 @@ class LoginViewState extends State<LoginView> {
             );
             await _completeLogin();
           }
-          break;
-        case 'scanned':
-          _expiredCount = 0;
-          _setStatus('scanned');
-          break;
-        case 'expired':
-          timer.cancel();
-          if (_expiredCount < _maxAutoRegenerate) {
-            _expiredCount++;
-            _generateQrCode();
-          } else {
-            _setStatus('expired');
-          }
-          break;
-        case 'error':
-          timer.cancel();
-          final code = result['code'];
-          final message = result['message'] ?? '';
+        } catch (e) {
           debugPrint(
-            '${web ? 'WebLogin' : 'TvLogin'}: 輪詢錯誤 code=$code message=$message',
+            '${web ? 'WebLogin' : 'TvLogin'}: 登入收尾失敗 ${e.runtimeType}',
           );
-          final is48007 = !web && code == 48007;
+          if (!mounted || _loginHandled) return;
+          _resetScannedHint();
           setState(() {
-            _errorText = is48007
-                ? '此帳號不支援 TV 掃碼，請改用網頁版掃碼'
-                : '錯誤：$message（$code）';
+            _errorText = '登入失敗，請重新掃描';
             _status = 'error';
-            _is48007 = is48007;
           });
-          if (is48007) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _switchFocus.requestFocus();
-            });
-          }
-          break;
-        case 'network':
-          _setStatus('network');
-          break;
-        case 'waiting':
-        default:
-          if (_status == 'network') _setStatus('waiting');
-          break;
-      }
-    });
+        }
+        break;
+      case 'scanned':
+        _expiredCount = 0;
+        _setStatus('scanned');
+        break;
+      case 'expired':
+        timer.cancel();
+        if (_expiredCount < _maxAutoRegenerate) {
+          _expiredCount++;
+          _generateQrCode();
+        } else {
+          _setStatus('expired');
+        }
+        break;
+      case 'error':
+        timer.cancel();
+        final code = result['code'];
+        final message = result['message'] ?? '';
+        debugPrint(
+          '${web ? 'WebLogin' : 'TvLogin'}: 輪詢錯誤 code=$code message=$message',
+        );
+        final is48007 = !web && code == 48007;
+        _resetScannedHint();
+        setState(() {
+          _errorText = is48007 ? '此帳號不支援 TV 掃碼，請改用網頁版掃碼' : '錯誤：$message（$code）';
+          _status = 'error';
+          _is48007 = is48007;
+        });
+        if (is48007) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _switchFocus.requestFocus();
+          });
+        }
+        break;
+      case 'network':
+        _setStatus('network');
+        break;
+      case 'waiting':
+      default:
+        if (_status == 'network') _setStatus('waiting');
+        break;
+    }
   }
 
   /// 網頁版掃碼成功：先驗證 Cookie，再儲存並收尾
@@ -383,11 +463,26 @@ class LoginViewState extends State<LoginView> {
         break;
     }
 
-    return Text(
+    final statusText = Text(
       text,
       style: TextStyle(color: color, fontSize: 16),
       textAlign: TextAlign.center,
     );
+    if (_status == 'scanned' && _showScannedHint) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          statusText,
+          const SizedBox(height: 6),
+          const Text(
+            '手機確認後若沒有反應，請按重新產生，或改用網頁版掃碼',
+            style: TextStyle(color: Colors.orange, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+    }
+    return statusText;
   }
 
   /// 底部按鈕列：依目前可見的按鈕建立有序清單，左右鍵依清單順序移動焦點
