@@ -22,8 +22,17 @@ void main() {
     ZhConvert.localeProvider = () => const Locale('en', 'US');
   });
 
-  tearDown(() {
-    dir.deleteSync(recursive: true);
+  tearDown(() async {
+    // 並行下載的另一個寫入（meta 檔）可能在測試結束後才完成，
+    // Windows 刪除時會遇到「目錄不是空的」：稍等後重試，最後失敗就略過
+    for (var i = 0; i < 5; i++) {
+      try {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+        return;
+      } on FileSystemException {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
   });
 
   group('convert 英文分支', () {
