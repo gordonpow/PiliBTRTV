@@ -2679,8 +2679,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
           });
           break;
         case 4:
-          // 收藏：開收藏夾選擇對話框（關閉後焦點回到播放器）
-          favoriteVideoFlow(context, aid);
+          // 收藏：開收藏夾選擇對話框（關閉後焦點回到播放器），套用後更新星星
+          favoriteVideoFlow(context, aid).then((faved) {
+            if (mounted && faved != null) videoActions.setFavorited(faved);
+          });
           break;
         case 5:
           setState(() {

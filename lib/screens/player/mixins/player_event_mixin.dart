@@ -7,6 +7,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import '../../../models/play_repeat.dart';
 import '../../../models/video.dart';
 import '../../../services/settings_service.dart';
+import '../../../widgets/video_action_dialogs.dart';
 import '../../up_space/up_space_screen.dart';
 import '../widgets/settings_panel.dart';
 import '../focus/player_focus_handler.dart';
@@ -335,6 +336,15 @@ mixin PlayerEventMixin on PlayerActionMixin {
     return KeyEventResult.ignored;
   }
 
+  /// 開收藏夾選單；選單開著時不自動隱藏控制列，套用後更新星星狀態
+  Future<void> _openFavoritePicker() async {
+    hideTimer?.cancel();
+    final faved = await favoriteVideoFlow(context, aid);
+    if (!mounted) return;
+    if (faved != null) videoActions.setFavorited(faved);
+    startHideTimer();
+  }
+
   /// 啟用控制欄按鈕
   void _activateControlButton(int index) {
     switch (index) {
@@ -374,9 +384,8 @@ mixin PlayerEventMixin on PlayerActionMixin {
         videoActions.addCoin();
         startHideTimer();
         break;
-      case CtrlBtn.fav: // 收藏（直接切換）
-        videoActions.toggleFavorite();
-        startHideTimer();
+      case CtrlBtn.fav: // 收藏：開收藏夾選單，顯示收藏到哪個資料夾
+        _openFavoritePicker();
         break;
     }
   }

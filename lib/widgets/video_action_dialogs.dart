@@ -381,30 +381,31 @@ bool _requireLogin() {
 }
 
 /// 單支影片：選收藏夾並依差異加入／移出（AC-2、AC-3）
-Future<void> favoriteVideoFlow(BuildContext context, int? aid) async {
-  if (!_requireLogin()) return;
+/// 選擇收藏夾並套用。回傳套用後是否已收藏；取消、沒有變更或失敗時回傳 null。
+Future<bool?> favoriteVideoFlow(BuildContext context, int? aid) async {
+  if (!_requireLogin()) return null;
   if (aid == null || aid <= 0) {
     _toast('無法取得影片資訊');
-    return;
+    return null;
   }
   final folders = await InteractionApi.getFavFoldersForVideo(aid);
   if (folders == null) {
     _toast('讀取收藏夾失敗');
-    return;
+    return null;
   }
   if (folders.isEmpty) {
     _toast('尚無收藏夾');
-    return;
+    return null;
   }
-  if (!context.mounted) return;
+  if (!context.mounted) return null;
   final selected = await showFavFolderPicker(context, folders: folders);
-  if (selected == null) return;
+  if (selected == null) return null;
   final original = {
     for (final f in folders)
       if (f.faved) f.id,
   };
   final diff = diffFavFolders(original, selected);
-  if (diff.add.isEmpty && diff.del.isEmpty) return;
+  if (diff.add.isEmpty && diff.del.isEmpty) return null;
   final err = await InteractionApi.dealFavorite(
     aid: aid,
     addIds: diff.add,
@@ -412,11 +413,19 @@ Future<void> favoriteVideoFlow(BuildContext context, int? aid) async {
   );
   if (err != null) {
     _toast(err);
-  } else if (selected.isEmpty) {
-    _toast('已取消收藏');
-  } else {
-    _toast('已收藏到 ${selected.length} 個收藏夾');
+    return null;
   }
+  if (selected.isEmpty) {
+    _toast('已取消收藏');
+    return false;
+  }
+  // 顯示收藏到哪些收藏夾
+  final names = [
+    for (final f in folders)
+      if (selected.contains(f.id)) '「${f.title}」',
+  ];
+  _toast('已收藏到 ${names.join('、')}');
+  return true;
 }
 
 /// 單支影片加入稍後再看（AC-4）

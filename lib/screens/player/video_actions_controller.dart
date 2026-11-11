@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import '../../services/api/interaction_api.dart';
 import '../../services/bilibili_api.dart';
 import '../../utils/zh_toast.dart';
 
@@ -70,33 +69,9 @@ class VideoActionsController extends ChangeNotifier {
     _notify();
   }
 
-  /// 直接切換：未收藏就加入預設收藏夾；已收藏就從所有收藏夾移除
-  Future<void> toggleFavorite() async {
-    if (_busy || _aid <= 0) return;
-    _busy = true;
-    final aid = _aid;
-    String? err;
-    final folders = await InteractionApi.getFavFoldersForVideo(aid);
-    if (folders == null || folders.isEmpty) {
-      err = folders == null ? '讀取收藏夾失敗' : '尚無收藏夾';
-    } else {
-      final faved = folders.where((f) => f.faved).map((f) => f.id).toList();
-      if (faved.isNotEmpty) {
-        err = await InteractionApi.dealFavorite(aid: aid, delIds: faved);
-        if (err == null && aid == _aid) isFavorited = false;
-        if (err == null) showZhToast(msg: '已取消收藏');
-      } else {
-        final target = folders.firstWhere(
-          (f) => f.isDefault,
-          orElse: () => folders.first,
-        );
-        err = await InteractionApi.dealFavorite(aid: aid, addIds: [target.id]);
-        if (err == null && aid == _aid) isFavorited = true;
-        if (err == null) showZhToast(msg: '已收藏');
-      }
-    }
-    if (err != null) showZhToast(msg: err);
-    _busy = false;
+  /// 收藏夾選單套用後更新收藏狀態（星星圖示）
+  void setFavorited(bool value) {
+    isFavorited = value;
     _notify();
   }
 
