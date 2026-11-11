@@ -1677,10 +1677,20 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
+  String? _audioErrLoggedBvid; // 已記錄「非音訊錯誤」的影片
+  String? _audioPlayLoggedKey; // 已記錄「播放中」的 bvid+音軌
+
   void _onPlayerStateChange() {
     if (videoController == null || !mounted) return;
 
     final value = videoController!.value;
+    final playKey = '$playingBvid/${currentAudioKind.name}';
+    if (value.isPlaying && _audioPlayLoggedKey != playKey) {
+      _audioPlayLoggedKey = playKey;
+      debugPrint(
+        '🔊 [Audio] 播放中 kind=${currentAudioKind.name} codec=${_audioCodec()}',
+      );
+    }
     if (value.position > Duration.zero) {
       lastPlaybackPosition = value.position;
     }
@@ -1688,6 +1698,18 @@ mixin PlayerActionMixin on PlayerStateMixin {
     // 播放中解碼器錯誤 (AC-A1)
     if (value.hasError) {
       final err = value.errorDescription ?? '';
+      if (currentAudioKind != AudioKind.standard &&
+          _audioErrLoggedBvid != playingBvid &&
+          !RegExp(
+            r'audio|e-?ac-?3|flac|joc',
+            caseSensitive: false,
+          ).hasMatch(err)) {
+        _audioErrLoggedBvid = playingBvid;
+        debugPrint(
+          '🔊 [Audio] 播放錯誤但不像音訊問題，未退回 kind=${currentAudioKind.name} '
+          'error=${err.length > 200 ? err.substring(0, 200) : err}',
+        );
+      }
       // 杜比/Hi-Res 音軌播放失敗：先退回標準音質（本影片只試一次）。
       // 只有錯誤訊息與音訊有關才退回，避免把網路或視訊解碼錯誤誤判成音軌錯誤。
       final audioRelated = RegExp(
@@ -3164,9 +3186,23 @@ mixin PlayerActionMixin on PlayerStateMixin {
     switchAudio(opt.kind);
   }
 
+  String _audioCodec() {
+    for (final o in audioOptions) {
+      if (o.kind == currentAudioKind) return '${o.stream['codecs']}';
+    }
+    return 'unknown';
+  }
+
   Future<void> switchAudio(AudioKind kind) async {
     // 正在切換畫質／重載時 switchQuality 會直接返回，先擋下避免偏好與實際音軌不一致
-    if (stallSwitching) return;
+    if (stallSwitching) {
+      debugPrint('🔊 [Audio] 切換被略過（正在重載）→${kind.name}');
+      return;
+    }
+    debugPrint(
+      '🔊 [Audio] 使用者切換 ${currentAudioKind.name}→${kind.name} '
+      'pos=${lastPlaybackPosition.inSeconds}',
+    );
     await SettingsService.setPreferredAudio(kind);
     setAudioOverride(kind);
     await switchQuality(
@@ -3179,6 +3215,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
   /// 杜比/Hi-Res 播放失敗：本影片改用標準音質重新載入（不改使用者偏好）
   Future<void> fallbackAudioToStandard() async {
+    final err = videoController?.value.errorDescription ?? '';
+    debugPrint(
+      '🔊 [Audio] 杜比/Hi-Res 播放失敗，退回標準 kind=${currentAudioKind.name} '
+      'codec=${_audioCodec()} '
+      'error=${err.length > 200 ? err.substring(0, 200) : err}',
+    );
     setAudioOverride(AudioKind.standard);
     showZhToast(msg: "此裝置無法播放杜比音軌，已改用標準音質", toastLength: Toast.LENGTH_LONG);
     await switchQuality(

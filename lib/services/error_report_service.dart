@@ -1,6 +1,7 @@
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:bili_tv_app/btr_version.dart';
+import 'package:bili_tv_app/services/audio_support.dart';
 import 'package:bili_tv_app/services/auth_service.dart';
 import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'package:bili_tv_app/services/log_service.dart';
@@ -81,6 +82,8 @@ class ErrorReportService {
     b.writeln('硬體解碼: ${SettingsService.useHardwareDecode ? '開' : '關'}');
     b.writeln('隧道播放: ${SettingsService.playerTunneling ? '開' : '關'}');
     b.writeln('首選編碼: ${SettingsService.preferredCodec.name}');
+    b.writeln('音質偏好: ${SettingsService.preferredAudio.name}');
+    b.writeln('音訊支援: ${AudioSupport.summary}');
     b.writeln('已登入: ${AuthService.isLoggedIn ? '是' : '否'}');
     b.writeln(
       '翻譯 B 站內容: ${SettingsService.translateContent ? '開' : '關'}，'

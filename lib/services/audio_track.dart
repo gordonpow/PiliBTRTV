@@ -114,6 +114,44 @@ AudioKind selectedAudioKind(
   return AudioKind.standard;
 }
 
+String _describeStream(Map? m) {
+  if (m == null) return 'none';
+  return 'id=${m['id']} codecs=${m['codecs']} bw=${m['bandwidth']}';
+}
+
+/// 產生「可用音軌／偏好／override／實際選用與原因」的 log 描述（不含網址）。
+String describeAudioSelection(
+  Map dash,
+  AudioKind preferred, {
+  AudioKind? override,
+  required bool dolbyOk,
+  required bool hiresOk,
+}) {
+  final want = override ?? preferred;
+  final picked = selectAudio(dash, want, dolbyOk: dolbyOk, hiresOk: hiresOk);
+  final kind = selectedAudioKind(
+    dash,
+    want,
+    dolbyOk: dolbyOk,
+    hiresOk: hiresOk,
+  );
+  final String reason;
+  if (kind == want) {
+    reason = override != null ? 'override' : 'preferred';
+  } else if ((want == AudioKind.dolby && !dolbyOk) ||
+      (want == AudioKind.hires && !hiresOk)) {
+    reason = 'unsupported→standard';
+  } else {
+    reason = 'unavailable→standard';
+  }
+  return 'standard=[${_describeStream(_pickStandard(dash))}] '
+      'dolby=[${_describeStream(_pickDolby(dash))}] '
+      'hires=[${_describeStream(_pickHires(dash))}] '
+      'preferred=${preferred.name} '
+      'override=${override?.name ?? 'none'} '
+      'picked=${kind.name} [${_describeStream(picked)}] reason=$reason';
+}
+
 /// 音軌顯示名稱
 String audioKindLabel(AudioKind kind) => switch (kind) {
   AudioKind.standard => '標準',

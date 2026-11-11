@@ -13,6 +13,20 @@ import '../audio_track.dart';
 
 /// 播放相關 API (影片詳情、播放地址、彈幕、進度上報)
 class PlaybackApi {
+  /// 音軌選擇 log 去重：預取與播放會對同一影片重複取網址，
+  /// 同一影片與同一選擇結果只記一次，避免洗掉錯誤回報中的其他 log。
+  static final Map<String, String> _audioLogged = {};
+
+  static void _logAudioSelection(String key, String desc) {
+    if (_audioLogged[key] == desc) return;
+    _audioLogged.remove(key);
+    _audioLogged[key] = desc;
+    if (_audioLogged.length > 100) {
+      _audioLogged.remove(_audioLogged.keys.first);
+    }
+    debugPrint('🔊 [Audio] $desc');
+  }
+
   /// 獲取影片詳情（包含分P資訊和播放歷史）
   static Future<Map<String, dynamic>?> getVideoInfo(String bvid) async {
     try {
@@ -405,6 +419,16 @@ class PlaybackApi {
                 dashMap,
                 dolbyOk: dolbyOk,
                 hiresOk: hiresOk,
+              );
+              _logAudioSelection(
+                '$bvid:$cid',
+                describeAudioSelection(
+                  dashMap,
+                  SettingsService.preferredAudio,
+                  override: audioOverride,
+                  dolbyOk: dolbyOk,
+                  hiresOk: hiresOk,
+                ),
               );
               if (pickedAudio != null) {
                 audioUrl = pickedAudio['baseUrl'] ?? pickedAudio['base_url'];

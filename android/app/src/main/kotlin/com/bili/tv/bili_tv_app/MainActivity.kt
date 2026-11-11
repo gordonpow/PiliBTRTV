@@ -289,7 +289,7 @@ class MainActivity : FlutterActivity() {
     }
 
     // 查詢音訊解碼／直通能力：杜比 E-AC3、E-AC3-JOC（Atmos）與 FLAC
-    private fun audioSupport(): Map<String, Boolean> {
+    private fun audioSupport(): Map<String, Any> {
         // 只建一次 codec 清單（建立成本高）
         val codecInfos = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
         fun hasDecoder(mime: String): Boolean {
@@ -305,13 +305,59 @@ class MainActivity : FlutterActivity() {
                 d.encodings.contains(encoding)
             } ?: false
         }
-        val eac3 = hasDecoder("audio/eac3") ||
-            hasPassthrough(android.media.AudioFormat.ENCODING_E_AC3)
+        val eac3Decoder = hasDecoder("audio/eac3")
         // ENCODING_E_AC3_JOC = 18（API 28），直接用數值避免低版本編譯問題
-        val eac3Joc = hasDecoder("audio/eac3-joc") || hasPassthrough(18)
+        val eac3JocDecoder = hasDecoder("audio/eac3-joc")
+        val eac3Passthrough = hasPassthrough(android.media.AudioFormat.ENCODING_E_AC3)
+        val eac3JocPassthrough = hasPassthrough(18)
         // Android 8.1+ 內建軟體 FLAC 解碼器
-        val flac = hasDecoder("audio/flac") || android.os.Build.VERSION.SDK_INT >= 27
-        return mapOf("eac3" to eac3, "eac3Joc" to eac3Joc, "flac" to flac)
+        val flacDecoder = hasDecoder("audio/flac")
+        val flac = flacDecoder || android.os.Build.VERSION.SDK_INT >= 27
+        return mapOf(
+            "eac3" to (eac3Decoder || eac3Passthrough),
+            "eac3Joc" to (eac3JocDecoder || eac3JocPassthrough),
+            "flac" to flac,
+            "eac3Decoder" to eac3Decoder,
+            "eac3JocDecoder" to eac3JocDecoder,
+            "eac3Passthrough" to eac3Passthrough,
+            "eac3JocPassthrough" to eac3JocPassthrough,
+            "flacDecoder" to flacDecoder,
+            "audioOutputs" to audioOutputsSummary()
+        )
+    }
+
+    // 目前輸出裝置類型與支援的 encodings，例如 "HDMI[E_AC3,AC3,PCM]"（API 23 以下回空字串）
+    private fun audioOutputsSummary(): String {
+        if (android.os.Build.VERSION.SDK_INT < 23) return ""
+        return try {
+            val am = getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+            val names = mapOf(
+                android.media.AudioFormat.ENCODING_PCM_16BIT to "PCM",
+                android.media.AudioFormat.ENCODING_AC3 to "AC3",
+                android.media.AudioFormat.ENCODING_E_AC3 to "E_AC3",
+                18 to "E_AC3_JOC",
+                android.media.AudioFormat.ENCODING_DTS to "DTS",
+                android.media.AudioFormat.ENCODING_DTS_HD to "DTS_HD"
+            )
+            (am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS) ?: emptyArray())
+                .joinToString(",") { d ->
+                    val type = when (d.type) {
+                        android.media.AudioDeviceInfo.TYPE_HDMI -> "HDMI"
+                        android.media.AudioDeviceInfo.TYPE_HDMI_ARC -> "ARC"
+                        android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "SPEAKER"
+                        android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "BT"
+                        android.media.AudioDeviceInfo.TYPE_USB_DEVICE,
+                        android.media.AudioDeviceInfo.TYPE_USB_HEADSET -> "USB"
+                        android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                        android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET -> "WIRED"
+                        else -> "type${d.type}"
+                    }
+                    val enc = d.encodings.map { names[it] ?: "enc$it" }.joinToString(",")
+                    "$type[$enc]"
+                }
+        } catch (e: Exception) {
+            ""
+        }
     }
 
     // 获取硬件解码器支持的格式

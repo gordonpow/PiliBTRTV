@@ -72,4 +72,30 @@ void main() {
       isNull,
     );
   });
+
+  test('describeAudioSelection 描述原因', () {
+    final d = _dash(dolby: true);
+    expect(
+      describeAudioSelection(d, AudioKind.dolby, dolbyOk: true, hiresOk: true),
+      contains('reason=preferred'),
+    );
+    expect(
+      describeAudioSelection(d, AudioKind.dolby, dolbyOk: false, hiresOk: true),
+      contains('reason=unsupported→standard'),
+    );
+    expect(
+      describeAudioSelection(d, AudioKind.hires, dolbyOk: true, hiresOk: true),
+      contains('reason=unavailable→standard'),
+    );
+    expect(
+      describeAudioSelection(
+        d,
+        AudioKind.dolby,
+        override: AudioKind.standard,
+        dolbyOk: true,
+        hiresOk: true,
+      ),
+      contains('reason=override'),
+    );
+  });
 }

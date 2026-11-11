@@ -11,6 +11,10 @@ class AudioSupport {
   // 查詢失敗時 FLAC 視為支援（Android 8.1+ 內建軟體解碼）
   static bool _hiresOk = true;
   static Future<void>? _loading;
+  static String _summary = 'not queried yet';
+
+  /// 給錯誤回報用的一行摘要
+  static String get summary => _summary;
 
   /// 杜比可用：E-AC3 或 E-AC3-JOC 其一支援即可
   static bool get dolbyOk => _dolbyOk;
@@ -34,9 +38,18 @@ class AudioSupport {
       if (r != null) {
         _dolbyOk = r['eac3'] == true || r['eac3Joc'] == true;
         _hiresOk = r['flac'] != false;
+        _summary =
+            'dolby=$_dolbyOk (decoder eac3=${r['eac3Decoder']} '
+            'joc=${r['eac3JocDecoder']}, passthrough '
+            'eac3=${r['eac3Passthrough']} joc=${r['eac3JocPassthrough']}) '
+            'hires=$_hiresOk (flac decoder=${r['flacDecoder']}) '
+            'outputs=${r['audioOutputs'] ?? ''}';
+      } else {
+        _summary = 'dolby=$_dolbyOk hires=$_hiresOk (no detail)';
       }
-      debugPrint('🔊 [AudioSupport] dolby=$_dolbyOk hires=$_hiresOk');
+      debugPrint('🔊 [AudioSupport] $_summary');
     } catch (e) {
+      _summary = 'query failed: $e';
       debugPrint('🔊 [AudioSupport] query failed: $e');
       _dolbyOk = false;
       _hiresOk = true;
