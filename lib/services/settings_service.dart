@@ -251,19 +251,20 @@ class SettingsService {
     await _prefs!.setInt(_updateIntervalKey, value);
   }
 
-  // 介面語言設定（0 跟隨系統、1 繁體中文、2 簡體中文、3 English）
+  // 介面語言設定（0 跟隨系統、1 繁體中文、2 簡體中文、3 English、4 原文）
   static const String _appLanguageKey = 'app_language';
 
-  /// 介面語言：0 跟隨系統、1 繁體中文、2 簡體中文、3 English。
+  /// 介面語言：0 跟隨系統、1 繁體中文、2 簡體中文、3 English、
+  /// 4 原文（介面繁體，B 站內容不做繁簡轉換）。
   /// 超出範圍的值視為 0。
   static int get appLanguage {
     final v = _prefs?.getInt(_appLanguageKey) ?? 0;
-    return v >= 0 && v <= 3 ? v : 0;
+    return v >= 0 && v <= 4 ? v : 0;
   }
 
   /// 設定介面語言（重新啟動前必須 await，確保已寫入）
   static Future<void> setAppLanguage(int value) async {
-    assert(value >= 0 && value <= 3);
+    assert(value >= 0 && value <= 4);
     await init();
     await _prefs!.setInt(_appLanguageKey, value);
   }

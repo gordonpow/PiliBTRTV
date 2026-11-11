@@ -276,16 +276,17 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
           },
         ),
         const SizedBox(height: 16),
-        // 語言（0 跟隨系統、1 繁體中文、2 簡體中文、3 English）
+        // 語言（0 跟隨系統、1 繁體中文、2 簡體中文、3 English、4 原文）
         SettingPickerRow<int>(
           label: '語言',
-          subtitle: '切換語言（繁體／簡體／English），重新啟動後生效',
+          subtitle: '切換語言（繁體／簡體／English／原文），重新啟動後生效',
           value: SettingsService.appLanguage,
-          items: const [0, 1, 2, 3],
+          items: const [0, 1, 2, 3, 4],
           itemLabel: (v) => switch (v) {
             1 => '繁體中文',
             2 => '簡體中文',
             3 => 'English',
+            4 => '原文（不轉換）',
             _ => '跟隨系統',
           },
           onMoveUp: null,

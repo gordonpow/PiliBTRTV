@@ -68,6 +68,9 @@ void main() {
       expect(ZhConvert.resolve(1), ZhScript.traditional);
       expect(ZhConvert.resolve(2), ZhScript.simplified);
       expect(ZhConvert.resolve(3), ZhScript.english);
+      // 4 原文：介面繁體，不做繁簡轉換（#38）
+      expect(ZhConvert.resolve(4), ZhScript.traditional);
+      expect(ZhConvert.needsEnglishPack(4), isFalse);
     });
 
     test('中文系統語言', () {

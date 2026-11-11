@@ -79,7 +79,7 @@ abstract final class SettingsIndex {
     ),
     SettingsEntry(
       '語言',
-      '切換語言（繁體／簡體／English），重新啟動後生效',
+      '切換語言（繁體／簡體／English／原文），重新啟動後生效',
       SettingsCategory.interface_,
     ),
     SettingsEntry(

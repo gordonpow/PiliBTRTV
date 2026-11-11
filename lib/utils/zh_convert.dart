@@ -36,10 +36,15 @@ abstract final class ZhConvert {
   static Locale Function() localeProvider = () =>
       PlatformDispatcher.instance.locale;
 
+  /// 語言設定 4「原文」：介面維持原始繁體字串，B 站內容（標題、留言、
+  /// 彈幕、字幕）照伺服器原文顯示，不載入繁簡表。
+  static bool original = false;
+
   /// Script for the language setting ([SettingsService.appLanguage]):
-  /// 0 follow system, 1 Traditional, 2 Simplified, 3 English.
+  /// 0 follow system, 1 Traditional, 2 Simplified, 3 English,
+  /// 4 original (Traditional UI, no conversion).
   static ZhScript resolve(int language) => switch (language) {
-    1 => ZhScript.traditional,
+    1 || 4 => ZhScript.traditional,
     2 => ZhScript.simplified,
     3 => ZhScript.english,
     _ => systemScript,
@@ -104,11 +109,14 @@ abstract final class ZhConvert {
       await I18nPack.load();
     }
     script = resolve(language);
+    original = language == 4;
     if (wantsEnglish) {
       // 沒有語言包（首次啟動或檔案損毀）或到了檢查時間：背景下載，
       // 失敗 24 小時內不重試，下次啟動生效。
       I18nPack.maybeUpdateInBackground(appVersion: btrVersion);
     }
+    // 原文模式：沒有繁簡表時 convert 直接回傳原字串。
+    if (original) return;
     try {
       final simplified = script == ZhScript.simplified;
       final raw = await rootBundle.loadString(
@@ -133,6 +141,7 @@ abstract final class ZhConvert {
   @visibleForTesting
   static void resetForTest() {
     script = ZhScript.traditional;
+    original = false;
     _table = const {};
     _maxLenByFirst = const {};
     _exact = const {};
