@@ -34,10 +34,11 @@ abstract final class CtrlBtn {
   static const int danmaku = 5; // 彈幕
   static const int subtitle = 6; // 字幕
   static const int settings = 7; // 設定
-  static const int like = 8; // 點讚
-  static const int coin = 9; // 投幣
-  static const int fav = 10; // 收藏
-  static const int count = 11;
+  static const int info = 8; // 簡介／留言
+  static const int like = 9; // 點讚
+  static const int coin = 10; // 投幣
+  static const int fav = 11; // 收藏
+  static const int count = 12;
 }
 
 /// 播放器狀態 Mixin
@@ -243,6 +244,7 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   // 新面板
   bool upSpaceOpen = false; // UP主全螢幕頁面開啟中（禁止播放器自行導航、防重入）
   bool showRelatedPanel = false;
+  bool showInfoPanel = false; // 簡介／留言面板
   bool relatedExpanded = false; // 相關影片：false = 一排，true = 展開
 
   // 進度條聚焦模式

@@ -14,6 +14,7 @@ import 'widgets/subtitle_layer.dart';
 import 'widgets/controls_overlay.dart';
 import 'widgets/settings_panel.dart';
 import 'widgets/episode_panel.dart';
+import 'widgets/info_panel.dart';
 import 'widgets/pause_indicator.dart';
 import 'widgets/related_strip.dart';
 import 'widgets/up_next_card.dart';
@@ -306,6 +307,15 @@ class _PlayerScreenState extends State<PlayerScreen>
                     });
                   },
                   onQualityPicker: showQualityPicker,
+                ),
+
+              // 簡介／留言面板
+              if (showInfoPanel)
+                InfoPanel(
+                  videoInfo: fullVideoInfo,
+                  aid: aid ?? 0,
+                  isPgc: isPgc,
+                  onClose: closeInfoPanel,
                 ),
 
               // 播完倒數卡片

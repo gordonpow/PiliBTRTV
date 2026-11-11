@@ -626,6 +626,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         fullVideoInfo = videoInfo; // 儲存完整影片資訊
         episodes = videoInfo['pages'] ?? [];
         aid = videoInfo['aid']; // 儲存 aid 用於操作 API
+        showInfoPanel = false; // 換影片：關閉簡介／留言面板
       }
     });
 
@@ -2396,6 +2397,20 @@ mixin PlayerActionMixin on PlayerStateMixin {
     });
   }
 
+  /// 關閉簡介／留言面板，焦點回到控制列的「簡介」按鈕
+  void closeInfoPanel() {
+    if (!mounted) return;
+    setState(() {
+      showInfoPanel = false;
+      showControls = true;
+      focusedButtonIndex = CtrlBtn.info;
+    });
+    startHideTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) playerFocusNode.requestFocus();
+    });
+  }
+
   /// 開始倒數：隱藏控制列、顯示「接下來播放」卡片。
   void startUpNext(UpNextInfo info, int seconds) {
     hideTimer?.cancel();
@@ -2909,6 +2924,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       isLoading = true;
       errorMessage = null;
       showEpisodePanel = false;
+      showInfoPanel = false; // 換集：關閉簡介／留言面板
       lastDanmakuIndex = 0;
       danmakuList = [];
       hasHandledVideoComplete = false; // 重置播放完成標誌，確保下一集播完後能繼續觸發自動播放

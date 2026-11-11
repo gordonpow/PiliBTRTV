@@ -22,11 +22,13 @@ import 'api/videoshot_api.dart';
 import 'api/pgc_api.dart';
 import 'api/space_api.dart';
 import 'api/fav_api.dart';
+import 'api/reply_api.dart';
 import 'settings_service.dart' show VideoCodec;
 import 'audio_track.dart' show AudioKind;
 import '../models/space_data.dart';
 import '../models/video.dart';
 import '../models/videoshot.dart';
+import '../models/reply_item.dart';
 
 /// Bilibili API 服務 (門面模式)
 /// 保持與原有介面完全相容
@@ -251,4 +253,12 @@ class BilibiliApi {
   /// 檢查是否已關注
   static Future<bool> checkFollowStatus(int mid) =>
       InteractionApi.checkFollowStatus(mid);
+
+  // ========== 留言相關 ==========
+
+  /// 取得熱門留言（WBI 簽章，失敗回傳 null）
+  static Future<ReplyPage?> getReplies({
+    required int aid,
+    String offset = '',
+  }) => ReplyApi.getReplies(aid: aid, offset: offset);
 }

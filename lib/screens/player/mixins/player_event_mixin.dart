@@ -66,6 +66,11 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return;
     }
 
+    if (showInfoPanel) {
+      closeInfoPanel();
+      return;
+    }
+
     // 預覽模式下按返回鍵取消預覽
     if (isSeekPreviewMode) {
       cancelPreviewSeek();
@@ -117,6 +122,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
       !showSettingsPanel &&
       !showEpisodePanel &&
       !showRelatedPanel &&
+      !showInfoPanel &&
       upNextSeconds == null;
 
   void _fireDanmakuHold() {
@@ -283,6 +289,18 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.ignored;
     }
 
+    // 簡介／留言面板：自管焦點，只處理返回鍵（其餘交給面板）
+    if (showInfoPanel) {
+      if (PlayerFocusHandler.isBackKey(event) && event is KeyDownEvent) {
+        if (event.logicalKey != LogicalKeyboardKey.escape) {
+          backKeyJustHandled = true;
+        }
+        closeInfoPanel();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
     // 控制欄顯示時
     if (showControls) {
       return _handleControlsVisibleKeyEvent(event);
@@ -392,6 +410,12 @@ mixin PlayerEventMixin on PlayerActionMixin {
       case CtrlBtn.settings: // 設定
         setState(() {
           showSettingsPanel = true;
+          hideTimer?.cancel();
+        });
+        break;
+      case CtrlBtn.info: // 簡介／留言
+        setState(() {
+          showInfoPanel = true;
           hideTimer?.cancel();
         });
         break;

@@ -293,6 +293,11 @@ class ControlsOverlay extends StatelessWidget {
                         index: CtrlBtn.settings,
                         icon: Icons.tune,
                       ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.info,
+                        icon: Icons.article_outlined,
+                      ),
                       // 左側按鈕群與右側（讚/幣/藏）至少間隔 48，避免字幕鈕加入後貼在一起
                       const Spacer(),
                       // 依設定過濾後，按鈕之間才補間距；全部隱藏時不留間距
