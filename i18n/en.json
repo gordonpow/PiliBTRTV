@@ -493,7 +493,8 @@
   "驗證失敗": "Verification failed",
   "驗證碼已過期，請重新取得": "Code expired. Get a new one",
   "（無版本說明）": "(no release notes)",
-  "（隧道模式，掉幀統計可能不準）": "(Tunnel mode, dropped frame stats may be inaccurate)"
+  "（隧道模式，掉幀統計可能不準）": "(Tunnel mode, dropped frame stats may be inaccurate)",
+  "網路速度不足，建議降低畫質": "Network too slow. Consider lowering the quality"
  },
  "templates": {
   "4K60效能點={0}": "4K60 score={0}",
@@ -604,7 +605,11 @@
   "隧道支援={0} ": "Tunnel support={0} ",
   "隱藏播放量低於 {0} 的影片": "Hide videos with fewer than {0} views",
   "（報告產生失敗：{0}）": "(Report failed: {0})",
-  "（報告產生失敗：{0}）\n": "(Report failed: {0})\n"
+  "（報告產生失敗：{0}）\n": "(Report failed: {0})\n",
+  "網路速度不足，已自動降為 {0}": "Network too slow. Quality lowered to {0}",
+  "手動 ({0})": "Manual ({0})",
+  "自動 ({0})": "Auto ({0})",
+  "自動 ({0}，動態提升至 {1})": "Auto ({0}, dynamically raised to {1})"
  },
  "version": "202611111001"
 }

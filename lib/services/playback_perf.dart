@@ -2,7 +2,7 @@ import 'dart:ffi' show Abi;
 
 import 'settings_service.dart' show VideoCodec;
 
-/// 播放效能的純函式與狀態：掉幀率、自動降畫質判斷、32 位元 4K 略過 BTR、log 格式。
+/// 播放效能的純函式與狀態：掉幀率、自動降畫質判斷、log 格式。
 
 /// 自動降畫質的掉幀率門檻（區間掉幀 ÷ 預期影格數）
 const double kDropRateThreshold = 0.15;
@@ -27,14 +27,6 @@ bool isProcess32Bit([Abi? abi]) {
   final a = abi ?? Abi.current();
   return a == Abi.androidArm || a == Abi.androidIA32;
 }
-
-/// 是否為 4K 串流：高 >= 2160 或 qn >= 120
-bool is4kStream({int? qn, int? height}) =>
-    (height ?? 0) >= 2160 || (qn ?? 0) >= 120;
-
-/// 32 位元裝置播 4K 時略過 BTR 代理
-bool shouldSkipBtr({required bool is32Bit, int? qn, int? height}) =>
-    is32Bit && is4kStream(qn: qn, height: height);
 
 /// qn 對應的畫面高度（只列 4K 以上，其餘回 0，不做同解析度過濾）
 int _bigTierHeight(int qn) {
@@ -180,6 +172,53 @@ bool isDecoderStall({
     bufferingFor >= const Duration(seconds: kStallBufferingSeconds) &&
     bufferedAheadMs != null &&
     bufferedAheadMs >= kStallBufferedAheadMs;
+
+/// 是否判定為網路不足：使用者想播放、緩衝中超過門檻，且播放位置之後的資料很少
+/// （與 [isDecoderStall] 互斥：前方資料足夠才是解碼問題）。
+bool isNetworkStarved({
+  required bool playWhenReady,
+  required int? playbackState,
+  required Duration bufferingFor,
+  required int? bufferedAheadMs,
+}) =>
+    playWhenReady &&
+    playbackState == 2 &&
+    bufferingFor >= const Duration(seconds: kStallBufferingSeconds) &&
+    bufferedAheadMs != null &&
+    bufferedAheadMs < kStallBufferedAheadMs;
+
+/// 短時間內反覆重新緩衝的次數門檻與時間窗
+const int kRebufferBurstCount = 3;
+const Duration kRebufferBurstWindow = Duration(seconds: 60);
+
+/// 最近 [kRebufferBurstWindow] 內的重新緩衝起點是否達 [kRebufferBurstCount] 次
+bool isRepeatedRebuffer(List<DateTime> starts, DateTime now) =>
+    starts.where((t) => now.difference(t) <= kRebufferBurstWindow).length >=
+    kRebufferBurstCount;
+
+/// 網路不足時，CPU 低於此值才動態增加 BTR 執行緒（百分比）
+const double kBoostThreadsCpuMax = 60;
+
+/// 網路不足時的處理動作
+enum NetStarveAction { boostThreads, lowerQuality }
+
+/// 網路不足時依序升級：增加 BTR 執行緒 → 降畫質。
+/// 只有「自動執行緒」且 CPU 數值可用（未達門檻）時才不降畫質；其餘一律降畫質。
+NetStarveAction decideNetStarveAction({
+  required bool btrActive,
+  required bool autoThreads,
+  required int boostLevel,
+  required int maxBoost,
+  required double? cpuPercent,
+}) {
+  final cpu = cpuPercent;
+  if (autoThreads && cpu != null) {
+    if (btrActive && boostLevel < maxBoost && cpu < kBoostThreadsCpuMax) {
+      return NetStarveAction.boostThreads;
+    }
+  }
+  return NetStarveAction.lowerQuality;
+}
 
 /// 卡住時的下一個編碼：av01 -> hevc、hev -> avc、avc -> null；跳過 [tried] 已有的家族。
 VideoCodec? nextStallCodec(String currentCodec, Set<String> tried) {

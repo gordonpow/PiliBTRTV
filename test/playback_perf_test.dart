@@ -5,6 +5,7 @@ import 'package:bili_tv_app/services/settings_service.dart' show VideoCodec;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  networkStarvedTests();
   test('dropRate', () {
     expect(dropRate(30, 60, 10), closeTo(0.05, 1e-9));
     expect(dropRate(0, 60, 10), 0);
@@ -20,14 +21,10 @@ void main() {
     expect(nextLowerQn([16, 32], 16), isNull);
   });
 
-  test('32 位元 4K 略過 BTR', () {
+  test('isProcess32Bit', () {
     expect(isProcess32Bit(Abi.androidArm), isTrue);
     expect(isProcess32Bit(Abi.androidIA32), isTrue);
     expect(isProcess32Bit(Abi.androidArm64), isFalse);
-    expect(shouldSkipBtr(is32Bit: true, qn: 120), isTrue);
-    expect(shouldSkipBtr(is32Bit: true, height: 2160), isTrue);
-    expect(shouldSkipBtr(is32Bit: true, qn: 80, height: 1080), isFalse);
-    expect(shouldSkipBtr(is32Bit: false, qn: 120), isFalse);
   });
 
   test('cpuPercent', () {
@@ -242,6 +239,74 @@ void main() {
     test('沒有更低畫質回 null', () {
       expect(nonHdrFallbackQn([126, 125], 125), isNull);
       expect(nonHdrFallbackQn(const [], 125), isNull);
+    });
+  });
+}
+
+void networkStarvedTests() {
+  group('isNetworkStarved', () {
+    bool f({bool pwr = true, int? st = 2, int sec = 9, int? ahead = 4000}) =>
+        isNetworkStarved(
+          playWhenReady: pwr,
+          playbackState: st,
+          bufferingFor: Duration(seconds: sec),
+          bufferedAheadMs: ahead,
+        );
+    test('緩衝夠久且前方資料少 → true', () => expect(f(), isTrue));
+    test('前方資料足夠 → false（交給解碼卡住判斷）', () {
+      expect(f(ahead: 10000), isFalse);
+    });
+    test('緩衝時間不足、非緩衝狀態、未播放、無資料 → false', () {
+      expect(f(sec: 7), isFalse);
+      expect(f(st: 3), isFalse);
+      expect(f(pwr: false), isFalse);
+      expect(f(ahead: null), isFalse);
+    });
+  });
+
+  group('isRepeatedRebuffer', () {
+    final now = DateTime(2026, 1, 1, 12);
+    test('60 秒內 3 次 → true', () {
+      final l = [10, 30, 50].map((s) => now.subtract(Duration(seconds: s)));
+      expect(isRepeatedRebuffer(l.toList(), now), isTrue);
+    });
+    test('超出時間窗或不足 3 次 → false', () {
+      final l = [10, 30, 70].map((s) => now.subtract(Duration(seconds: s)));
+      expect(isRepeatedRebuffer(l.toList(), now), isFalse);
+      expect(isRepeatedRebuffer([now], now), isFalse);
+    });
+  });
+
+  group('decideNetStarveAction', () {
+    NetStarveAction d({
+      bool btrActive = true,
+      bool auto = true,
+      int level = 0,
+      int max = 2,
+      double? cpu = 30,
+    }) => decideNetStarveAction(
+      btrActive: btrActive,
+      autoThreads: auto,
+      boostLevel: level,
+      maxBoost: max,
+      cpuPercent: cpu,
+    );
+
+    test('CPU 低且自動執行緒：增加執行緒', () {
+      expect(d(), NetStarveAction.boostThreads);
+      expect(d(level: 1), NetStarveAction.boostThreads);
+    });
+    test('CPU 達 60% 以上降畫質', () {
+      expect(d(cpu: 60), NetStarveAction.lowerQuality);
+      expect(d(cpu: 59.9), NetStarveAction.boostThreads);
+    });
+    test('CPU 未知、手動模式、已達上限：降畫質', () {
+      expect(d(cpu: null), NetStarveAction.lowerQuality);
+      expect(d(auto: false), NetStarveAction.lowerQuality);
+      expect(d(level: 2), NetStarveAction.lowerQuality);
+    });
+    test('BTR 未使用：降畫質', () {
+      expect(d(btrActive: false), NetStarveAction.lowerQuality);
     });
   });
 }

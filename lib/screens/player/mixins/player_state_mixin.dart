@@ -135,6 +135,20 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   Timer? stallTimer;
   DateTime? bufferingSince;
   final Set<String> stallTriedCodecs = {};
+  // 網路不足偵測：重新緩衝起點、已因網路降過的畫質、是否已記錄過提示
+  final List<DateTime> rebufferStarts = [];
+
+  /// 本次播放器（含換畫質重載）開始統計的時間；開播初期的緩衝不算重複緩衝
+  DateTime statsStartedAt = DateTime.now();
+
+  /// 最近一次使用者跳轉的時間；跳轉後的緩衝不算重複緩衝
+  DateTime? lastUserSeekAt;
+  final Set<int> netDowngradeTried = {};
+  bool netStarveNotified = false;
+
+  /// 最近一次 CPU 取樣（百分比）與時間，供網路不足時判斷是否還有餘力
+  double? perfLastCpu;
+  DateTime? perfLastCpuAt;
   bool stallSwitching = false;
   int reloadGen = 0; // 每次 _reloadWithCodec 遞增，讓舊流程作廢
   Map<String, dynamic>? currentStream; // 選定的影片串流（DASH）

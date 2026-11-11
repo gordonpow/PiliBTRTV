@@ -226,11 +226,7 @@ class PlaybackPreparer {
                 .toList() ??
             const <String>[];
         playUrl = rawUrl.isNotEmpty
-            ? await BtrProxy.wrap(
-                rawUrl,
-                backups: backups,
-                qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
-              )
+            ? await BtrProxy.wrap(rawUrl, backups: backups)
             : null;
       }
       // 被取消就不能覆寫 LocalServer 的 MPD

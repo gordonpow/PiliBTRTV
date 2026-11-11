@@ -333,11 +333,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
                   .toList() ??
               const <String>[];
           playUrl = rawUrl.isNotEmpty
-              ? await BtrProxy.wrap(
-                  rawUrl,
-                  backups: backups,
-                  qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
-                )
+              ? await BtrProxy.wrap(rawUrl, backups: backups)
               : null;
         }
 
@@ -1158,11 +1154,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 .toList() ??
             const <String>[];
         playUrl = rawUrl.isNotEmpty
-            ? await BtrProxy.wrap(
-                rawUrl,
-                backups: backups,
-                qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
-              )
+            ? await BtrProxy.wrap(rawUrl, backups: backups)
             : null;
       }
 
@@ -1240,6 +1232,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
       perfTracker.resetForVideo();
       perfCid = cid;
       stallTriedCodecs.clear();
+      rebufferStarts.clear();
+      netDowngradeTried.clear();
+      netStarveNotified = false;
+      BtrProxy.threadBoostLevel = 0;
+      perfLastCpu = null;
+      perfLastCpuAt = null;
     } else {
       perfTracker.resetInterval();
     }
@@ -1256,6 +1254,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     );
     stallTimer?.cancel();
     bufferingSince = null;
+    statsStartedAt = DateTime.now();
     stallTimer = Timer.periodic(
       const Duration(seconds: 2),
       (_) => unawaited(_stallTick(gen)),
@@ -1270,7 +1269,23 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     final state = (s['playbackState'] as num?)?.toInt();
     if (state == 2) {
-      bufferingSince ??= DateTime.now();
+      if (bufferingSince == null) {
+        final now = DateTime.now();
+        bufferingSince = now;
+        // 開播（或換畫質）後 10 秒內、使用者跳轉後 5 秒內的緩衝是正常載入，
+        // 不列入「60 秒內重複緩衝」計數，避免誤判網路不足
+        final seekAt = lastUserSeekAt;
+        final normalLoad =
+            now.difference(statsStartedAt) < const Duration(seconds: 10) ||
+            (seekAt != null &&
+                now.difference(seekAt) < const Duration(seconds: 5));
+        if (!normalLoad && s['playWhenReady'] == true) {
+          rebufferStarts.add(now);
+        }
+        rebufferStarts.removeWhere(
+          (t) => now.difference(t) > kRebufferBurstWindow,
+        );
+      }
     } else {
       bufferingSince = null;
     }
@@ -1284,11 +1299,21 @@ mixin PlayerActionMixin on PlayerStateMixin {
       bufferingFor: bufferingFor,
       bufferedAheadMs: aheadMs,
     );
-    if (!stalled ||
-        isLoading ||
-        stallSwitching ||
-        isFallingBackToAvc ||
-        perfDowngrading) {
+    if (isLoading || stallSwitching || isFallingBackToAvc || perfDowngrading) {
+      return;
+    }
+    if (!stalled) {
+      final starved =
+          isNetworkStarved(
+            playWhenReady: s['playWhenReady'] == true,
+            playbackState: state,
+            bufferingFor: bufferingFor,
+            bufferedAheadMs: aheadMs,
+          ) ||
+          isRepeatedRebuffer(rebufferStarts, DateTime.now());
+      if (starved && s['playWhenReady'] == true) {
+        await _handleNetworkStarved(bufferingFor, aheadMs);
+      }
       return;
     }
 
@@ -1330,6 +1355,91 @@ mixin PlayerActionMixin on PlayerStateMixin {
     // 同時記下目標家族：forceCodec 找不到時 API 可能又回原編碼，避免重載迴圈
     stallTriedCodecs.add(next.prefix);
     await _reloadWithCodec(next, resume: lastPlaybackPosition);
+  }
+
+  /// 網路不足：高於 1080P 時自動降一級畫質（每個畫質每部影片最多一次）。
+  /// 使用者手動選過畫質只提示一次；已 <= 1080P 只記錄一次。不自動改音軌。
+  Future<void> _handleNetworkStarved(
+    Duration bufferingFor,
+    int? aheadMs,
+  ) async {
+    final from = currentQuality;
+    final bufSec = bufferingFor.inSeconds;
+    final aheadSec = ((aheadMs ?? 0) / 1000).toStringAsFixed(1);
+    final audio = currentAudioKind.name;
+    // 重新起算，避免同一次緩衝重複觸發
+    bufferingSince = DateTime.now();
+    rebufferStarts.clear();
+
+    // 網路不足但 CPU 還有餘力時，先加 BTR 執行緒，不急著降畫質
+    final st = currentStream;
+    final stBandwidth = (st?['bandwidth'] as num?)?.toInt() ?? 0;
+    final stUrl = (st?['baseUrl'] ?? st?['base_url'])?.toString() ?? '';
+    final btrEligible =
+        BtrConfig.playback && stUrl.isNotEmpty && BtrProxy.isEligible(stUrl);
+    final level = BtrProxy.threadBoostLevel;
+    final curThreads = BtrProxy.threadsFor(stBandwidth);
+    final nextThreads = BtrProxy.boostedThreads(
+      BtrProxy.baseThreadsFor(stBandwidth),
+      level + 1,
+    );
+    final cpu = _recentCpu;
+    final action = decideNetStarveAction(
+      btrActive: btrEligible && st != null,
+      autoThreads: BtrConfig.autoThreads,
+      boostLevel: level,
+      maxBoost: nextThreads > curThreads ? level + 1 : level,
+      cpuPercent: cpu,
+    );
+    final cpuText = cpu == null ? '?' : '${cpu.round()}%';
+    if (action == NetStarveAction.boostThreads) {
+      BtrProxy.threadBoostLevel = level + 1;
+      PerfLog.add('網路不足 增加 BTR 執行緒 $curThreads→$nextThreads cpu=$cpuText');
+      return;
+    }
+
+    if (from <= 80) {
+      if (netStarveNotified) return;
+      netStarveNotified = true;
+      PerfLog.add(
+        '網路不足 已是 1080P 以下 qn=$from 緩衝=${bufSec}s 前方=${aheadSec}s audio=$audio',
+      );
+      return;
+    }
+    if (perfTracker.userPicked) {
+      if (netStarveNotified) return;
+      netStarveNotified = true;
+      PerfLog.add(
+        '網路不足 使用者已手動選畫質 qn=$from 緩衝=${bufSec}s 前方=${aheadSec}s audio=$audio',
+      );
+      showZhToast(msg: '網路速度不足，建議降低畫質', toastLength: Toast.LENGTH_LONG);
+      return;
+    }
+    if (!netDowngradeTried.add(from)) return;
+    final target = nextLowerQn(
+      qualities.map((q) => (q['qn'] as num?)?.toInt() ?? 0).where((q) => q > 0),
+      from,
+    );
+    if (target == null) {
+      PerfLog.add(
+        '網路不足 無更低畫質 qn=$from 緩衝=${bufSec}s 前方=${aheadSec}s audio=$audio',
+      );
+      return;
+    }
+    var name = '${target}P';
+    for (final q in qualities) {
+      if (q['qn'] == target && q['desc'] != null) name = q['desc'].toString();
+    }
+    PerfLog.add(
+      '網路不足 自動降畫質 qn=$from→$target 緩衝=${bufSec}s 前方=${aheadSec}s audio=$audio',
+    );
+    showZhToast(msg: '網路速度不足，已自動降為 $name', toastLength: Toast.LENGTH_LONG);
+    perfDowngrading = true;
+    try {
+      await switchQuality(target, auto: true, doneMsg: '');
+    } finally {
+      perfDowngrading = false;
+    }
   }
 
   /// 卡住時以指定編碼重新載入同一畫質與位置。不寫入任何永久設定。
@@ -1452,11 +1562,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 .toList() ??
             const <String>[];
         playUrl = rawUrl.isNotEmpty
-            ? await BtrProxy.wrap(
-                rawUrl,
-                backups: backups,
-                qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
-              )
+            ? await BtrProxy.wrap(rawUrl, backups: backups)
             : null;
         if (!alive()) return;
       }
@@ -1512,13 +1618,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
     final st = currentStream;
     final codec = st?['codecs'] ?? currentCodec;
-    final btrUsed =
-        BtrConfig.playback &&
-        !shouldSkipBtr(
-          is32Bit: isProcess32Bit(),
-          qn: currentQuality,
-          height: (st?['height'] as num?)?.toInt(),
-        );
+    final btrUsed = BtrConfig.playback;
     PerfLog.add(
       '播放開始 abi=${Abi.current()} cores=${info?['cores']} '
       'memClass=${info?['memoryClass']}MB lowRam=${info?['isLowRam']} '
@@ -1581,7 +1681,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     perfPrevJiffies = j;
     perfPrevElapsedMs = ms;
     if (pj == null || pm == null) return null;
-    return cpuPercent(
+    final cpu = cpuPercent(
       prevJiffies: pj,
       prevElapsedMs: pm,
       curJiffies: j,
@@ -1589,6 +1689,21 @@ mixin PlayerActionMixin on PlayerStateMixin {
       hz: perfHz,
       cores: perfCores,
     );
+    if (cpu != null) {
+      perfLastCpu = cpu;
+      perfLastCpuAt = DateTime.now();
+    }
+    return cpu;
+  }
+
+  /// 最近 30 秒內的 CPU 取樣；太舊或沒有回 null
+  double? get _recentCpu {
+    final at = perfLastCpuAt;
+    if (at == null ||
+        DateTime.now().difference(at) > const Duration(seconds: 30)) {
+      return null;
+    }
+    return perfLastCpu;
   }
 
   Future<void> _perfTick(int gen) async {
@@ -2538,6 +2653,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
   /// 確認預覽跳轉 (AC-B3, AC-B4)
   void confirmPreviewSeek() {
+    lastUserSeekAt = DateTime.now();
     autoSeekTimer?.cancel();
     endSeekHold();
     if (previewPosition != null && videoController != null) {
@@ -2858,11 +2974,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 .toList() ??
             const <String>[];
         playUrl = rawUrl.isNotEmpty
-            ? await BtrProxy.wrap(
-                rawUrl,
-                backups: backups,
-                qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
-              )
+            ? await BtrProxy.wrap(rawUrl, backups: backups)
             : null;
       }
 
@@ -3108,11 +3220,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
                 .toList() ??
             const <String>[];
         playUrl = rawUrl.isNotEmpty
-            ? await BtrProxy.wrap(
-                rawUrl,
-                backups: backups,
-                qn: (playInfo['currentQuality'] as num?)?.toInt() ?? 0,
-              )
+            ? await BtrProxy.wrap(rawUrl, backups: backups)
             : null;
       }
 

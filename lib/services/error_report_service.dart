@@ -4,6 +4,7 @@ import 'package:bili_tv_app/btr_version.dart';
 import 'package:bili_tv_app/services/audio_support.dart';
 import 'package:bili_tv_app/services/auth_service.dart';
 import 'package:bili_tv_app/services/btr/btr_config.dart';
+import 'package:bili_tv_app/services/btr/btr_proxy.dart';
 import 'package:bili_tv_app/services/log_service.dart';
 import 'package:bili_tv_app/services/perf_log.dart';
 import 'package:bili_tv_app/services/settings_service.dart';
@@ -73,9 +74,7 @@ class ErrorReportService {
     b.writeln('== 設定摘要 ==');
     b.writeln('BTR 多執行緒播放: ${BtrConfig.playback ? '開' : '關'}');
     b.writeln('CDN 模式: ${BtrConfig.cdnMode.name}');
-    b.writeln(
-      '執行緒: ${BtrConfig.autoThreads ? '自動' : '手動'} (${BtrConfig.playbackThreads})',
-    );
+    b.writeln('執行緒: ${BtrProxy.effectiveThreadsSummary}');
     b.writeln(
       '畫面模式: ${SettingsService.playerTextureView ? 'textureView' : 'platformView'}',
     );

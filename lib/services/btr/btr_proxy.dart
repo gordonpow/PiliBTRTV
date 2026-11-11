@@ -19,7 +19,6 @@ import 'package:bili_tv_app/services/btr/btr_cdn.dart'
     show BtrNode, BtrNodePool, btrDio, http11Dio;
 import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'package:bili_tv_app/services/btr/btr_host_ranker.dart';
-import 'package:bili_tv_app/services/perf_log.dart';
 import 'package:bili_tv_app/services/playback_perf.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
@@ -40,6 +39,36 @@ abstract final class BtrProxy {
   /// playing MPD keeps working. The server stays up.
   static void reset() {
     _idByUrl.clear();
+  }
+
+  /// 網路不足時的動態執行緒提升級數（0、1、2；僅自動模式有效，換影片時歸零）。
+  static int threadBoostLevel = 0;
+
+  /// 執行緒上限：32 位元程序 16，其餘 32。
+  static int get threadCap => isProcess32Bit() ? 16 : 32;
+
+  /// 自動模式的基礎執行緒數（高位元率 16，其餘 8），手動模式為使用者設定值。
+  static int baseThreadsFor(int bandwidth) =>
+      BtrConfig.autoThreads && bandwidth >= 8000000
+      ? 16
+      : BtrConfig.playbackThreads;
+
+  /// 套用動態提升後的執行緒數：自動模式 base × 2^level，上限 [threadCap]。
+  static int boostedThreads(int base, int level) {
+    if (!BtrConfig.autoThreads || level <= 0 || base >= threadCap) return base;
+    return math.min(threadCap, base << level);
+  }
+
+  /// 某位元率的串流目前實際使用的執行緒數。
+  static int threadsFor(int bandwidth) =>
+      boostedThreads(baseThreadsFor(bandwidth), threadBoostLevel);
+
+  /// 錯誤回報用的執行緒摘要，如 `自動 (8，動態提升至 16)`。
+  static String get effectiveThreadsSummary {
+    final base = BtrConfig.playbackThreads;
+    if (!BtrConfig.autoThreads) return '手動 ($base)';
+    final boosted = boostedThreads(base, threadBoostLevel);
+    return boosted > base ? '自動 ($base，動態提升至 $boosted)' : '自動 ($base)';
   }
 
   /// Max number of media URLs kept. Older ones are removed first.
@@ -64,17 +93,9 @@ abstract final class BtrProxy {
     String url, {
     List<String> backups = const [],
     int bandwidth = 0,
-    int qn = 0,
-    int height = 0,
-    bool logSkip = true,
   }) async {
     try {
       if (!BtrConfig.playback || !isEligible(url)) return url;
-      // 32 位元裝置播 4K：代理本身吃 CPU，略過並讓播放器直連原始網址
-      if (shouldSkipBtr(is32Bit: isProcess32Bit(), qn: qn, height: height)) {
-        if (logSkip) PerfLog.add('32 位元裝置 4K 略過 BTR');
-        return url;
-      }
       final server = await _ensureServer();
       final src = _http2https(url);
       final id = _register(src, backups, bandwidth).id;
@@ -220,9 +241,7 @@ class _BtrSource {
   int bandwidth = 0;
 
   /// Threads per player request: high-bitrate streams use 16 in auto mode.
-  int get threads => BtrConfig.autoThreads && bandwidth >= 8000000
-      ? 16
-      : BtrConfig.playbackThreads;
+  int get threads => BtrProxy.threadsFor(bandwidth);
 
   /// Bytes written to the player's responses.
   int served = 0;
