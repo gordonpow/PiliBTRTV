@@ -1,4 +1,5 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/video.dart';
 import 'base_tv_card.dart';
@@ -169,6 +170,7 @@ class TvVideoCard extends StatelessWidget {
               child: isFocused
                   ? ConditionalMarquee(
                       text: video.title,
+                      content: true,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -177,7 +179,7 @@ class TvVideoCard extends StatelessWidget {
                       blankSpace: 30.0,
                       velocity: 30.0, // 稍微慢一點
                     )
-                  : Text(
+                  : ContentText(
                       video.title,
                       style: const TextStyle(
                         color: Colors.white70,
@@ -201,12 +203,25 @@ class TvVideoCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 // UP主名字 - 可省略
                 Expanded(
-                  child: Text(
-                    video.ownerName,
-                    style: const TextStyle(color: Colors.white38, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: video.ownerIsContent
+                      ? ContentText(
+                          video.ownerName,
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : Text(
+                          video.ownerName,
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                 ),
                 // 釋出時間 - 固定位置，不省略
                 if (video.pubdateFormatted.isNotEmpty)

@@ -165,6 +165,29 @@ abstract final class ZhConvert {
     return result;
   }
 
+  /// 轉換 B 站內容（標題、UP 主名稱、字幕）。繁體、簡體模式與 [convert]
+  /// 相同；英文模式只轉繁體顯示，不查語言包字典（內容不是介面字串）。
+  static String convertContent(String raw) {
+    if (script != ZhScript.english) return convert(raw);
+    if (raw.isEmpty || _table.isEmpty) return raw;
+    // 與介面字串共用快取，key 加前綴避免和 convert 的結果混在一起。
+    final cacheable = raw.length <= _cacheMaxLength;
+    final key = '$raw';
+    if (cacheable) {
+      final hit = _cache.remove(key);
+      if (hit != null) {
+        _cache[key] = hit;
+        return hit;
+      }
+    }
+    final result = _convert(raw);
+    if (cacheable) {
+      if (_cache.length >= _cacheSize) _cache.remove(_cache.keys.first);
+      _cache[key] = result;
+    }
+    return result;
+  }
+
   /// Longest match from left to right: phrases first, then characters.
   static String _convert(String text) {
     StringBuffer? out;

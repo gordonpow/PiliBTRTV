@@ -2,6 +2,7 @@ import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../utils/format_count.dart';
+import '../../../widgets/local_fav_import.dart';
 import '../../../widgets/vip_avatar_badge.dart';
 import '../../up_space/up_space_screen.dart';
 import '../../up_space/widgets/space_button.dart';
@@ -54,7 +55,9 @@ class ProfileTabState extends State<ProfileTab> {
   @override
   void didUpdateWidget(ProfileTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isVisible && !oldWidget.isVisible && !_loaded && !_loading) _load();
+    if (widget.isVisible && !oldWidget.isVisible && !_loaded && !_loading) {
+      _load();
+    }
   }
 
   @override
@@ -132,6 +135,8 @@ class ProfileTabState extends State<ProfileTab> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.sidebarFocusNode?.requestFocus();
     });
+    // 本機有收藏時詢問是否加入帳號預設收藏夾
+    maybePromptLocalFavImport(context);
   }
 
   Future<void> _confirmLogout() async {

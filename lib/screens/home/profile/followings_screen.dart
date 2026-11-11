@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/auth_service.dart';
@@ -256,7 +257,7 @@ class _FollowingCardState extends State<_FollowingCard> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  ContentText(
                     u.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -268,7 +269,7 @@ class _FollowingCardState extends State<_FollowingCard> {
                   ),
                   if (u.sign.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Text(
+                    ContentText(
                       u.sign,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

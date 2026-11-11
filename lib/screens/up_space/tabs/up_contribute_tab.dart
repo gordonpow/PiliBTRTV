@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../../../models/space_data.dart';
 import '../../../models/video.dart';
@@ -202,7 +203,7 @@ class UpContributeTabState extends State<UpContributeTab>
         if (opened != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(34, 4, 30, 0),
-            child: Text(
+            child: ContentText(
               opened.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

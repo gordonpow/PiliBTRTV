@@ -1,4 +1,5 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../mixins/player_state_mixin.dart';
 
@@ -90,7 +91,7 @@ class UpNextCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
+          ContentText(
             info.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,

@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../models/space_data.dart';
@@ -78,7 +79,7 @@ class SpaceCollectionCard extends StatelessWidget {
         children: [
           SizedBox(
             height: 20,
-            child: Text(
+            child: ContentText(
               collection.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,

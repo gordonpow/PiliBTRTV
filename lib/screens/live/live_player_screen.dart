@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/utils/format_count.dart';
 import 'package:bili_tv_app/utils/zh_convert.dart';
 import 'package:bili_tv_app/utils/zh_toast.dart';
@@ -929,7 +930,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
+                        ContentText(
                           widget.title,
                           style: const TextStyle(
                             color: Colors.white,

@@ -7,6 +7,10 @@ class Video {
   final String title;
   final String pic; // 封面圖 URL
   final String ownerName;
+
+  /// ownerName 是否為 B 站內容（UP 主名稱）。追番人數、類型標籤等介面型
+  /// 字串為 false，卡片走 Text（字典）而不是內容翻譯。
+  final bool ownerIsContent;
   final String ownerFace;
   final int ownerMid;
   final int view; // 播放量
@@ -32,6 +36,7 @@ class Video {
     required this.title,
     required this.pic,
     this.ownerName = '',
+    this.ownerIsContent = true,
     this.ownerFace = '',
     this.ownerMid = 0,
     this.view = 0,
@@ -94,6 +99,7 @@ class Video {
       pic: _fixPicUrl(json['cover'] ?? ''),
       // 卡片 UP 主位置顯示追番人數 (如 "868.4万追番")
       ownerName: (json['order'] ?? '').toString(),
+      ownerIsContent: false,
       badge: json['badge'] ?? '',
       seasonId: _toInt(json['season_id']),
       epId: _toInt(firstEp['ep_id']),
@@ -115,6 +121,7 @@ class Video {
           .where((e) => e.isNotEmpty)
           .take(3)
           .join(' / '),
+      ownerIsContent: false,
       view: _toInt(stat['view']),
       danmaku: _toInt(stat['danmaku']),
       badge: (json['badge'] ?? '').toString(),

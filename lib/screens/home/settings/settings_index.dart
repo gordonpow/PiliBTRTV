@@ -86,6 +86,12 @@ abstract final class SettingsIndex {
       englishOnly: true,
     ),
     SettingsEntry(
+      '翻譯 B 站內容',
+      '使用 Google ML Kit 在本機翻譯影片標題、UP 主名稱與字幕（需下載約 30MB 模型）',
+      SettingsCategory.interface_,
+      englishOnly: true,
+    ),
+    SettingsEntry(
       '首頁分區',
       '分區開關、分區排序 推薦 熱門 番劇 影視 遊戲 知識 科技 音樂 舞蹈 生活 美食 動畫',
       SettingsCategory.interface_,

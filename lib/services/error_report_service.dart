@@ -6,6 +6,7 @@ import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'package:bili_tv_app/services/log_service.dart';
 import 'package:bili_tv_app/services/perf_log.dart';
 import 'package:bili_tv_app/services/settings_service.dart';
+import 'package:bili_tv_app/services/translate/content_translator.dart';
 import 'package:flutter/services.dart';
 
 /// 組出去識別化的錯誤報告。
@@ -81,6 +82,10 @@ class ErrorReportService {
     b.writeln('隧道播放: ${SettingsService.playerTunneling ? '開' : '關'}');
     b.writeln('首選編碼: ${SettingsService.preferredCodec.name}');
     b.writeln('已登入: ${AuthService.isLoggedIn ? '是' : '否'}');
+    b.writeln(
+      '翻譯 B 站內容: ${SettingsService.translateContent ? '開' : '關'}，'
+      '模型: ${await ContentTranslator.instance.isModelDownloaded() ? '已下載' : '未下載'}',
+    );
 
     b.writeln();
     b.writeln('== 播放效能 ==');

@@ -1,3 +1,5 @@
+import 'package:bili_tv_app/utils/zh_convert.dart';
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:video_player/video_player.dart';
 import '../../../models/video.dart';
@@ -17,6 +19,8 @@ class ControlsOverlay extends StatelessWidget {
   final VoidCallback onEpisodes;
   final bool isDanmakuEnabled;
   final VoidCallback onToggleDanmaku;
+  final bool hasSubtitleTracks; // 沒有字幕軌時字幕按鈕變暗
+  final bool isSubtitleOn;
   final String currentQuality;
   final VoidCallback onQualityClick;
   final bool isProgressBarFocused; // 進度條是否獲得焦點
@@ -37,6 +41,8 @@ class ControlsOverlay extends StatelessWidget {
     required this.onEpisodes,
     required this.isDanmakuEnabled,
     required this.onToggleDanmaku,
+    required this.hasSubtitleTracks,
+    required this.isSubtitleOn,
     required this.currentQuality,
     required this.onQualityClick,
     required this.actions,
@@ -50,6 +56,12 @@ class ControlsOverlay extends StatelessWidget {
 
   final bool alwaysShowPlayerTime;
 
+  /// 底部控制區（含上方漸層留白）目前的實際高度，字幕層用來避開控制列。
+  static final ValueNotifier<double> bottomHeight = ValueNotifier<double>(0);
+
+  /// 底部控制區內容（進度條）上緣距離控制區頂端的留白。
+  static const double bottomTopPadding = 40;
+
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final h = duration.inHours;
@@ -59,17 +71,35 @@ class ControlsOverlay extends StatelessWidget {
     return '${twoDigits(m)}:${twoDigits(s)}';
   }
 
-  // 構建影片資訊文本
-  String _buildVideoInfoText() {
-    final parts = <String>[];
-    parts.add(video.ownerName);
+  // 構建影片資訊：UP 主名稱是 B 站內容（走 ContentText），其餘為介面字串
+  Widget _buildVideoInfo() {
+    final style = TextStyle(
+      color: Colors.white.withValues(alpha: 0.7),
+      fontSize: 18,
+    );
+    // 每段各自走字典（整串合併會對不到「{0}天前」等 template）
+    final rest = <String>[];
     if (video.pubdate > 0) {
-      parts.add('釋出於${video.pubdateFormatted}');
+      rest.add(
+        ZhConvert.convert('釋出於${ZhConvert.convert(video.pubdateFormatted)}'),
+      );
     }
     if (video.view > 0) {
-      parts.add('${video.viewFormatted}次觀看');
+      rest.add(ZhConvert.convert('${video.viewFormatted}次觀看'));
     }
-    return parts.join(' · ');
+    return Row(
+      children: [
+        Flexible(
+          child: ContentText(
+            video.ownerName,
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (rest.isNotEmpty) Text(' · ${rest.join(' · ')}', style: style),
+      ],
+    );
   }
 
   static const Color accent = Color(0xFFfb7299);
@@ -120,6 +150,7 @@ class ControlsOverlay extends StatelessWidget {
                         height: 30, // 固定高度
                         child: ConditionalMarquee(
                           text: video.title.isNotEmpty ? video.title : '載入中...',
+                          content: video.title.isNotEmpty,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 22, // 固定字號
@@ -133,13 +164,7 @@ class ControlsOverlay extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  _buildVideoInfoText(),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 18,
-                  ),
-                ),
+                _buildVideoInfo(),
               ],
             ),
           ),
@@ -173,113 +198,132 @@ class ControlsOverlay extends StatelessWidget {
           bottom: 0,
           left: 0,
           right: 0,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(40, 40, 40, 25),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withValues(alpha: 0.8),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+          child: _MeasureHeight(
+            onHeight: (h) => bottomHeight.value = h,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(40, bottomTopPadding, 40, 25),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.8),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
               ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 進度條
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: TvProgressBar(
-                        position: previewPosition ?? controller.value.position,
-                        duration: controller.value.duration,
-                        buffered: buffered,
-                        isFocused: isProgressBarFocused,
-                        previewPosition: previewPosition,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 進度條
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: TvProgressBar(
+                          position:
+                              previewPosition ?? controller.value.position,
+                          duration: controller.value.duration,
+                          buffered: buffered,
+                          isFocused: isProgressBarFocused,
+                          previewPosition: previewPosition,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 20),
-                    // 放大時間碼字型
-                    Text(
-                      '${_formatDuration(previewPosition ?? controller.value.position)} / ${_formatDuration(controller.value.duration)}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                      const SizedBox(width: 20),
+                      // 放大時間碼字型
+                      Text(
+                        '${_formatDuration(previewPosition ?? controller.value.position)} / ${_formatDuration(controller.value.duration)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _buildControlButton(
-                      index: CtrlBtn.prev,
-                      icon: Icons.skip_previous,
-                      enabled: hasPrev,
-                    ),
-                    const SizedBox(width: 24),
-                    _buildControlButton(
-                      index: CtrlBtn.playPause,
-                      icon: controller.value.isPlaying
-                          ? Icons.pause
-                          : Icons.play_arrow,
-                    ),
-                    const SizedBox(width: 24),
-                    _buildControlButton(
-                      index: CtrlBtn.next,
-                      icon: Icons.skip_next,
-                      enabled: hasNext,
-                    ),
-                    const SizedBox(width: 24),
-                    _buildControlButton(
-                      index: CtrlBtn.episodes,
-                      icon: Icons.playlist_play,
-                    ),
-                    const SizedBox(width: 24),
-                    _buildControlButton(index: CtrlBtn.up, icon: Icons.person),
-                    const SizedBox(width: 24),
-                    _buildControlButton(
-                      index: CtrlBtn.danmaku,
-                      icon: isDanmakuEnabled
-                          ? Icons.subtitles
-                          : Icons.subtitles_off,
-                    ),
-                    const SizedBox(width: 24),
-                    _buildControlButton(
-                      index: CtrlBtn.settings,
-                      icon: Icons.tune,
-                    ),
-                    const Spacer(),
-                    _buildControlButton(
-                      index: CtrlBtn.like,
-                      icon: actions.isLiked
-                          ? Icons.thumb_up
-                          : Icons.thumb_up_outlined,
-                      iconColor: actions.isLiked ? accent : Colors.white,
-                    ),
-                    const SizedBox(width: 24),
-                    _buildControlButton(
-                      index: CtrlBtn.coin,
-                      icon: actions.coinCount > 0
-                          ? Icons.monetization_on
-                          : Icons.monetization_on_outlined,
-                      iconColor: actions.coinCount > 0 ? accent : Colors.white,
-                    ),
-                    const SizedBox(width: 24),
-                    _buildControlButton(
-                      index: CtrlBtn.fav,
-                      icon: actions.isFavorited
-                          ? Icons.star
-                          : Icons.star_border,
-                      iconColor: actions.isFavorited ? accent : Colors.white,
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _buildControlButton(
+                        index: CtrlBtn.prev,
+                        icon: Icons.skip_previous,
+                        enabled: hasPrev,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.playPause,
+                        icon: controller.value.isPlaying
+                            ? Icons.pause
+                            : Icons.play_arrow,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.next,
+                        icon: Icons.skip_next,
+                        enabled: hasNext,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.episodes,
+                        icon: Icons.playlist_play,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.up,
+                        icon: Icons.person,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.danmaku,
+                        icon: isDanmakuEnabled
+                            ? Icons.subtitles
+                            : Icons.subtitles_off,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.subtitle,
+                        icon: isSubtitleOn
+                            ? Icons.closed_caption
+                            : Icons.closed_caption_off,
+                        enabled: hasSubtitleTracks,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.settings,
+                        icon: Icons.tune,
+                      ),
+                      // 左側按鈕群與右側（讚/幣/藏）至少間隔 48，避免字幕鈕加入後貼在一起
+                      const Spacer(),
+                      const SizedBox(width: 48),
+                      _buildControlButton(
+                        index: CtrlBtn.like,
+                        icon: actions.isLiked
+                            ? Icons.thumb_up
+                            : Icons.thumb_up_outlined,
+                        iconColor: actions.isLiked ? accent : Colors.white,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.coin,
+                        icon: actions.coinCount > 0
+                            ? Icons.monetization_on
+                            : Icons.monetization_on_outlined,
+                        iconColor: actions.coinCount > 0
+                            ? accent
+                            : Colors.white,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildControlButton(
+                        index: CtrlBtn.fav,
+                        icon: actions.isFavorited
+                            ? Icons.star
+                            : Icons.star_border,
+                        iconColor: actions.isFavorited ? accent : Colors.white,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -309,5 +353,32 @@ class ControlsOverlay extends StatelessWidget {
         child: Icon(icon, color: iconColor, size: 36),
       ),
     );
+  }
+}
+
+/// 每次 build 後回報子樹高度（變動才回報）。
+class _MeasureHeight extends StatefulWidget {
+  const _MeasureHeight({required this.onHeight, required this.child});
+
+  final ValueChanged<double> onHeight;
+  final Widget child;
+
+  @override
+  State<_MeasureHeight> createState() => _MeasureHeightState();
+}
+
+class _MeasureHeightState extends State<_MeasureHeight> {
+  double _last = -1;
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final h = context.size?.height;
+      if (h == null || (h - _last).abs() < 0.5) return;
+      _last = h;
+      widget.onHeight(h);
+    });
+    return widget.child;
   }
 }

@@ -1,4 +1,5 @@
 import 'package:bili_tv_app/utils/format_count.dart';
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/settings_service.dart';
@@ -35,6 +36,13 @@ class TvLiveCard extends StatelessWidget {
     // API 欄位可能不同，getListByAreaID 返回的資料結構:
     // title, cover, uname, online, roomid
     final title = room['title'] ?? '無標題';
+    // 沒有標題時顯示介面字串「無標題」，不走內容翻譯
+    final hasTitle = room['title'] != null;
+    const titleStyle = TextStyle(
+      color: Colors.white70,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    );
     final cover =
         room['pic'] ??
         room['room_cover'] ??
@@ -131,6 +139,7 @@ class TvLiveCard extends StatelessWidget {
               child: isFocused
                   ? ConditionalMarquee(
                       text: title,
+                      content: hasTitle,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -139,16 +148,19 @@ class TvLiveCard extends StatelessWidget {
                       blankSpace: 30.0,
                       velocity: 30.0,
                     )
-                  : Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  : (hasTitle
+                        ? ContentText(
+                            title,
+                            style: titleStyle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          )
+                        : Text(
+                            title,
+                            style: titleStyle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          )),
             ),
             const SizedBox(height: 4),
             // UP主
@@ -161,7 +173,7 @@ class TvLiveCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 4),
                 Expanded(
-                  child: Text(
+                  child: ContentText(
                     uname,
                     style: const TextStyle(color: Colors.white38, fontSize: 12),
                     maxLines: 1,

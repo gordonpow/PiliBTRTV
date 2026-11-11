@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../../services/settings_service.dart';
@@ -10,6 +12,7 @@ import '../../../../utils/i18n_pack.dart';
 import '../../../../utils/zh_convert.dart';
 import '../../../../utils/app_restart.dart';
 import '../../../../services/card_preview_service.dart';
+import '../../../../services/translate/content_translator.dart';
 
 class InterfaceSettings extends StatefulWidget {
   final VoidCallback onMoveUp;
@@ -119,6 +122,10 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
       }
     }
     await SettingsService.setAppLanguage(value);
+    // 選 English 且語言包就緒：背景下載翻譯模型（不等待），重啟後即可翻譯
+    if (ZhConvert.needsEnglishPack(value)) {
+      unawaited(ContentTranslator.instance.downloadInBackground(force: true));
+    }
     if (!mounted) return;
     setState(() {});
     await AppRestart.ask(context);
@@ -137,6 +144,83 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
     }
     if (!mounted) return;
     setState(() => _updatingPack = false);
+  }
+
+  /// 開啟或關閉「翻譯 B 站內容」。開啟時模型未下載會先下載（成功才存檔）。
+  Future<void> _onTranslateToggled(bool value) async {
+    final translator = ContentTranslator.instance;
+    if (!value) {
+      await SettingsService.setTranslateContent(false);
+      await translator.close();
+      translator.notifyChanged();
+      if (mounted) setState(() {});
+      return;
+    }
+    if (!await translator.isModelDownloaded()) {
+      if (!mounted) return;
+      final error = await _downloadTranslateModel(translator);
+      if (error != null) {
+        SettingsService.toast(null, '翻譯模型下載失敗：$error');
+        return;
+      }
+    }
+    await translator.enable();
+    await SettingsService.setTranslateContent(true);
+    translator.notifyChanged();
+    if (mounted) setState(() {});
+  }
+
+  /// 顯示下載中對話框（不確定進度、返回鍵取消）。成功回 null，失敗或取消
+  /// 回錯誤訊息。
+  Future<String?> _downloadTranslateModel(ContentTranslator translator) async {
+    final nav = Navigator.of(context, rootNavigator: true);
+    final cancel = Completer<void>();
+    var finished = false;
+    final dialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop || finished) return;
+          cancel.complete();
+          nav.pop();
+        },
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Text('下載翻譯模型', style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              LinearProgressIndicator(
+                color: Color(0xFFfb7299),
+                backgroundColor: Colors.white12,
+              ),
+              SizedBox(height: 12),
+              Text(
+                '下載中…（約 30MB，按返回鍵取消）',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    String? error;
+    final download = translator.downloadModel().then<void>(
+      (_) {},
+      onError: (Object e) {
+        error = '$e'.replaceFirst('Exception: ', '');
+      },
+    );
+    // 返回鍵取消時不等下載結束（下載在背景繼續，不影響開關）。
+    await Future.any([download, cancel.future]);
+    finished = true;
+    if (cancel.isCompleted) return '已取消';
+    nav.pop();
+    await dialog;
+    return error;
   }
 
   @override
@@ -219,6 +303,16 @@ class _InterfaceSettingsState extends State<InterfaceSettings> {
             buttonLabel: _updatingPack ? '更新中…' : '更新',
             onTap: _updatingPack ? null : _updateLanguagePack,
             sidebarFocusNode: widget.sidebarFocusNode,
+          ),
+          const SizedBox(height: 16),
+          SettingToggleRow(
+            label: '翻譯 B 站內容',
+            subtitle: '使用 Google ML Kit 在本機翻譯影片標題、UP 主名稱與字幕（需下載約 30MB 模型）',
+            value: SettingsService.translateContent,
+            autofocus: false,
+            onMoveUp: null,
+            sidebarFocusNode: widget.sidebarFocusNode,
+            onChanged: _onTranslateToggled,
           ),
           const SizedBox(height: 16),
         ],

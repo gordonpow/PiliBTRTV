@@ -5,6 +5,8 @@ import 'package:canvas_danmaku/canvas_danmaku.dart';
 import '../player_screen.dart';
 import '../video_actions_controller.dart';
 import '../widgets/settings_panel.dart';
+import '../../../models/subtitle.dart';
+import '../../../models/video.dart' as models;
 import '../../../models/videoshot.dart';
 import '../../../services/playback_preparer.dart';
 import '../../../services/playback_perf.dart';
@@ -29,11 +31,12 @@ abstract final class CtrlBtn {
   static const int episodes = 3; // 選集
   static const int up = 4; // UP主
   static const int danmaku = 5; // 彈幕
-  static const int settings = 6; // 設定
-  static const int like = 7; // 點讚
-  static const int coin = 8; // 投幣
-  static const int fav = 9; // 收藏
-  static const int count = 10;
+  static const int subtitle = 6; // 字幕
+  static const int settings = 7; // 設定
+  static const int like = 8; // 點讚
+  static const int coin = 9; // 投幣
+  static const int fav = 10; // 收藏
+  static const int count = 11;
 }
 
 /// 播放器狀態 Mixin
@@ -57,7 +60,39 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   int? get aid => _aid;
   set aid(int? v) {
     _aid = v;
-    if (v != null && v > 0) videoActions.load(v); // 換片時重新載入狀態
+    if (v != null && v > 0) {
+      videoActions.load(v, bvid: playingBvid); // 換片時重新載入狀態
+    }
+  }
+
+  /// 收藏用的影片資訊（未登入時存進本機；一律以當前播放的 bvid／cid／集為準）。
+  /// 標題與封面只在資料確實屬於當前影片時才用 fullVideoInfo，否則退回 widget.video。
+  models.Video get favVideo {
+    final info = fullVideoInfo;
+    final bvid = playingBvid;
+    // UGC 的 view 資料帶 bvid，必須與當前 bvid 相同；番劇只有季名（屬於整季）
+    final infoMatches =
+        info != null && (isPgc || '${info['bvid'] ?? bvid}' == bvid);
+    String pick(String key, String fallback) {
+      final v = infoMatches ? '${info[key] ?? ''}' : '';
+      return v.isNotEmpty ? v : fallback;
+    }
+
+    final owner = infoMatches ? info['owner'] : null;
+    final dur = infoMatches ? info['duration'] : null;
+    return models.Video(
+      bvid: bvid,
+      aid: _aid ?? 0,
+      title: pick('title', widget.video.title),
+      pic: pick('pic', widget.video.pic),
+      ownerName: owner is Map && '${owner['name'] ?? ''}'.isNotEmpty
+          ? '${owner['name']}'
+          : widget.video.ownerName,
+      duration: dur is int ? dur : widget.video.duration,
+      cid: cid ?? 0,
+      seasonId: isPgc ? widget.video.seasonId : 0,
+      epId: isPgc ? currentEpId : 0,
+    );
   }
 
   /// 控制列點讚／投幣／收藏的狀態與動作
@@ -159,6 +194,15 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   // 彈幕資料
   List<dynamic> danmakuList = [];
   int lastDanmakuIndex = 0;
+
+  // CC 字幕（#17）：subtitleIndex -1 為關閉；subtitleGen 用於作廢舊的載入／翻譯
+  List<SubtitleTrack> subtitleTracks = [];
+  int subtitleIndex = -1;
+  List<SubtitleLine> subtitleLines = [];
+  int subtitleGen = 0;
+  bool subtitleUserPicked = false; // 使用者手選過字幕軌（自動換軌不覆蓋）
+  bool subtitleLoading = false; // loadSubtitles 進行中（字幕按鈕提示用）
+  int? subtitleCid; // 已（或正在）載入字幕的 cid，避免同一部影片重複載入
 
   // 新面板
   bool upSpaceOpen = false; // UP主全螢幕頁面開啟中（禁止播放器自行導航、防重入）

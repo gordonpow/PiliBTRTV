@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
+import '../../services/auth_service.dart';
 import '../../services/bilibili_api.dart';
+import '../../services/local_favorites_service.dart';
 import '../../utils/zh_toast.dart';
 
 /// 播放器控制列的點讚／投幣／收藏狀態與動作
 class VideoActionsController extends ChangeNotifier {
   int _aid = 0;
+  String _bvid = '';
   bool isLiked = false;
   int coinCount = 0;
   bool isFavorited = false;
@@ -12,9 +15,10 @@ class VideoActionsController extends ChangeNotifier {
   bool _disposed = false;
 
   /// 載入該影片的三項狀態；aid 相同時不重複載入
-  Future<void> load(int aid) async {
+  Future<void> load(int aid, {String bvid = ''}) async {
     if (aid <= 0 || aid == _aid) return;
     _aid = aid;
+    _bvid = bvid;
     isLiked = false;
     coinCount = 0;
     isFavorited = false;
@@ -27,7 +31,17 @@ class VideoActionsController extends ChangeNotifier {
     if (_disposed || _aid != aid) return;
     isLiked = results[0] as bool;
     coinCount = results[1] as int;
-    isFavorited = results[2] as bool;
+    if (AuthService.isLoggedIn) {
+      isFavorited = results[2] as bool;
+    } else {
+      // 未登入：以本機收藏判斷
+      await LocalFavoritesService.instance.ensureLoaded();
+      if (_disposed || _aid != aid) return;
+      final local = LocalFavoritesService.instance;
+      isFavorited = _bvid.isNotEmpty
+          ? local.isFavorited(_bvid)
+          : local.isFavoritedAid(aid);
+    }
     _notify();
   }
 

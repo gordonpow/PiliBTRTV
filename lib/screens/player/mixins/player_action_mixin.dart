@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/services/auth_service.dart';
 import 'package:bili_tv_app/utils/zh_convert.dart';
 import 'package:bili_tv_app/utils/zh_toast.dart';
 import 'dart:async';
@@ -18,6 +19,9 @@ import '../../../services/codec_service.dart';
 import '../../../services/mpd_generator.dart';
 import '../../../services/local_server.dart';
 import '../../../services/api/videoshot_api.dart';
+import '../../../services/api/subtitle_api.dart';
+import '../../../services/translate/content_translator.dart';
+import '../../../models/subtitle.dart';
 import '../../../services/api/base_api.dart';
 import '../widgets/settings_panel.dart';
 import '../../../widgets/video_action_dialogs.dart';
@@ -502,6 +506,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         startHideTimer();
 
         await loadDanmaku();
+        unawaited(loadSubtitles());
         return; // 成功，退出
       } // codecLoop 結束
 
@@ -716,6 +721,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     startHideTimer();
 
     await loadDanmaku();
+    unawaited(loadSubtitles());
   }
 
   /// 轉向番劇播放：以新的 PlayerScreen 取代目前頁面（尚未建立 videoController）。
@@ -783,6 +789,210 @@ mixin PlayerActionMixin on PlayerStateMixin {
       '🎬 [PGC] season=${widget.video.seasonId} ep=$currentEpId cid=$cid resume=$resume',
     );
     return true;
+  }
+
+  /// 載入 CC 字幕軌並依設定自動選軌（R-10：不阻塞播放，以 cid＋subtitleGen 作廢）。
+  Future<void> loadSubtitles() async {
+    final forCid = cid;
+    if (forCid == null) return;
+    // 同一部影片已載入（或載入中）就不重置，避免覆蓋使用者已選的軌
+    if (subtitleCid == forCid) return;
+    subtitleCid = forCid;
+    subtitleUserPicked = false;
+    final gen = ++subtitleGen;
+    if (mounted &&
+        (subtitleTracks.isNotEmpty ||
+            subtitleLines.isNotEmpty ||
+            subtitleIndex != -1)) {
+      setState(() {
+        subtitleTracks = [];
+        subtitleLines = [];
+        subtitleIndex = -1;
+        _clampSettingsFocus();
+      });
+    }
+    bool stale() => !mounted || gen != subtitleGen || forCid != cid;
+    subtitleLoading = true;
+    try {
+      final tracks = await SubtitleApi.getSubtitles(
+        aid: aid,
+        cid: forCid,
+        bvid: playingBvid,
+        epId: isPgc ? currentEpId : null,
+        seasonId: isPgc ? widget.video.seasonId : null,
+      );
+      if (stale()) return;
+      if (tracks.isEmpty) {
+        subtitleCid = null; // 允許之後重試
+        return;
+      }
+      final english = ZhConvert.script == ZhScript.english;
+      final machine = machineTrackAvailable(
+        tracks,
+        englishUi: english,
+        translatorEnabled: ContentTranslator.instance.enabled,
+      );
+      final all = [...tracks, if (machine) SubtitleTrack.machineEnglish];
+      setState(() {
+        subtitleTracks = all;
+        _clampSettingsFocus();
+      });
+      if (!SettingsService.subtitleEnabled) return;
+      // 英文介面且有機器翻譯軌時，優先於中文軌
+      var idx = pickDefaultSubtitle(tracks, english: english);
+      if (machine && (idx < 0 || !tracks[idx].isEnglish)) {
+        idx = all.length - 1;
+      }
+      if (idx >= 0) await _applySubtitleTrack(idx, gen);
+    } catch (e) {
+      debugPrint('Failed to load subtitles: $e');
+    } finally {
+      // 只有最新一次載入才能收旗標（舊的已被作廢，新的自己會管）
+      if (gen == subtitleGen) subtitleLoading = false;
+    }
+  }
+
+  /// 翻譯模型在播放中才就緒（enabled 變 true）：補上機器翻譯軌，使用者沒手選過
+  /// 軌時自動改選它（預設選軌發生在 enabled 之前）。
+  void onTranslatorChanged() {
+    if (!mounted || subtitleTracks.isEmpty) return;
+    if (subtitleTracks.any((t) => t.machine)) return;
+    final real = subtitleTracks.where((t) => !t.machine).toList();
+    final machine = machineTrackAvailable(
+      real,
+      englishUi: ZhConvert.script == ZhScript.english,
+      translatorEnabled: ContentTranslator.instance.enabled,
+    );
+    if (!machine) return;
+    setState(() {
+      subtitleTracks = [...subtitleTracks, SubtitleTrack.machineEnglish];
+      _clampSettingsFocus();
+    });
+    if (subtitleUserPicked || !SettingsService.subtitleEnabled) return;
+    final idx = subtitleTracks.length - 1;
+    unawaited(_applySubtitleTrack(idx, ++subtitleGen));
+  }
+
+  /// 目前字幕軌清單中的預設軌索引（含機器翻譯軌）；沒有可選的回 -1。
+  int defaultSubtitleIndex() {
+    final tracks = subtitleTracks.where((t) => !t.machine).toList();
+    final english = ZhConvert.script == ZhScript.english;
+    var idx = pickDefaultSubtitle(tracks, english: english);
+    final machineIdx = subtitleTracks.indexWhere((t) => t.machine);
+    if (machineIdx >= 0 && (idx < 0 || !tracks[idx].isEnglish)) {
+      return machineIdx;
+    }
+    if (idx < 0 && subtitleTracks.isNotEmpty) return 0;
+    return idx;
+  }
+
+  /// 控制列字幕按鈕短按：有字幕軌時開／關，沒有時依狀態 toast。
+  void onSubtitleButton() {
+    if (subtitleTracks.isEmpty) {
+      showZhToast(
+        msg: subtitleLoading
+            ? '字幕載入中…'
+            : AuthService.isLoggedIn
+            ? '此影片沒有字幕'
+            : '登入後才能取得字幕',
+      );
+      return;
+    }
+    if (subtitleIndex >= 0) {
+      selectSubtitle(-1);
+      showZhToast(msg: '字幕已關閉');
+    } else {
+      selectSubtitle(defaultSubtitleIndex());
+      showZhToast(msg: '字幕已開啟');
+    }
+  }
+
+  /// 使用者在字幕選單選定軌（-1 關閉）；記住開關狀態。
+  Future<void> selectSubtitle(int index) async {
+    if (index < -1 || index >= subtitleTracks.length) return;
+    SettingsService.setSubtitleEnabled(index >= 0);
+    subtitleUserPicked = true;
+    final gen = ++subtitleGen;
+    await _applySubtitleTrack(index, gen);
+  }
+
+  /// 字幕軌變動後修正設定面板焦點：軌道清空時子選單退回 main，焦點不超出範圍。
+  void _clampSettingsFocus() {
+    if (!showSettingsPanel) return;
+    if (settingsMenuType == SettingsMenuType.subtitle &&
+        subtitleTracks.isEmpty) {
+      settingsMenuType = SettingsMenuType.main;
+      focusedSettingIndex = 5;
+    }
+    final max = switch (settingsMenuType) {
+      SettingsMenuType.main => subtitleTracks.isNotEmpty ? 6 : 5,
+      SettingsMenuType.subtitle => subtitleTracks.length,
+      _ => focusedSettingIndex,
+    };
+    if (focusedSettingIndex > max) focusedSettingIndex = max;
+  }
+
+  Future<void> _applySubtitleTrack(int index, int gen) async {
+    final forCid = cid;
+    bool stale() => !mounted || gen != subtitleGen || forCid != cid;
+    if (index < 0) {
+      setState(() {
+        subtitleIndex = -1;
+        subtitleLines = [];
+      });
+      return;
+    }
+    final track = subtitleTracks[index];
+    final prevIndex = subtitleIndex;
+    final prevLines = subtitleLines;
+    setState(() {
+      subtitleIndex = index;
+      subtitleLines = [];
+    });
+    var sourceUrl = track.url;
+    if (track.machine) {
+      final real = subtitleTracks.where((t) => !t.machine).toList();
+      final zh = pickDefaultSubtitle(real, english: false);
+      if (zh < 0) return;
+      sourceUrl = real[zh].url;
+    }
+    final lines = List<SubtitleLine>.of(
+      await SubtitleApi.getSubtitleBody(sourceUrl),
+    );
+    if (stale()) return;
+    if (lines.isEmpty) {
+      showZhToast(msg: '字幕載入失敗', toastLength: Toast.LENGTH_SHORT);
+      setState(() {
+        subtitleIndex = prevIndex;
+        subtitleLines = prevLines;
+      });
+      return;
+    }
+    setState(() => subtitleLines = lines);
+    if (!track.machine) return;
+    // 機器翻譯：從目前播放位置開始環狀走訪；翻好前顯示原文，逐句替換
+    final pos = (videoController?.value.position.inMilliseconds ?? 0) / 1000.0;
+    var start = lines.indexWhere((l) => l.to > pos);
+    if (start < 0) start = 0;
+    final order = [
+      for (int k = 0; k < lines.length; k++) (start + k) % lines.length,
+    ];
+    await ContentTranslator.instance.translateBatch(
+      [for (final i in order) lines[i].content],
+      isCancelled: stale,
+      onLine: (k, text) {
+        if (stale() || k < 0 || k >= order.length) return;
+        final i = order[k];
+        lines[i] = lines[i].withContent(text);
+        // 播放中每個 tick 都會重建；只有暫停且被換的正是目前顯示的行才刷新
+        if (videoController?.value.isPlaying ?? false) return;
+        final now =
+            (videoController?.value.position.inMilliseconds ?? 0) / 1000.0;
+        if (identical(findSubtitleLine(lines, now), lines[i])) {
+          setState(() {});
+        }
+      },
+    );
   }
 
   Future<void> loadDanmaku() async {
@@ -1988,6 +2198,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
   bool isCtrlBtnEnabled(int index) {
     if (index == CtrlBtn.prev) return hasPrev;
     if (index == CtrlBtn.next) return hasNext;
+    // 字幕按鈕沒有字幕軌時只是變暗，仍可聚焦（按下會 toast 原因）
     return true;
   }
 
@@ -2524,8 +2735,14 @@ mixin PlayerActionMixin on PlayerStateMixin {
       _applyPgcEpisode(newCid);
     }
 
+    subtitleGen++;
+    subtitleCid = null;
     setState(() {
       cid = newCid;
+      subtitleTracks = [];
+      subtitleLines = [];
+      subtitleIndex = -1;
+      _clampSettingsFocus();
       isPreview = false;
       isLoading = true;
       errorMessage = null;
@@ -2629,6 +2846,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
       startHideTimer();
       await loadDanmaku();
+      unawaited(loadSubtitles());
 
       // 🔥 重新載入當前 P 的雪碧圖資料
       _clearSpritesFromMemory();
@@ -2680,7 +2898,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
           break;
         case 4:
           // 收藏：開收藏夾選擇對話框（關閉後焦點回到播放器），套用後更新星星
-          favoriteVideoFlow(context, aid).then((faved) {
+          favoriteVideoFlow(context, aid, video: favVideo).then((faved) {
             if (mounted && faved != null) videoActions.setFavorited(faved);
           });
           break;
@@ -2689,6 +2907,14 @@ mixin PlayerActionMixin on PlayerStateMixin {
             settingsMenuType = SettingsMenuType.playEnd;
             focusedSettingIndex = SettingsService.playRepeat.index;
           });
+          break;
+        case 6:
+          if (subtitleTracks.isNotEmpty) {
+            setState(() {
+              settingsMenuType = SettingsMenuType.subtitle;
+              focusedSettingIndex = subtitleIndex + 1;
+            });
+          }
           break;
       }
     } else if (settingsMenuType == SettingsMenuType.danmaku) {
@@ -2708,6 +2934,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
       setState(() {
         settingsMenuType = SettingsMenuType.main;
         focusedSettingIndex = 5;
+      });
+    } else if (settingsMenuType == SettingsMenuType.subtitle) {
+      selectSubtitle(focusedSettingIndex - 1);
+      setState(() {
+        settingsMenuType = SettingsMenuType.main;
+        focusedSettingIndex = subtitleTracks.isNotEmpty ? 6 : 5;
       });
     }
   }

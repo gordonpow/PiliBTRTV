@@ -108,9 +108,12 @@ mixin PlayerEventMixin on PlayerActionMixin {
     _danmakuHolding = false;
   }
 
+  /// 長按有作用的按鈕：彈幕；字幕（有字幕軌時，沒有軌時走短按 toast）
   bool get _canHoldDanmaku =>
       showControls &&
-      focusedButtonIndex == CtrlBtn.danmaku &&
+      (focusedButtonIndex == CtrlBtn.danmaku ||
+          (focusedButtonIndex == CtrlBtn.subtitle &&
+              subtitleTracks.isNotEmpty)) &&
       !showSettingsPanel &&
       !showEpisodePanel &&
       !showRelatedPanel &&
@@ -123,14 +126,17 @@ mixin PlayerEventMixin on PlayerActionMixin {
     if (!_canHoldDanmaku) return;
     _danmakuHoldFired = true;
     hideTimer?.cancel();
+    final subtitle = focusedButtonIndex == CtrlBtn.subtitle;
     setState(() {
-      settingsMenuType = SettingsMenuType.danmaku;
-      focusedSettingIndex = 0;
+      settingsMenuType = subtitle
+          ? SettingsMenuType.subtitle
+          : SettingsMenuType.danmaku;
+      focusedSettingIndex = subtitle ? subtitleIndex + 1 : 0;
       showSettingsPanel = true;
     });
   }
 
-  /// 彈幕按鈕的確認鍵：短按切換彈幕，按住 500ms 打開彈幕設定。
+  /// 彈幕／字幕按鈕的確認鍵：短按切換，按住 500ms 打開對應的設定次級選單。
   /// 回傳 null 表示這個事件與彈幕長按無關。
   KeyEventResult? _handleDanmakuHold(KeyEvent event) {
     if (!PlayerFocusHandler.isSelectKey(event)) {
@@ -158,7 +164,11 @@ mixin PlayerEventMixin on PlayerActionMixin {
     if (event is KeyUpEvent) {
       cancelDanmakuHold();
       if (_canHoldDanmaku) {
-        toggleDanmaku(); // toggleDanmaku 內含 toast
+        if (focusedButtonIndex == CtrlBtn.subtitle) {
+          onSubtitleButton(); // 內含 toast
+        } else {
+          toggleDanmaku(); // toggleDanmaku 內含 toast
+        }
         startHideTimer();
       }
       return KeyEventResult.handled;
@@ -339,7 +349,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
   /// 開收藏夾選單；選單開著時不自動隱藏控制列，套用後更新星星狀態
   Future<void> _openFavoritePicker() async {
     hideTimer?.cancel();
-    final faved = await favoriteVideoFlow(context, aid);
+    final faved = await favoriteVideoFlow(context, aid, video: favVideo);
     if (!mounted) return;
     if (faved != null) videoActions.setFavorited(faved);
     startHideTimer();
@@ -369,6 +379,10 @@ mixin PlayerEventMixin on PlayerActionMixin {
         break;
       case CtrlBtn.danmaku: // 彈幕（短按；長按由 _handleDanmakuHold 處理）
         toggleDanmaku();
+        break;
+      case CtrlBtn.subtitle: // 字幕（短按；長按由 _handleDanmakuHold 處理）
+        onSubtitleButton();
+        startHideTimer();
         break;
       case CtrlBtn.settings: // 設定
         setState(() {
@@ -575,6 +589,11 @@ mixin PlayerEventMixin on PlayerActionMixin {
           settingsMenuType = SettingsMenuType.main;
           focusedSettingIndex = 5;
         });
+      } else if (settingsMenuType == SettingsMenuType.subtitle) {
+        setState(() {
+          settingsMenuType = SettingsMenuType.main;
+          focusedSettingIndex = 6;
+        });
       }
       return KeyEventResult.handled;
     }
@@ -600,6 +619,11 @@ mixin PlayerEventMixin on PlayerActionMixin {
           setState(() {
             settingsMenuType = SettingsMenuType.playEnd;
             focusedSettingIndex = SettingsService.playRepeat.index;
+          });
+        } else if (focusedSettingIndex == 6 && subtitleTracks.isNotEmpty) {
+          setState(() {
+            settingsMenuType = SettingsMenuType.subtitle;
+            focusedSettingIndex = subtitleIndex + 1;
           });
         }
       } else if (settingsMenuType == SettingsMenuType.danmaku) {
@@ -637,6 +661,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
     SettingsMenuType.cdn => 3,
     SettingsMenuType.danmaku => 1,
     SettingsMenuType.playEnd => 5,
+    SettingsMenuType.subtitle => 6,
     _ => 0,
   };
 
@@ -644,13 +669,15 @@ mixin PlayerEventMixin on PlayerActionMixin {
   int _getSettingsMaxIndex() {
     switch (settingsMenuType) {
       case SettingsMenuType.main:
-        return 5;
+        return subtitleTracks.isNotEmpty ? 6 : 5;
       case SettingsMenuType.danmaku:
         return 6;
       case SettingsMenuType.speed:
         return availableSpeeds.length - 1;
       case SettingsMenuType.playEnd:
         return PlayRepeat.values.length - 1;
+      case SettingsMenuType.subtitle:
+        return subtitleTracks.length; // 「關閉」＋各軌
       default:
         return 0;
     }

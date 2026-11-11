@@ -108,7 +108,11 @@ class HistoryVideoGridState extends State<HistoryVideoGrid> {
                       : () => widget.onLongPressVideo!(video, index),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => PlayerScreen(video: video),
+                      builder: (_) => PlayerScreen(
+                        video: video,
+                        // 本機收藏的分 P 影片：從存的 cid 開始（找不到時播放器忽略）
+                        startCid: video.isPgc ? 0 : video.cid,
+                      ),
                     ),
                   ),
                   onMoveLeft: index % 4 == 0

@@ -1,7 +1,7 @@
-import 'package:bili_tv_app/utils/zh_convert.dart';
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:marquee/marquee.dart';
+import 'conditional_marquee.dart';
 import '../models/video.dart';
 import '../services/settings_service.dart';
 import 'base_tv_card.dart';
@@ -252,25 +252,20 @@ class HistoryVideoCard extends StatelessWidget {
             SizedBox(
               height: 20,
               child: isFocused
-                  ? Marquee(
-                      text: ZhConvert.convert(video.title),
+                  ? ConditionalMarquee(
+                      text: video.title,
+                      content: true,
+                      alwaysScroll: true,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
-                      scrollAxis: Axis.horizontal,
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       blankSpace: 30.0,
                       velocity: 50.0,
                       pauseAfterRound: const Duration(seconds: 1),
-                      startPadding: 0.0,
-                      accelerationDuration: const Duration(milliseconds: 500),
-                      accelerationCurve: Curves.linear,
-                      decelerationDuration: const Duration(milliseconds: 300),
-                      decelerationCurve: Curves.easeOut,
                     )
-                  : Text(
+                  : ContentText(
                       video.title,
                       style: const TextStyle(
                         color: Colors.white70,
@@ -293,12 +288,25 @@ class HistoryVideoCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 // UP主名字 - 可省略
                 Expanded(
-                  child: Text(
-                    video.ownerName,
-                    style: const TextStyle(color: Colors.white38, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: video.ownerIsContent
+                      ? ContentText(
+                          video.ownerName,
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : Text(
+                          video.ownerName,
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                 ),
                 // 最後觀看時間 - 固定位置，不省略
                 if (video.viewAtFormatted.isNotEmpty)

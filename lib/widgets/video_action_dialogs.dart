@@ -4,6 +4,7 @@ import '../models/video.dart';
 import '../services/api/fav_api.dart';
 import '../services/api/interaction_api.dart';
 import '../services/auth_service.dart';
+import '../services/local_favorites_service.dart';
 import '../utils/fav_utils.dart';
 import '../utils/zh_toast.dart';
 
@@ -174,7 +175,7 @@ Future<bool> showVideoActionMenu(
   );
   if (!context.mounted || action == null) return false;
   if (action == 'fav') {
-    await favoriteVideoFlow(context, video.resolvedAid);
+    await favoriteVideoFlow(context, video.resolvedAid, video: video);
   } else if (action == 'later') {
     await watchLaterFlow(context, video);
   } else if (action == 'remove' && canRemove) {
@@ -193,12 +194,14 @@ Future<Set<int>?> showFavFolderPicker(
   required List<FavFolderState> folders,
   bool preselect = true,
   String title = '選擇收藏夾',
+  Future<FavFolderState?> Function()? onCreate,
 }) {
   return showDialog<Set<int>>(
     context: context,
     builder: (ctx) => _FavFolderDialog(
       folders: folders,
       title: title,
+      onCreate: onCreate,
       initial: preselect
           ? {
               for (final f in folders)
@@ -214,10 +217,14 @@ class _FavFolderDialog extends StatefulWidget {
   final String title;
   final Set<int> initial;
 
+  /// 非 null 時顯示「新增收藏夾」按鈕；回傳新建的收藏夾（取消回傳 null）
+  final Future<FavFolderState?> Function()? onCreate;
+
   const _FavFolderDialog({
     required this.folders,
     required this.title,
     required this.initial,
+    this.onCreate,
   });
 
   @override
@@ -226,6 +233,16 @@ class _FavFolderDialog extends StatefulWidget {
 
 class _FavFolderDialogState extends State<_FavFolderDialog> {
   late final Set<int> _selected = {...widget.initial};
+  late final List<FavFolderState> _folders = [...widget.folders];
+
+  Future<void> _create() async {
+    final f = await widget.onCreate!();
+    if (f == null || !mounted) return;
+    setState(() {
+      _folders.add(f);
+      _selected.add(f.id);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -252,13 +269,13 @@ class _FavFolderDialogState extends State<_FavFolderDialog> {
                 child: ListView(
                   shrinkWrap: true,
                   children: [
-                    for (var i = 0; i < widget.folders.length; i++)
+                    for (var i = 0; i < _folders.length; i++)
                       _FolderRow(
-                        folder: widget.folders[i],
-                        checked: _selected.contains(widget.folders[i].id),
+                        folder: _folders[i],
+                        checked: _selected.contains(_folders[i].id),
                         autofocus: i == 0,
                         onToggle: () => setState(() {
-                          final id = widget.folders[i].id;
+                          final id = _folders[i].id;
                           if (!_selected.remove(id)) _selected.add(id);
                         }),
                       ),
@@ -269,6 +286,14 @@ class _FavFolderDialogState extends State<_FavFolderDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (widget.onCreate != null) ...[
+                    TvDialogButton(
+                      label: '新增收藏夾',
+                      icon: Icons.add,
+                      onPressed: _create,
+                    ),
+                    const Spacer(),
+                  ],
                   TvDialogButton(
                     label: '確定',
                     primary: true,
@@ -382,8 +407,13 @@ bool _requireLogin() {
 
 /// 單支影片：選收藏夾並依差異加入／移出（AC-2、AC-3）
 /// 選擇收藏夾並套用。回傳套用後是否已收藏；取消、沒有變更或失敗時回傳 null。
-Future<bool?> favoriteVideoFlow(BuildContext context, int? aid) async {
-  if (!_requireLogin()) return null;
+Future<bool?> favoriteVideoFlow(
+  BuildContext context,
+  int? aid, {
+  Video? video,
+}) async {
+  // 未登入：改存本機收藏夾（需要呼叫端提供影片資訊）
+  if (!AuthService.isLoggedIn) return _localFavoriteFlow(context, video);
   if (aid == null || aid <= 0) {
     _toast('無法取得影片資訊');
     return null;
@@ -426,6 +456,207 @@ Future<bool?> favoriteVideoFlow(BuildContext context, int? aid) async {
   ];
   _toast('已收藏到 ${names.join('、')}');
   return true;
+}
+
+/// 未登入時的收藏：與帳號版相同的勾選選單，資料存在本機
+Future<bool?> _localFavoriteFlow(BuildContext context, Video? video) async {
+  if (video == null || video.bvid.isEmpty) {
+    _toast('無法取得影片資訊');
+    return null;
+  }
+  final svc = LocalFavoritesService.instance;
+  await svc.ensureLoaded();
+  if (!context.mounted) return null;
+  final folders = svc.folderStates(video.bvid);
+  final selected = await showFavFolderPicker(
+    context,
+    folders: folders,
+    onCreate: () => createLocalFavFolderFlow(context),
+  );
+  if (selected == null) return null;
+  final original = svc.foldersOf(video.bvid);
+  final diff = diffFavFolders(original, selected);
+  if (diff.add.isEmpty && diff.del.isEmpty) return null;
+  svc.setVideoFolders(video, selected);
+  if (selected.isEmpty) {
+    _toast('已取消收藏');
+    return false;
+  }
+  final names = [
+    for (final f in svc.folders)
+      if (selected.contains(f.id)) '「${f.name}」',
+  ];
+  _toast('已收藏到 ${names.join('、')}');
+  return true;
+}
+
+/// 輸入名稱後建立本機收藏夾；取消或名稱空白回傳 null
+Future<FavFolderState?> createLocalFavFolderFlow(BuildContext context) async {
+  final name = await showNameInputDialog(context, title: '新增收藏夾');
+  if (name == null) return null;
+  final folder = LocalFavoritesService.instance.createFolder(name);
+  if (folder == null) {
+    _toast('名稱不可為空');
+    return null;
+  }
+  return FavFolderState(
+    id: folder.id,
+    title: folder.name,
+    mediaCount: 0,
+    faved: false,
+  );
+}
+
+/// 名稱輸入對話框；取消回傳 null
+Future<String?> showNameInputDialog(
+  BuildContext context, {
+  required String title,
+  String initial = '',
+}) {
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => _NameInputDialog(title: title, initial: initial),
+  );
+}
+
+class _NameInputDialog extends StatefulWidget {
+  final String title;
+  final String initial;
+
+  const _NameInputDialog({required this.title, required this.initial});
+
+  @override
+  State<_NameInputDialog> createState() => _NameInputDialogState();
+}
+
+class _NameInputDialogState extends State<_NameInputDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: _dialogBg,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                widget.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _controller,
+                autofocus: true,
+                maxLength: 20,
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+                decoration: const InputDecoration(
+                  hintText: '收藏夾名稱',
+                  hintStyle: TextStyle(color: Colors.white38),
+                ),
+                onSubmitted: (v) => Navigator.of(context).pop(v),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TvDialogButton(
+                    label: '確定',
+                    primary: true,
+                    onPressed: () =>
+                        Navigator.of(context).pop(_controller.text),
+                  ),
+                  const SizedBox(width: 12),
+                  TvDialogButton(
+                    label: '取消',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 確認對話框（預設焦點在取消鈕）；回傳 true 確認、false 取消鈕，返回鍵關閉為 null
+Future<bool?> showConfirmDialog(
+  BuildContext context, {
+  required String title,
+  String? message,
+  String confirmLabel = '確定',
+  String cancelLabel = '取消',
+  bool autofocusConfirm = false,
+}) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => Dialog(
+      backgroundColor: _dialogBg,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (message != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  message,
+                  style: const TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+              ],
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TvDialogButton(
+                    label: confirmLabel,
+                    primary: true,
+                    autofocus: autofocusConfirm,
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                  ),
+                  const SizedBox(width: 12),
+                  TvDialogButton(
+                    label: cancelLabel,
+                    autofocus: !autofocusConfirm,
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// 單支影片加入稍後再看（AC-4）

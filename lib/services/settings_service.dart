@@ -196,6 +196,38 @@ class SettingsService {
     await _prefs!.setInt(_upNextCountdownKey, value);
   }
 
+  // CC 字幕：是否記住開啟（選了字幕軌即開，選「關閉」即關）
+  static const String _subtitleEnabledKey = 'subtitle_enabled';
+
+  static bool get subtitleEnabled =>
+      _prefs?.getBool(_subtitleEnabledKey) ?? false;
+
+  static Future<void> setSubtitleEnabled(bool value) async {
+    await init();
+    await _prefs!.setBool(_subtitleEnabledKey, value);
+  }
+
+  // 翻譯 B 站內容（英文介面，ML Kit 本機翻譯）
+  static const String _translateContentKey = 'translate_content';
+  // 沒存過值時預設開（英文介面會在背景下載模型）；存過就照存的值
+  static bool get translateContent =>
+      _prefs?.getBool(_translateContentKey) ?? true;
+
+  static Future<void> setTranslateContent(bool value) async {
+    await init();
+    await _prefs!.setBool(_translateContentKey, value);
+  }
+
+  // 翻譯模型背景下載上次失敗的時間（毫秒），24 小時內不重試
+  static const String _translateDlFailedKey = 'translate_download_failed_at';
+  static int get translateDownloadFailedAt =>
+      _prefs?.getInt(_translateDlFailedKey) ?? 0;
+
+  static Future<void> setTranslateDownloadFailedAt(int ms) async {
+    await init();
+    await _prefs!.setInt(_translateDlFailedKey, ms);
+  }
+
   // 自動檢查更新
   static const String _autoUpdateKey = 'auto_update';
   static const String _updateIntervalKey = 'update_interval_hours';

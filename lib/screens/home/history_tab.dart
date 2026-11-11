@@ -304,6 +304,7 @@ class HistoryTabState extends State<HistoryTab> {
 
   /// 公開的重新整理方法 - 供外部呼叫
   void refresh() {
+    _favKey.currentState?.refreshAuth();
     _selecting = false;
     _selected.clear();
     _hasLoaded = true; // 標記已載入，避免切換時重複載入
@@ -402,15 +403,16 @@ class HistoryTabState extends State<HistoryTab> {
   Widget build(BuildContext context) {
     final loggedIn = AuthService.isLoggedIn;
     Widget body;
-    if (!loggedIn || _tab == 0) {
-      // 未登入時三個分頁都顯示「請先登入」（由 _buildHistoryBody 處理）
-      body = _buildHistoryBody(context);
-    } else if (_tab == 1) {
+    if (_tab == 1) {
+      // 收藏分頁未登入時顯示本機收藏
       body = FavView(
         key: _favKey,
         sidebarFocusNode: widget.sidebarFocusNode,
         onMoveUpToTabs: () => _tabNodes[1].requestFocus(),
       );
+    } else if (!loggedIn || _tab == 0) {
+      // 未登入時觀看歷史與稍後再看顯示「請先登入」（由 _buildHistoryBody 處理）
+      body = _buildHistoryBody(context);
     } else {
       body = WatchLaterView(
         key: _laterKey,
@@ -546,7 +548,8 @@ class HistoryTabState extends State<HistoryTab> {
   /// 側邊欄按右鍵：焦點放到目前分頁的第一個項目（左上角），
   /// 不交給預設方向導航（它會依位置挑到中間的卡片）
   void focusFirstItem() {
-    if (AuthService.isLoggedIn && (_tab != 0 || _videos.isNotEmpty)) {
+    if (_tab == 1 ||
+        (AuthService.isLoggedIn && (_tab != 0 || _videos.isNotEmpty))) {
       _focusContent();
       return;
     }
@@ -557,6 +560,10 @@ class HistoryTabState extends State<HistoryTab> {
 
   /// 分頁列按下鍵：進入目前分頁內容
   void _focusContent() {
+    if (_tab == 1) {
+      _favKey.currentState?.focusFolders();
+      return;
+    }
     if (!AuthService.isLoggedIn) return;
     switch (_tab) {
       case 0:

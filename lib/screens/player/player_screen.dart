@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/services/translate/content_translator.dart';
 import '../../services/prefetch_service.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import '../../services/settings_service.dart';
 import '../../services/card_preview_service.dart';
 import 'widgets/video_layer.dart';
 import 'widgets/danmaku_layer.dart';
+import 'widgets/subtitle_layer.dart';
 import 'widgets/controls_overlay.dart';
 import 'widgets/settings_panel.dart';
 import 'widgets/episode_panel.dart';
@@ -49,6 +51,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   void initState() {
     super.initState();
     PlayerScreen.activeCount++;
+    ContentTranslator.instance.changes.addListener(onTranslatorChanged);
     // 第一個 await 之前同步接手暖機播放器；沒有就釋放卡片預覽的解碼器。
     // 暖機播放器是 textureView：畫面模式為「原生」時不接手，改用 platformView
     // 重新準備（textureView 無法隧道播放，部分裝置直式影片會出現綠塊）。
@@ -82,6 +85,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void dispose() {
     PlayerScreen.activeCount--;
+    ContentTranslator.instance.changes.removeListener(onTranslatorChanged);
+    subtitleGen++; // 作廢進行中的字幕載入／翻譯
     // 接手了但還沒用到的暖機播放器要釋放
     warmPlayback?.controller.dispose();
     warmPlayback = null;
@@ -141,6 +146,17 @@ class _PlayerScreenState extends State<PlayerScreen>
                     hideTop: hideTopDanmaku,
                     hideBottom: hideBottomDanmaku,
                   ),
+                ),
+
+              // CC 字幕層
+              if (!isLoading &&
+                  videoController != null &&
+                  subtitleIndex >= 0 &&
+                  subtitleLines.isNotEmpty)
+                SubtitleLayer(
+                  lines: subtitleLines,
+                  position: videoController!.value.position,
+                  controlsVisible: showControls,
                 ),
 
               // 暫停指示器
@@ -222,6 +238,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                     },
                     isDanmakuEnabled: danmakuEnabled,
                     onToggleDanmaku: toggleDanmaku,
+                    hasSubtitleTracks: subtitleTracks.isNotEmpty,
+                    isSubtitleOn: subtitleIndex >= 0,
                     currentQuality: currentQualityDesc,
                     onQualityClick: showQualityPicker,
                     isProgressBarFocused: isProgressBarFocused,
@@ -270,6 +288,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                   playbackSpeed: playbackSpeed,
                   availableSpeeds: availableSpeeds,
                   playEndLabel: SettingsService.playRepeat.label,
+                  subtitleTracks: subtitleTracks,
+                  subtitleIndex: subtitleIndex,
                   danmakuEnabled: danmakuEnabled,
                   danmakuOpacity: danmakuOpacity,
                   danmakuFontSize: danmakuFontSize,

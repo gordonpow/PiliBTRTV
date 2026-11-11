@@ -20,6 +20,9 @@ dependencies:
   
   # File System
   path_provider: ^2.1.0
+
+  # On-device translation (B 站內容英文翻譯)
+  google_mlkit_translation: ^1.0.1
   
   # SVG Icons
   flutter_svg: ^2.0.9
@@ -62,6 +65,8 @@ dependencies:
   wakelock_plus: ^1.2.8
   web_socket_channel: ^3.0.3
   brotli: ^0.6.0
+  protobuf: 6.0.0
+  fixnum: 1.1.1
 
 # 使用 packages/ 內修改過的 video_player_android（起播緩衝 0.5 秒，見 FastStartLoadControl.java）
 dependency_overrides:

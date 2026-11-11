@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 
 class EpisodePanel extends StatefulWidget {
@@ -111,12 +112,13 @@ class _EpisodePanelState extends State<EpisodePanel> {
                   final partName =
                       episode['part'] ?? episode['page_part'] ?? '';
                   // 番劇的 part 已含「第 N 話 標題」，不加 P 前綴
-                  final title = episode['is_pgc'] == true
-                      ? partName
-                      : 'P${index + 1} $partName';
+                  final prefix = episode['is_pgc'] == true
+                      ? ''
+                      : 'P${index + 1} ';
 
                   return _EpisodeItem(
-                    title: title,
+                    prefix: prefix,
+                    title: '$partName',
                     isSelected: isCurrent,
                     isFocused: widget.focusedIndex == index,
                     onTap: () => widget.onEpisodeSave(episode['cid']),
@@ -132,12 +134,14 @@ class _EpisodePanelState extends State<EpisodePanel> {
 }
 
 class _EpisodeItem extends StatelessWidget {
-  final String title;
+  final String prefix; // 介面字串（P 序號），走 Text
+  final String title; // B 站內容（分集名），走 ContentText
   final bool isSelected;
   final bool isFocused;
   final VoidCallback onTap;
 
   const _EpisodeItem({
+    required this.prefix,
     required this.title,
     required this.isSelected,
     required this.isFocused,
@@ -146,6 +150,11 @@ class _EpisodeItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final style = TextStyle(
+      color: isSelected ? const Color(0xFFfb7299) : Colors.white,
+      fontSize: 16,
+      fontWeight: isSelected || isFocused ? FontWeight.bold : FontWeight.normal,
+    );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
       decoration: BoxDecoration(
@@ -163,17 +172,18 @@ class _EpisodeItem extends StatelessWidget {
           ),
         ),
       ),
-      child: Text(
-        title,
-        style: TextStyle(
-          color: isSelected ? const Color(0xFFfb7299) : Colors.white,
-          fontSize: 16,
-          fontWeight: isSelected || isFocused
-              ? FontWeight.bold
-              : FontWeight.normal,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      child: Row(
+        children: [
+          if (prefix.isNotEmpty) Text(prefix, style: style),
+          Expanded(
+            child: ContentText(
+              title,
+              style: style,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
       ),
     );
   }

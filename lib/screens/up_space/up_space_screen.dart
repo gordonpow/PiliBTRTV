@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/widgets/content_text.dart';
 import 'dart:async';
 
 import 'package:bili_tv_app/utils/zh_toast.dart';
@@ -324,7 +325,7 @@ class _UpSpaceScreenState extends State<UpSpaceScreen> {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
+            child: ContentText(
               h.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -353,7 +354,7 @@ class _UpSpaceScreenState extends State<UpSpaceScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                ContentText(
                   h.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -365,7 +366,7 @@ class _UpSpaceScreenState extends State<UpSpaceScreen> {
                 ),
                 if (h.sign.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Text(
+                  ContentText(
                     h.sign,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

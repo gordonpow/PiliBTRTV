@@ -1,11 +1,12 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 
 import '../../../models/play_repeat.dart';
+import '../../../models/subtitle.dart';
 import '../../../services/btr/btr_config.dart';
 import '../../../services/settings_service.dart';
 import 'cdn_status_view.dart';
 
-enum SettingsMenuType { main, quality, danmaku, speed, cdn, playEnd }
+enum SettingsMenuType { main, quality, danmaku, speed, cdn, playEnd, subtitle }
 
 class SettingsPanel extends StatefulWidget {
   final SettingsMenuType menuType;
@@ -14,6 +15,8 @@ class SettingsPanel extends StatefulWidget {
   final double playbackSpeed;
   final List<double> availableSpeeds;
   final String playEndLabel; // 「播放完畢後」目前的模式名稱
+  final List<SubtitleTrack> subtitleTracks;
+  final int subtitleIndex; // -1 為關閉
 
   // Danmaku Settings
   final bool danmakuEnabled;
@@ -36,6 +39,8 @@ class SettingsPanel extends StatefulWidget {
     required this.playbackSpeed,
     required this.availableSpeeds,
     required this.playEndLabel,
+    required this.subtitleTracks,
+    required this.subtitleIndex,
     required this.danmakuEnabled,
     required this.danmakuOpacity,
     required this.danmakuFontSize,
@@ -57,7 +62,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
   @override
   void didUpdateWidget(SettingsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.menuType == SettingsMenuType.danmaku &&
+    if ((widget.menuType == SettingsMenuType.danmaku ||
+            widget.menuType == SettingsMenuType.subtitle) &&
         widget.focusedIndex != oldWidget.focusedIndex) {
       _scrollToFocused();
     }
@@ -102,6 +108,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     if (widget.menuType == SettingsMenuType.quality) title = '畫質選擇';
     if (widget.menuType == SettingsMenuType.cdn) title = 'CDN 狀態';
     if (widget.menuType == SettingsMenuType.playEnd) title = '播放完畢後';
+    if (widget.menuType == SettingsMenuType.subtitle) title = '字幕';
 
     return Positioned(
       top: 0,
@@ -161,6 +168,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
         return _buildSpeedSettingsList();
       case SettingsMenuType.playEnd:
         return _buildPlayEndSettingsList();
+      case SettingsMenuType.subtitle:
+        return _buildSubtitleSettingsList();
       case SettingsMenuType.cdn:
         return const CdnStatusView();
       case SettingsMenuType.main:
@@ -218,6 +227,19 @@ class _SettingsPanelState extends State<SettingsPanel> {
             SettingsService.playRepeat.index,
           ),
         ),
+        if (widget.subtitleTracks.isNotEmpty)
+          _buildSettingItem(
+            index: 6,
+            icon: Icons.closed_caption,
+            title: '字幕',
+            value: widget.subtitleIndex >= 0
+                ? widget.subtitleTracks[widget.subtitleIndex].label
+                : '關閉',
+            onTap: () => widget.onNavigate(
+              SettingsMenuType.subtitle,
+              widget.subtitleIndex + 1,
+            ),
+          ),
       ],
     );
   }
@@ -311,6 +333,30 @@ class _SettingsPanelState extends State<SettingsPanel> {
           onTap: () {},
         );
       }).toList(),
+    );
+  }
+
+  Widget _buildSubtitleSettingsList() {
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        _buildSettingItem(
+          index: 0,
+          icon: Icons.closed_caption_disabled,
+          title: '關閉',
+          value: widget.subtitleIndex < 0 ? '當前' : '',
+          onTap: () {},
+        ),
+        for (int i = 0; i < widget.subtitleTracks.length; i++)
+          _buildSettingItem(
+            index: i + 1,
+            icon: Icons.closed_caption,
+            title: widget.subtitleTracks[i].label,
+            value: i == widget.subtitleIndex ? '當前' : '',
+            onTap: () {},
+          ),
+      ],
     );
   }
 

@@ -12,6 +12,7 @@ import 'services/btr/btr_host_ranker.dart';
 import 'services/local_server.dart';
 import 'services/log_service.dart';
 import 'services/settings_service.dart';
+import 'services/translate/content_translator.dart';
 import 'utils/zh_convert.dart';
 
 Future<void> main() async {
@@ -26,6 +27,8 @@ Future<void> _main() async {
   // 語言設定需要 SharedPreferences，先初始化再載入繁簡轉換表
   await SettingsService.init();
   await ZhConvert.init();
+  // 翻譯 B 站內容：開關為 true 才在背景檢查模型（不阻塞啟動）
+  unawaited(ContentTranslator.instance.init());
 
   // 🔥 增大圖片記憶體快取，防止播放影片時主頁圖片被回收
   PaintingBinding.instance.imageCache.maximumSize = 500; // 500張圖片
