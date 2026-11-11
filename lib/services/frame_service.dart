@@ -14,6 +14,11 @@ class FrameService {
 
   static int _requestIdCounter = 0;
 
+  // 逾時 log 最多每 5 秒一次，略過的次數在下一次輸出時附上
+  static const Duration _timeoutLogInterval = Duration(seconds: 5);
+  static DateTime? _lastTimeoutLog;
+  static int _skippedTimeoutLogs = 0;
+
   /// 獲取特定時間點的畫面幀
   ///
   /// [url] 影片串流網址
@@ -49,7 +54,20 @@ class FrameService {
       final dynamic raw = await future.timeout(
         const Duration(seconds: 3),
         onTimeout: () {
-          debugPrint('🎬 [FrameService] 抽幀逾時: $key (req: $requestId)');
+          final now = DateTime.now();
+          final last = _lastTimeoutLog;
+          if (last == null || now.difference(last) >= _timeoutLogInterval) {
+            final skipped = _skippedTimeoutLogs > 0
+                ? '（另有 $_skippedTimeoutLogs 次略過）'
+                : '';
+            _skippedTimeoutLogs = 0;
+            _lastTimeoutLog = now;
+            debugPrint(
+              '🎬 [FrameService] 抽幀逾時: $key (req: $requestId)$skipped',
+            );
+          } else {
+            _skippedTimeoutLogs++;
+          }
           future
               .then((res) {
                 final lateBytes = _extractBytes(res);

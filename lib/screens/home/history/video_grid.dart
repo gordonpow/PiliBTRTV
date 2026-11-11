@@ -41,7 +41,13 @@ class HistoryVideoGridState extends State<HistoryVideoGrid> {
 
   /// 聚焦第一張卡片
   void focusFirst() {
+    resetScroll();
     if (widget.videos.isNotEmpty) _node(0).requestFocus();
+  }
+
+  /// 捲回最上方（焦點重設到第一張卡片時一併呼叫）
+  void resetScroll() {
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   /// 聚焦指定位置的卡片（超出範圍時夾到最後一張）。

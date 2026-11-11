@@ -6,3 +6,4 @@ lib/services/playback_perf.dart
 lib/utils/format_count.dart
 lib/plugins/danmaku_enhance_plugin.dart	剧透
 lib/screens/player/mixins/player_action_mixin.dart	隧道播放 設定=開
+lib/services/frame_service.dart	另有

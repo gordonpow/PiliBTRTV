@@ -443,6 +443,9 @@ class HistoryTabState extends State<HistoryTab> {
                     selectedIndex: _tab,
                     fontSize: 22,
                     onSelect: (i) => setState(() {
+                      if (_scrollController.hasClients) {
+                        _scrollController.jumpTo(0);
+                      }
                       _tab = i;
                       _selecting = false;
                       _selected.clear();
@@ -567,6 +570,7 @@ class HistoryTabState extends State<HistoryTab> {
     if (!AuthService.isLoggedIn) return;
     switch (_tab) {
       case 0:
+        if (_scrollController.hasClients) _scrollController.jumpTo(0);
         if (_videos.isNotEmpty) _getFocusNode(0).requestFocus();
       case 1:
         _favKey.currentState?.focusFolders();

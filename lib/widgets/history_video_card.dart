@@ -309,11 +309,13 @@ class HistoryVideoCard extends StatelessWidget {
                         ),
                 ),
                 // 最後觀看時間 - 固定位置，不省略
-                if (video.viewAtFormatted.isNotEmpty)
+                if (video.viewAtFormatted.isNotEmpty) ...[
+                  const SizedBox(width: 6),
                   Text(
                     video.viewAtFormatted,
                     style: const TextStyle(color: Colors.white38, fontSize: 12),
                   ),
+                ],
               ],
             ),
           ],

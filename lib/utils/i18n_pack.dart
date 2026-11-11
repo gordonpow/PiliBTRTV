@@ -302,28 +302,39 @@ abstract final class I18nPack {
     return json['version']?.toString() ?? '';
   }
 
-  static Future<void> _saveCheckTime({required bool ok}) async {
+  /// [appVersion] 為 null 時保留 meta.json 原本記錄的 `app`。
+  static Future<void> _saveCheckTime({
+    required bool ok,
+    String? appVersion,
+  }) async {
     try {
+      final app = appVersion ?? (await _lastCheck()).app;
       final meta = await _file('meta.json');
       await meta.writeAsString(
-        jsonEncode({'lastCheck': clock().millisecondsSinceEpoch, 'ok': ok}),
+        jsonEncode({
+          'lastCheck': clock().millisecondsSinceEpoch,
+          'ok': ok,
+          if (app != null) 'app': app,
+        }),
       );
     } catch (_) {}
   }
 
-  /// 上次背景檢查的時間與是否成功。沒有紀錄時回傳 (0, false)。
-  static Future<({int time, bool ok})> _lastCheck() async {
+  /// 上次背景檢查的時間、是否成功與當時的 App 版本。沒有紀錄時回傳
+  /// (0, false, null)。
+  static Future<({int time, bool ok, String? app})> _lastCheck() async {
     try {
       final meta = await _file('meta.json');
-      if (!meta.existsSync()) return (time: 0, ok: false);
+      if (!meta.existsSync()) return (time: 0, ok: false, app: null);
       final json = jsonDecode(await meta.readAsString());
-      if (json is! Map) return (time: 0, ok: false);
+      if (json is! Map) return (time: 0, ok: false, app: null);
       return (
         time: json['lastCheck'] as int? ?? 0,
         ok: json['ok'] as bool? ?? true,
+        app: json['app'] as String?,
       );
     } catch (_) {
-      return (time: 0, ok: false);
+      return (time: 0, ok: false, app: null);
     }
   }
 
@@ -339,20 +350,29 @@ abstract final class I18nPack {
   /// 背景檢查：已載入語言包且上次成功時，每 7 天檢查一次；
   /// 沒有語言包或上次失敗時，24 小時內不重試。成功與失敗都記錄檢查時間。
   /// 錯誤一律忽略。手動更新請直接呼叫 [download]，不受這裡的限制。
-  static Future<void> maybeUpdateInBackground() async {
+  /// [appVersion] 不是 null 且與 meta.json 記錄的 `app` 不同（App 剛更新）
+  /// 時，略過上述間隔，立即檢查。
+  static Future<void> maybeUpdateInBackground({String? appVersion}) async {
     try {
       final last = await _lastCheck();
+      final appChanged = appVersion != null && appVersion != last.app;
       final elapsed = clock().difference(
         DateTime.fromMillisecondsSinceEpoch(last.time),
       );
       final wait = isLoaded && last.ok ? _checkInterval : _retryInterval;
-      if (elapsed < wait) return;
+      if (!appChanged && elapsed < wait) return;
       final before = _successCount;
       try {
         await checkUpdate();
+        // download 成功時已寫入檢查時間；補上這次的 App 版本
+        if (appVersion != null) {
+          await _saveCheckTime(ok: true, appVersion: appVersion);
+        }
       } catch (e) {
         // 這段期間若有別的下載成功，不要蓋掉它的紀錄
-        if (_successCount == before) await _saveCheckTime(ok: false);
+        if (_successCount == before) {
+          await _saveCheckTime(ok: false, appVersion: appVersion);
+        }
         rethrow;
       }
     } catch (e) {

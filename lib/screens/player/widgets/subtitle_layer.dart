@@ -35,24 +35,23 @@ class SubtitleLayer extends StatelessWidget {
           ),
           child: Align(alignment: Alignment.bottomCenter, child: child),
         ),
+        // 不可再包 Center：在有邊界的區域內 Center 會撐滿整塊，字幕會被垂直置中（#32）
         child: IgnorePointer(
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                ZhConvert.convertContent(line.content),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  height: 1.3,
-                ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              ZhConvert.convertContent(line.content),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                height: 1.3,
               ),
             ),
           ),

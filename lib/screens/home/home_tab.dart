@@ -401,7 +401,7 @@ class HomeTabState extends State<HomeTab> {
           height: 80,
           child: Container(
             color: const Color(0xFF121212),
-            padding: const EdgeInsets.only(left: 30, right: 30, top: 20),
+            padding: const EdgeInsets.only(left: 30, right: 180, top: 20),
             child: FocusTraversalGroup(
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -469,7 +469,17 @@ class _CategoryTab extends StatelessWidget {
       padding: const EdgeInsets.only(right: 20),
       child: Focus(
         focusNode: focusNode,
-        onFocusChange: (f) => f ? onFocus() : null,
+        onFocusChange: (f) {
+          if (!f) return;
+          if (context.mounted) {
+            Scrollable.ensureVisible(
+              context,
+              alignment: 0.5,
+              duration: const Duration(milliseconds: 150),
+            );
+          }
+          onFocus();
+        },
         onKeyEvent: (node, event) {
           if (event is KeyDownEvent) {
             if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&

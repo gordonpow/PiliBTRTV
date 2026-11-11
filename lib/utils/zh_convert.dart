@@ -1,5 +1,6 @@
 import 'dart:ui' show Locale, PlatformDispatcher;
 
+import 'package:bili_tv_app/btr_version.dart';
 import 'package:bili_tv_app/services/settings_service.dart';
 import 'package:bili_tv_app/utils/i18n_pack.dart';
 import 'package:flutter/foundation.dart'
@@ -106,7 +107,7 @@ abstract final class ZhConvert {
     if (wantsEnglish) {
       // 沒有語言包（首次啟動或檔案損毀）或到了檢查時間：背景下載，
       // 失敗 24 小時內不重試，下次啟動生效。
-      I18nPack.maybeUpdateInBackground();
+      I18nPack.maybeUpdateInBackground(appVersion: btrVersion);
     }
     try {
       final simplified = script == ZhScript.simplified;

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Locale;
 
@@ -209,6 +210,66 @@ void main() {
       await I18nPack.maybeUpdateInBackground();
       expect(calls, 2);
       addTearDown(() => I18nPack.clock = DateTime.now);
+    });
+
+    group('App 版本變更', () {
+      late int calls;
+      late DateTime now;
+
+      setUp(() {
+        calls = 0;
+        now = DateTime(2026, 11, 10, 12);
+        I18nPack.clock = () => now;
+        I18nPack.fetcher = (_, _) async {
+          calls++;
+          return '{"version":"v1","strings":{"語言":"Language"}}';
+        };
+        addTearDown(() => I18nPack.clock = DateTime.now);
+      });
+
+      Map<String, dynamic> readMeta() =>
+          jsonDecode(File('${dir.path}/meta.json').readAsStringSync())
+              as Map<String, dynamic>;
+
+      test('版本相同且未超過間隔時不下載', () async {
+        await I18nPack.maybeUpdateInBackground(appVersion: 'a1');
+        await I18nPack.load();
+        expect(calls, 1);
+        now = now.add(const Duration(days: 1));
+        await I18nPack.maybeUpdateInBackground(appVersion: 'a1');
+        expect(calls, 1);
+      });
+
+      test('版本不同時立即下載', () async {
+        await I18nPack.maybeUpdateInBackground(appVersion: 'a1');
+        await I18nPack.load();
+        expect(calls, 1);
+        await I18nPack.maybeUpdateInBackground(appVersion: 'a2');
+        expect(calls, 2);
+      });
+
+      test('下載成功後 meta 記錄新的版本', () async {
+        await I18nPack.maybeUpdateInBackground(appVersion: 'a1');
+        expect(readMeta()['app'], 'a1');
+        await I18nPack.download();
+        // 手動下載不能把 app 清掉
+        expect(readMeta()['app'], 'a1');
+        await I18nPack.maybeUpdateInBackground(appVersion: 'a2');
+        expect(readMeta()['app'], 'a2');
+      });
+
+      test('舊的 meta 沒有 app 欄位時，帶版本會觸發一次檢查', () async {
+        await I18nPack.download();
+        await I18nPack.load();
+        expect(calls, 1);
+        File('${dir.path}/meta.json').writeAsStringSync(
+          '{"lastCheck":${now.millisecondsSinceEpoch},"ok":true}',
+        );
+        await I18nPack.maybeUpdateInBackground(appVersion: 'a1');
+        expect(calls, 2);
+        await I18nPack.maybeUpdateInBackground(appVersion: 'a1');
+        expect(calls, 2);
+      });
     });
   });
 }

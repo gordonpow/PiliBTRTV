@@ -155,6 +155,7 @@ class FavViewState extends State<FavView> {
   void _selectFolder(int i) {
     if (i == _selected) return;
     setState(() => _selected = i);
+    _gridKey.currentState?.resetScroll();
     if (i < _folders.length) _loadVideos(reset: true);
   }
 

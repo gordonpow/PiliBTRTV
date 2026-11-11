@@ -46,6 +46,7 @@ class LiveRoomGridState extends State<LiveRoomGrid> {
 
   /// 聚焦第一張卡片
   void focusFirst() {
+    if (widget.scrollController.hasClients) widget.scrollController.jumpTo(0);
     if (widget.rooms.isNotEmpty) _getFocusNode(0).requestFocus();
   }
 

@@ -203,7 +203,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
           controller: _scrollController,
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(30, 140, 30, 40),
+              padding: const EdgeInsets.fromLTRB(30, 160, 30, 40),
               sliver: SliverGrid(
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 4,

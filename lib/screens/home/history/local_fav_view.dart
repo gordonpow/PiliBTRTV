@@ -204,7 +204,10 @@ class LocalFavViewState extends State<LocalFavView> {
               focusNodes: _folderNodes,
               selectedIndex: _selected.clamp(0, folders.length - 1),
               fontSize: 16,
-              onSelect: (i) => setState(() => _selected = i),
+              onSelect: (i) {
+                setState(() => _selected = i);
+                _gridKey.currentState?.resetScroll();
+              },
               onMoveLeftAtFirst: () => widget.sidebarFocusNode?.requestFocus(),
               onMoveUp: widget.onMoveUpToTabs,
               onMoveDown: () => _actionNodes[0].requestFocus(),

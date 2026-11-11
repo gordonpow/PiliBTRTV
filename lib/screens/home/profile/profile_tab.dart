@@ -31,6 +31,7 @@ class ProfileTab extends StatefulWidget {
 class ProfileTabState extends State<ProfileTab> {
   static const _pink = Color(0xFFfb7299);
 
+  final ScrollController _scrollController = ScrollController();
   final FocusNode _followingsNode = FocusNode(debugLabel: 'profileFollowings');
   final FocusNode _spaceNode = FocusNode(debugLabel: 'profileSpace');
   final FocusNode _logoutNode = FocusNode(debugLabel: 'profileLogout');
@@ -62,6 +63,7 @@ class ProfileTabState extends State<ProfileTab> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _followingsNode.dispose();
     _spaceNode.dispose();
     _logoutNode.dispose();
@@ -75,6 +77,7 @@ class ProfileTabState extends State<ProfileTab> {
 
   /// 從側邊欄按右鍵進入。
   void focusFirstItem() {
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
     if (_showLogin && !AuthService.isLoggedIn) {
       _loginKey.currentState?.focusDefault();
     } else if (!AuthService.isLoggedIn) {
@@ -257,6 +260,7 @@ class ProfileTabState extends State<ProfileTab> {
     final mid = info?.mid ?? AuthService.mid;
 
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.fromLTRB(30, 30, 30, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

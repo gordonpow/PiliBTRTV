@@ -32,6 +32,7 @@ class SettingsView extends StatefulWidget {
 class SettingsViewState extends State<SettingsView>
     with WidgetsBindingObserver {
   int _selectedCategoryIndex = 0;
+  final ScrollController _contentScroll = ScrollController();
   late List<FocusNode> _categoryFocusNodes;
   final FocusNode _boxFocus = FocusNode(debugLabel: 'settingsSearchBox');
   late final FocusNode _textFocus;
@@ -72,6 +73,7 @@ class SettingsViewState extends State<SettingsView>
     _textFocus.dispose();
     _boxFocus.dispose();
     _contentNode.dispose();
+    _contentScroll.dispose();
     for (var node in _categoryFocusNodes) {
       node.dispose();
     }
@@ -80,10 +82,16 @@ class SettingsViewState extends State<SettingsView>
 
   /// 請求第一個分類標籤的焦點（用於從側邊欄導航）
   void focusFirstCategory() {
+    _resetContentScroll();
     // 從側邊欄進來一律到第一個分類（播放設定），不回到上次停留的分類
     if (_categoryFocusNodes.isNotEmpty) {
       _categoryFocusNodes.first.requestFocus();
     }
+  }
+
+  /// 內容區捲回最上方（焦點回到第一個分類或切換分類時呼叫）
+  void _resetContentScroll() {
+    if (_contentScroll.hasClients) _contentScroll.jumpTo(0);
   }
 
   /// 把焦點移到內容區第一個可聚焦項目
@@ -252,6 +260,7 @@ class SettingsViewState extends State<SettingsView>
   void _selectEntry(SettingsEntry entry) {
     _closeIme();
     _controller.clear();
+    _resetContentScroll();
     setState(() {
       _selectedCategoryIndex = SettingsCategory.values.indexOf(entry.category);
     });
@@ -530,7 +539,10 @@ class SettingsViewState extends State<SettingsView>
                     isSelected: isSelected,
                     showDot: category == SettingsCategory.about,
                     focusNode: _categoryFocusNodes[index],
-                    onTap: () => setState(() => _selectedCategoryIndex = index),
+                    onTap: () {
+                      _resetContentScroll();
+                      setState(() => _selectedCategoryIndex = index);
+                    },
                     onMoveLeft: index == 0
                         ? () => widget.sidebarFocusNode?.requestFocus()
                         : null,
@@ -547,6 +559,7 @@ class SettingsViewState extends State<SettingsView>
                 focusNode: _contentNode,
                 onKeyEvent: _handleContentKey,
                 child: SingleChildScrollView(
+                  controller: _contentScroll,
                   padding: const EdgeInsets.symmetric(horizontal: 40),
                   child: _searching
                       ? _buildSearchResults()
