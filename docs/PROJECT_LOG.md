@@ -301,3 +301,10 @@
 - 使用者回報 6UMU2Z（#36）：從關注列表進 UP 主頁選影片會跳回上一頁。原因：UpSpaceScreen 以 pop 回傳影片，只有播放器路徑處理。新增 `returnSelection`，從首頁類頁面開啟時在 UP 主頁上方開播放器。模擬器驗證通過。
 - 使用者回報 G9PQ6L（#37）：32 位元 Sony 4K＋杜比一直緩衝。原因：32 位元 4K 自動略過 BTR 直連海外 CDN（1～16Mbps，4K 需 8.7Mbps），網路不足不會降畫質。依使用者要求：取消 32 位元 4K 略過 BTR（BTR 只依使用者開關）；網路不足時（連續緩衝 ≥8 秒或 60 秒內 3 次，開播／換畫質 10 秒內與跳轉 5 秒內不計，暫停不判斷）若 BTR 使用中、自動執行緒且 CPU < 60% 先提升 BTR 執行緒（8→16→32，32 位元上限 16，每部影片重新計算），否則降一級畫質（不低於 1080P，手動選畫質只提示）。agy 審查（Sonnet 讀檔後結束，改 Gemini Flash）4 條採用 2 條。未 commit。
 - 發布 v1.2.2-btr.20：commit `f06b5d3`（#36）、`1862b76`（#37）、`2a65960`（版本 `1.2.2-btr.20+24`，versionName 首次帶 btr 編號）。versionCode 2024／1024，簽章 `17fcf8ed…`。已觸發 F-Droid 套件庫更新。發布說明 `docs/work/up-space-netstarve/release-notes-btr.20.md`。
+
+### 2026-11-12：原文語言選項、播放時查看簡介與留言
+- #38 原文語言選項（commit `a29b2ce`）：設定 → 介面 → 語言新增「原文（不轉換）」（值 4）。介面維持繁體，B 站內容（標題、留言、彈幕、字幕）不載入繁簡表、照原文顯示。
+- #39 播放時查看簡介與留言（commit `6ece022`）：控制列「設定」右邊新增「簡介」按鈕（`CtrlBtn.info=8`，讚／幣／藏改 9／10／11），開啟右側面板，左右鍵切換「簡介」「留言」分頁。留言用 `x/v2/reply/wbi/main`（熱門、置頂在前、捲到底自動載入下一頁）。不含樓中樓與發表留言。需求與規格在 `docs/work/player-info-panel/`。
+- 實作：agy 不在 Git Bash PATH，改用完整路徑 `C:\Users\abcz0\AppData\Local\agy\bin\agy.exe`；agy Sonnet 只完成 API 部分就結束，其餘由 Claude Sonnet 完成。`flutter analyze` 無問題，測試 311 個通過，i18n 未翻譯 0。尚未做 diff 審查與實機驗證。
+- 模擬器測試：#38 通過（原文模式介面繁體、標題顯示簡體原文）。#39 第一次失敗：面板開啟後收不到按鍵（`autofocus` 在 playerFocusNode 已有焦點時不生效），改為 initState 後主動 `requestFocus` 後通過（切分頁、載入更多、確認鍵不切換播放、返回鍵關閉）。置頂標籤與簡介捲動因測試影片條件無法驗證。模擬器途中自行關閉，快照載入失敗，以 `-no-snapshot-load` 冷開機。
+- 發布 v1.2.2-btr.21：commit `a29b2ce`（#38）、`6ece022`（#39）、`d737cd6`（版本 `1.2.2-btr.21+25`）。versionCode 2025／1025，簽章 `17fcf8ed…`。已觸發 F-Droid 套件庫更新。發布說明 `docs/work/player-info-panel/release-notes-btr.21.md`。
