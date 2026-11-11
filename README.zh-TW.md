@@ -13,6 +13,14 @@ Android TV 版第三方 Bilibili 用戶端。以 [BiliTV](https://github.com/Hyp
 - applicationId 為 `com.gordonpow.pilibtrtv`，可與原版 BiliTV 同時安裝。
 - 從 v1.2.2-btr.2 起，App 會自動檢查新版本，並可在 App 內下載安裝。
 
+### F-Droid
+
+也可以從自架的 F-Droid 套件庫安裝與更新（APK 與 GitHub Releases 相同、同一個簽章，兩邊可以互相覆蓋更新，不必重裝）：
+
+- 套件庫網址：`https://gordonpow.github.io/fdroid/repo`
+- 指紋（SHA-256）：`C721B842CCD732752B83521BCA679B59E8320645F3E39224A8A59BEB9511B9F4`
+- 一鍵加入：<https://gordonpow.github.io/fdroid/repo?fingerprint=C721B842CCD732752B83521BCA679B59E8320645F3E39224A8A59BEB9511B9F4>
+
 ## 功能
 
 ### BTR 多 CDN 播放加速

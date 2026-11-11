@@ -17,6 +17,14 @@ Download the latest APK from [Releases](https://github.com/gordonpow/PiliBTRTV/r
 - The applicationId is `com.gordonpow.pilibtrtv`, so it can be installed alongside the original BiliTV.
 - Since v1.2.2-btr.2, the app checks for new versions automatically and can download and install updates within the app.
 
+### F-Droid
+
+PiliBTRTV is also available from a self-hosted F-Droid repository (same APKs and signature as GitHub Releases, so you can switch between them without reinstalling):
+
+- Repository: `https://gordonpow.github.io/fdroid/repo`
+- Fingerprint (SHA-256): `C721B842CCD732752B83521BCA679B59E8320645F3E39224A8A59BEB9511B9F4`
+- One-tap add: <https://gordonpow.github.io/fdroid/repo?fingerprint=C721B842CCD732752B83521BCA679B59E8320645F3E39224A8A59BEB9511B9F4>
+
 ## Features
 
 ### BTR Multi-CDN Acceleration
