@@ -8,7 +8,10 @@ import '../screens/player/player_screen.dart';
 import 'api/base_api.dart';
 import 'bilibili_api.dart';
 import 'btr/btr_proxy.dart';
+import 'device_profile.dart';
+import 'memory_budget.dart';
 import 'play_params.dart';
+import 'player_slot.dart';
 import 'playback_preparer.dart';
 import 'prefetch_service.dart';
 import 'settings_service.dart';
@@ -29,7 +32,11 @@ class CardPreviewState {
 /// - 480P 預覽（番劇，或播放頁開著時）：不使用 LocalServer。
 /// 預覽失敗一律靜默，保持封面；不得修改任何設定、不得 toast。
 class CardPreviewService {
-  CardPreviewService._();
+  CardPreviewService._() {
+    // 監聽記憶體等級：進入 critical 時立即停止所有暖機預覽
+    DeviceProfile.tierNotifier.addListener(_onTierChanged);
+  }
+
   static final CardPreviewService instance = CardPreviewService._();
 
   static const Duration _previewDuration = Duration(seconds: 10);
@@ -92,12 +99,17 @@ class CardPreviewService {
   bool isClaimed(VideoPlayerController controller) =>
       identical(_claimedController, controller);
 
-  /// 此影片是否會走暖機（UGC、沒有播放頁開著）
+  /// 此影片是否會走暖機（UGC、沒有播放頁開著、非 critical 記憶體等級）
   bool willWarm(Video video) =>
       !video.isLive &&
       !video.isPgc &&
       video.bvid.isNotEmpty &&
-      PlayerScreen.activeCount == 0;
+      PlayerScreen.activeCount == 0 &&
+      !MemoryBudget.disableWarm(DeviceProfile.currentTier);
+
+  // 播放器名額：同一時間只允許一個預覽播放器建立／釋放，避免低階機同時多個解碼器。
+  final PlayerSlot _slot = PlayerSlot();
+  final Expando<Object> _slotTokens = Expando<Object>('playerSlotToken');
 
   final Map<String, ({String url, DateTime at})> _urlCache = {};
   int _failCount = 0;
@@ -110,12 +122,16 @@ class CardPreviewService {
     if (video.isPgc && video.epId <= 0) return;
     final pausedUntil = _pausedUntil;
     if (pausedUntil != null && DateTime.now().isBefore(pausedUntil)) return;
+    // critical 記憶體等級：不建立任何預覽播放器（含 480P 預覽）
+    if (DeviceProfile.currentTier == MemoryTier.critical) return;
 
     final gen = ++_generation;
     _owner = owner;
     _claimedController = null;
     if (willWarm(video)) return _startWarm(owner, video, gen);
     VideoPlayerController? controller;
+    final token = await _slot.acquire(cancelled: () => gen != _generation);
+    if (token == null) return;
 
     try {
       final rawUrl = await _resolveUrl(video);
@@ -137,6 +153,7 @@ class CardPreviewService {
         },
         viewType: VideoViewType.textureView,
       );
+      _slotTokens[controller] = token;
       await controller.setVolume(0);
       await controller.setLooping(false);
       await controller.initialize().timeout(_initTimeout);
@@ -166,6 +183,9 @@ class CardPreviewService {
         _generation++;
         _owner = null;
       }
+    } finally {
+      // 沒有建立 controller 的結束路徑在這裡釋放；有 controller 的由 _disposeController 或 take 釋放
+      if (controller == null) _slot.release(token);
     }
   }
 
@@ -173,27 +193,44 @@ class CardPreviewService {
 
   Future<void> _startWarm(Object owner, Video video, int gen) async {
     bool cancelled() => gen != _generation;
-    final watch = Stopwatch()..start();
     final done = Completer<void>();
+    // 先設好等待狀態：等名額期間按 OK 也要能走「保留給播放頁」的流程
+    // （reserve 不改 _generation，所以保留中的暖機不會被視為取消）
     _pendingBvid = video.bvid;
     _pendingDone = done;
     _pendingReserved = false;
-    debugPrint('🔥 [Warm] start ${video.bvid}');
+    Object? token;
+    PreparedPlayback? got; // prepare 交出來的播放器（供 catch 清理）
+    var timedOut = false;
     try {
-      final outcome =
-          await PlaybackPreparer.prepare(
-            video,
-            qn: PlayParams.initialQn,
-            warm: true,
-            videoInfo: PrefetchService.instance.peekVideoInfo(video.bvid),
-            isCancelled: cancelled,
-            onStep: (s) => debugPrint(
-              '🔥 [Warm] $s ${watch.elapsedMilliseconds}ms ${video.bvid}',
-            ),
-          ).timeout(
+      token = await _slot.acquire(cancelled: cancelled);
+      if (token == null) return;
+      // 計時從取得名額後才開始，等待名額不算失敗
+      final watch = Stopwatch()..start();
+      debugPrint('🔥 [Warm] start ${video.bvid}');
+      final raw = PlaybackPreparer.prepare(
+        video,
+        qn: PlayParams.initialQn,
+        warm: true,
+        videoInfo: PrefetchService.instance.peekVideoInfo(video.bvid),
+        isCancelled: cancelled,
+        onStep: (s) => debugPrint(
+          '🔥 [Warm] $s ${watch.elapsedMilliseconds}ms ${video.bvid}',
+        ),
+      );
+      final slotToken = token;
+      final outcome = await raw.timeout(
             _warmTimeout,
             onTimeout: () {
-              // 逾時：取消準備，晚到的 controller 會由 prepare 自行釋放
+              // 逾時：取消準備，晚到的 controller 會由 prepare 自行釋放。
+              // 名額等底層 prepare 真正結束才釋放。
+              timedOut = true;
+              unawaited(
+                raw.then<void>(
+                  (_) => _slot.release(slotToken),
+                  onError: (_) => _slot.release(slotToken),
+                ),
+              );
               if (!cancelled()) {
                 _generation++;
                 _owner = null;
@@ -204,6 +241,7 @@ class CardPreviewService {
           );
       final prepared = outcome.playback;
       if (prepared == null) {
+        if (!timedOut) _slot.release(token);
         if (!outcome.cancelled && !outcome.redirect && outcome.error != null) {
           _recordFailure();
         }
@@ -213,6 +251,8 @@ class CardPreviewService {
         }
         return;
       }
+      got = prepared;
+      _slotTokens[prepared.controller] = token;
       if (cancelled()) {
         _disposeController(prepared.controller);
         return;
@@ -252,6 +292,12 @@ class CardPreviewService {
       _stopTimer = Timer(_previewDuration, () => _pauseWarm(gen));
     } catch (e) {
       debugPrint('🔥 [Warm] failed: $e');
+      final g = got;
+      if (g == null) {
+        if (!timedOut) _slot.release(token);
+      } else if (!identical(_prepared, g)) {
+        _disposeController(g.controller);
+      }
       if (gen == _generation) _pendingReserved = false;
       if (gen == _generation) {
         _generation++;
@@ -325,6 +371,8 @@ class CardPreviewService {
     if (l != null) p.controller.removeListener(l);
     _errorListener = null;
     _clearCurrentDeferred();
+    // 交給播放頁：釋放名額（不 dispose）
+    _slot.release(_slotTokens[p.controller]);
     return p;
   }
 
@@ -418,6 +466,19 @@ class CardPreviewService {
     }
   }
 
+  /// 系統記憶體不足：停止預覽並暫停一段時間
+  void onMemoryPressure() {
+    stopAll();
+    _pausedUntil = DateTime.now().add(_pauseDuration);
+  }
+
+  /// 記憶體等級改變時的回呼；進入 critical 立即停止所有暖機
+  void _onTierChanged() {
+    if (DeviceProfile.currentTier == MemoryTier.critical) {
+      stopAll();
+    }
+  }
+
   /// owner 相同（含準備中）才停止
   void stop(Object owner) {
     if (!identical(_owner, owner)) return;
@@ -445,8 +506,17 @@ class CardPreviewService {
   /// 等畫面不再使用 controller 後才釋放（兩個 frame：先通知卡片移除，再 dispose）
   void _disposeController(VideoPlayerController controller) {
     final binding = WidgetsBinding.instance;
+    final token = _slotTokens[controller];
     binding.addPostFrameCallback((_) {
-      binding.addPostFrameCallback((_) => controller.dispose());
+      binding.addPostFrameCallback((_) async {
+        try {
+          await controller.dispose();
+        } catch (_) {
+          // dispose 失敗也要釋放名額
+        } finally {
+          _slot.release(token);
+        }
+      });
       binding.scheduleFrame();
     });
     binding.scheduleFrame();

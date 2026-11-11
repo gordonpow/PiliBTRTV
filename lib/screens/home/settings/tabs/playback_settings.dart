@@ -86,6 +86,39 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
         ),
         const SizedBox(height: 16),
         SettingToggleRow(
+          label: '顯示按讚按鈕',
+          subtitle: '關閉後播放器控制列不顯示此按鈕',
+          value: SettingsService.showLikeButton,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (value) async {
+            await SettingsService.setShowLikeButton(value);
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 16),
+        SettingToggleRow(
+          label: '顯示投幣按鈕',
+          subtitle: '關閉後播放器控制列不顯示此按鈕',
+          value: SettingsService.showCoinButton,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (value) async {
+            await SettingsService.setShowCoinButton(value);
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 16),
+        SettingToggleRow(
+          label: '顯示收藏按鈕',
+          subtitle: '關閉後播放器控制列不顯示此按鈕',
+          value: SettingsService.showFavButton,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (value) async {
+            await SettingsService.setShowFavButton(value);
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 16),
+        SettingToggleRow(
           label: '預設隱藏控制欄',
           subtitle: '開啟影片時不顯示控制欄和進度條',
           value: SettingsService.hideControlsOnStart,

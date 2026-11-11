@@ -10,6 +10,7 @@ import '../../../models/video.dart' as models;
 import '../../../models/videoshot.dart';
 import '../../../services/playback_preparer.dart';
 import '../../../services/playback_perf.dart';
+import '../../../services/audio_track.dart';
 
 /// 倒數連播的下一部資訊
 class UpNextInfo {
@@ -144,6 +145,27 @@ mixin PlayerStateMixin on State<PlayerScreen> {
 
   // 當前播放的音訊 URL (DASH 模式)
   String? currentAudioUrl;
+  AudioKind currentAudioKind = AudioKind.standard; // 實際使用的音軌
+  List<AudioOption> audioOptions = const []; // 本影片可選的音軌（給設定面板）
+  AudioKind? _audioOverrideKind; // 本影片強制使用的音軌（退回標準時設定）
+  String? _audioOverrideBvid;
+
+  /// 本影片的音軌覆寫；換影片後自動失效
+  AudioKind? get audioOverrideNow =>
+      _audioOverrideBvid == playingBvid ? _audioOverrideKind : null;
+
+  void setAudioOverride(AudioKind kind) {
+    _audioOverrideKind = kind;
+    _audioOverrideBvid = playingBvid;
+  }
+
+  /// 記錄 getVideoPlayUrl 回傳的音軌資訊
+  void recordAudio(Map<String, dynamic> playInfo) {
+    currentAudioKind =
+        playInfo['audioKind'] as AudioKind? ?? AudioKind.standard;
+    audioOptions =
+        (playInfo['audioOptions'] as List?)?.cast<AudioOption>() ?? const [];
+  }
 
   // 當前抽幀預覽使用的影片 URL (480P AVC)
   String? previewFrameUrl;
@@ -241,9 +263,9 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   int precachedSpriteIndex = -1; // 已預快取的雪碧圖最大索引 (滑動視窗)
   bool hasShownVideoshotFailToast = false; // 是否已顯示過預覽圖失敗提示
   bool hasHandledVideoComplete = false; // 防止重複觸發影片完成回撥
-  int seekPressCount = 0; // 連續快進/快退計數
-  DateTime? lastSeekPressTime; // 上次按下快進/快退時間
-  bool? lastSeekDirection; // 上次快進方向 (true: forward, false: backward)
+  DateTime? seekHoldStart; // 按住方向鍵快轉的開始時間（null 表示沒在按住）
+  DateTime? seekHoldLast; // 按住快轉上次更新時間
+  bool? seekHoldDirection; // 按住方向 (true: forward, false: backward)
   Timer? autoSeekTimer; // 1.5 秒無操作自動跳轉計時器
   Duration? originalSeekPosition; // 快進前原播放位置 (供取消預覽使用)
   bool wasPlayingBeforeSeek = false; // 快進前是否正在播放

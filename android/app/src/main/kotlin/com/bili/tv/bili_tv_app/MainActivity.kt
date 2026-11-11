@@ -101,12 +101,36 @@ class MainActivity : FlutterActivity() {
                     val name = call.argument<String>("decoderName")
                     result.success(decoderCaps(codec, name, w, h, fps))
                 }
+                "getAudioSupport" -> {
+                    try {
+                        result.success(audioSupport())
+                    } catch (e: Exception) {
+                        result.error("AUDIO_SUPPORT_ERROR", e.message, null)
+                    }
+                }
                 "isHdrDisplay" -> result.success(isHdrDisplay())
                 "getDeviceInfo" -> result.success(perfDeviceInfo())
                 "getProcessCpu" -> result.success(processCpu())
                 "getPlayerStats" -> result.success(
                     io.flutter.plugins.videoplayer.PlayerStats.snapshot(call.argument<Boolean>("drain") ?: true)
                 )
+                "getMemoryState" -> {
+                    // 查詢目前可用記憶體與低記憶體門檻（供 DeviceProfile.startMonitor 呼叫）
+                    try {
+                        val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                        val memInfo = android.app.ActivityManager.MemoryInfo()
+                        am.getMemoryInfo(memInfo)
+                        result.success(
+                            mapOf(
+                                "availMemMb" to (memInfo.availMem / 1048576L).toInt(),
+                                "thresholdMb" to (memInfo.threshold / 1048576L).toInt(),
+                                "lowMemory" to memInfo.lowMemory
+                            )
+                        )
+                    } catch (e: Exception) {
+                        result.error("MEMORY_ERROR", e.message, null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -126,11 +150,14 @@ class MainActivity : FlutterActivity() {
         val modes = (if (canMode) display?.supportedModes?.toList() else null)?.map {
             "${it.physicalWidth}x${it.physicalHeight}@${"%.1f".format(it.refreshRate)}"
         } ?: emptyList()
+        val memInfo = android.app.ActivityManager.MemoryInfo()
+        am.getMemoryInfo(memInfo)
         return mapOf(
             "abis" to Build.SUPPORTED_ABIS.toList(),
             "cores" to Runtime.getRuntime().availableProcessors(),
             "memoryClass" to am.memoryClass,
             "isLowRam" to am.isLowRamDevice,
+            "totalMemMb" to (memInfo.totalMem / 1048576L).toInt(),
             "modeWidth" to (mode?.physicalWidth ?: 0),
             "modeHeight" to (mode?.physicalHeight ?: 0),
             "modeRefresh" to (mode?.refreshRate?.toDouble() ?: (display?.refreshRate?.toDouble() ?: 0.0)),
@@ -259,6 +286,32 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             false
         }
+    }
+
+    // 查詢音訊解碼／直通能力：杜比 E-AC3、E-AC3-JOC（Atmos）與 FLAC
+    private fun audioSupport(): Map<String, Boolean> {
+        // 只建一次 codec 清單（建立成本高）
+        val codecInfos = MediaCodecList(MediaCodecList.ALL_CODECS).codecInfos
+        fun hasDecoder(mime: String): Boolean {
+            return codecInfos.any { info ->
+                !info.isEncoder && info.supportedTypes.any { it.equals(mime, ignoreCase = true) }
+            }
+        }
+        // 直通：輸出裝置（HDMI／ARC 等）的 encodings 含指定格式
+        fun hasPassthrough(encoding: Int): Boolean {
+            if (android.os.Build.VERSION.SDK_INT < 23) return false
+            val am = getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+            return am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)?.any { d ->
+                d.encodings.contains(encoding)
+            } ?: false
+        }
+        val eac3 = hasDecoder("audio/eac3") ||
+            hasPassthrough(android.media.AudioFormat.ENCODING_E_AC3)
+        // ENCODING_E_AC3_JOC = 18（API 28），直接用數值避免低版本編譯問題
+        val eac3Joc = hasDecoder("audio/eac3-joc") || hasPassthrough(18)
+        // Android 8.1+ 內建軟體 FLAC 解碼器
+        val flac = hasDecoder("audio/flac") || android.os.Build.VERSION.SDK_INT >= 27
+        return mapOf("eac3" to eac3, "eac3Joc" to eac3Joc, "flac" to flac)
     }
 
     // 获取硬件解码器支持的格式

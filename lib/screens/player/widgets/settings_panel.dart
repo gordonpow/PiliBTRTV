@@ -3,10 +3,20 @@ import 'package:bili_tv_app/widgets/zh_material.dart';
 import '../../../models/play_repeat.dart';
 import '../../../models/subtitle.dart';
 import '../../../services/btr/btr_config.dart';
+import '../../../services/audio_track.dart';
 import '../../../services/settings_service.dart';
 import 'cdn_status_view.dart';
 
-enum SettingsMenuType { main, quality, danmaku, speed, cdn, playEnd, subtitle }
+enum SettingsMenuType {
+  main,
+  quality,
+  danmaku,
+  speed,
+  cdn,
+  playEnd,
+  subtitle,
+  audio,
+}
 
 class SettingsPanel extends StatefulWidget {
   final SettingsMenuType menuType;
@@ -17,6 +27,8 @@ class SettingsPanel extends StatefulWidget {
   final String playEndLabel; // 「播放完畢後」目前的模式名稱
   final List<SubtitleTrack> subtitleTracks;
   final int subtitleIndex; // -1 為關閉
+  final List<AudioOption> audioOptions; // 本影片可選的音軌
+  final AudioKind audioKind; // 目前使用的音軌
 
   // Danmaku Settings
   final bool danmakuEnabled;
@@ -41,6 +53,8 @@ class SettingsPanel extends StatefulWidget {
     required this.playEndLabel,
     required this.subtitleTracks,
     required this.subtitleIndex,
+    required this.audioOptions,
+    required this.audioKind,
     required this.danmakuEnabled,
     required this.danmakuOpacity,
     required this.danmakuFontSize,
@@ -109,6 +123,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
     if (widget.menuType == SettingsMenuType.cdn) title = 'CDN 狀態';
     if (widget.menuType == SettingsMenuType.playEnd) title = '播放完畢後';
     if (widget.menuType == SettingsMenuType.subtitle) title = '字幕';
+    if (widget.menuType == SettingsMenuType.audio) title = '音質';
 
     return Positioned(
       top: 0,
@@ -170,6 +185,8 @@ class _SettingsPanelState extends State<SettingsPanel> {
         return _buildPlayEndSettingsList();
       case SettingsMenuType.subtitle:
         return _buildSubtitleSettingsList();
+      case SettingsMenuType.audio:
+        return _buildAudioSettingsList();
       case SettingsMenuType.cdn:
         return const CdnStatusView();
       case SettingsMenuType.main:
@@ -191,34 +208,42 @@ class _SettingsPanelState extends State<SettingsPanel> {
         ),
         _buildSettingItem(
           index: 1,
+          icon: Icons.graphic_eq,
+          title: '音質',
+          value: audioKindLabel(widget.audioKind),
+          onTap: () =>
+              widget.onNavigate(SettingsMenuType.audio, _audioFocusIndex()),
+        ),
+        _buildSettingItem(
+          index: 2,
           icon: Icons.subtitles,
           title: '彈幕設定',
           value: widget.danmakuEnabled ? '開' : '關',
           onTap: () => widget.onNavigate(SettingsMenuType.danmaku, 0),
         ),
         _buildSettingItem(
-          index: 2,
+          index: 3,
           icon: Icons.speed,
           title: '播放速度',
           value: '${widget.playbackSpeed}x',
           onTap: () => widget.onNavigate(SettingsMenuType.speed, 0),
         ),
         _buildSettingItem(
-          index: 3,
+          index: 4,
           icon: Icons.cloud,
           title: 'CDN 狀態',
           value: BtrConfig.playback ? 'BTR' : '直連',
           onTap: () => widget.onNavigate(SettingsMenuType.cdn, 0),
         ),
         _buildSettingItem(
-          index: 4,
+          index: 5,
           icon: Icons.star_border,
           title: '收藏',
           value: '選擇收藏夾',
           onTap: () {},
         ),
         _buildSettingItem(
-          index: 5,
+          index: 6,
           icon: Icons.repeat,
           title: '播放完畢後',
           value: widget.playEndLabel,
@@ -229,7 +254,7 @@ class _SettingsPanelState extends State<SettingsPanel> {
         ),
         if (widget.subtitleTracks.isNotEmpty)
           _buildSettingItem(
-            index: 6,
+            index: 7,
             icon: Icons.closed_caption,
             title: '字幕',
             value: widget.subtitleIndex >= 0
@@ -336,6 +361,34 @@ class _SettingsPanelState extends State<SettingsPanel> {
     );
   }
 
+  /// 音質子選單進入時，焦點落在目前使用的音軌
+  int _audioFocusIndex() {
+    final i = widget.audioOptions.indexWhere((o) => o.kind == widget.audioKind);
+    return i < 0 ? 0 : i;
+  }
+
+  Widget _buildAudioSettingsList() {
+    final options = widget.audioOptions.isEmpty
+        ? const [AudioOption(kind: AudioKind.standard, stream: {})]
+        : widget.audioOptions;
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        for (int i = 0; i < options.length; i++)
+          _buildSettingItem(
+            index: i,
+            icon: Icons.graphic_eq,
+            title: audioKindLabel(options[i].kind),
+            value: !options[i].supported
+                ? '此裝置不支援'
+                : (options[i].kind == widget.audioKind ? '當前' : ''),
+            dimmed: !options[i].supported,
+            onTap: () {},
+          ),
+      ],
+    );
+  }
+
   Widget _buildSubtitleSettingsList() {
     return ListView(
       controller: _scrollController,
@@ -374,71 +427,75 @@ class _SettingsPanelState extends State<SettingsPanel> {
     required String title,
     required String value,
     required VoidCallback onTap,
+    bool dimmed = false, // 不可選的項目變暗
   }) {
     // Determine if focused based on parent index
     final isFocused = widget.focusedIndex == index;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: isFocused
-                ? const Color(0xFFfb7299).withValues(alpha: 0.3)
-                : Colors.transparent,
-            border: isFocused
-                ? const Border(
-                    left: BorderSide(color: Color(0xFFfb7299), width: 3),
-                  )
-                : null,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: isFocused
-                    ? const Color(0xFFfb7299)
-                    : Colors.white.withValues(alpha: 0.7),
-                size: 22,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: isFocused
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.9),
-                        fontSize: 15,
-                        fontWeight: isFocused
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                    if (value.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+    return Opacity(
+      opacity: dimmed ? 0.4 : 1.0,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: isFocused
+                  ? const Color(0xFFfb7299).withValues(alpha: 0.3)
+                  : Colors.transparent,
+              border: isFocused
+                  ? const Border(
+                      left: BorderSide(color: Color(0xFFfb7299), width: 3),
+                    )
+                  : null,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: isFocused
+                      ? const Color(0xFFfb7299)
+                      : Colors.white.withValues(alpha: 0.7),
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        value,
+                        title,
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
-                          fontSize: 13,
+                          color: isFocused
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.9),
+                          fontSize: 15,
+                          fontWeight: isFocused
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
+                      if (value.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          value,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.6),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              if (widget.menuType == SettingsMenuType.main && index > 0)
-                Icon(
-                  Icons.chevron_right,
-                  color: Colors.white.withValues(alpha: 0.5),
-                  size: 20,
-                ),
-            ],
+                if (widget.menuType == SettingsMenuType.main && index > 0)
+                  Icon(
+                    Icons.chevron_right,
+                    color: Colors.white.withValues(alpha: 0.5),
+                    size: 20,
+                  ),
+              ],
+            ),
           ),
         ),
       ),

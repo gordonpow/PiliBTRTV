@@ -15,6 +15,7 @@ import '../../../services/play_session_history.dart';
 import '../../../utils/ugc_season_utils.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../services/settings_service.dart';
+import '../../../services/audio_track.dart';
 import '../../../services/codec_service.dart';
 import '../../../services/mpd_generator.dart';
 import '../../../services/local_server.dart';
@@ -41,6 +42,7 @@ import '../../../services/playback_preparer.dart';
 import '../../../services/playback_perf.dart';
 import '../../../services/perf_log.dart';
 import '../../../services/btr/btr_config.dart';
+import '../../../utils/seek_speed.dart';
 
 /// 播放器邏輯 Mixin
 mixin PlayerActionMixin on PlayerStateMixin {
@@ -74,6 +76,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
   Future<void> initializePlayer() async {
     final startupWatch = Stopwatch()..start();
+    // 換片：先重設音軌，避免舊 controller 殘留的錯誤事件以舊音軌觸發退回
+    currentAudioKind = AudioKind.standard;
     void mark(String step) =>
         debugPrint('⏱ [Startup] $step ${startupWatch.elapsedMilliseconds}ms');
     cancelUpNext();
@@ -308,6 +312,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         currentCodec = playInfo['codec'] ?? '';
         _recordStream(playInfo);
         currentAudioUrl = playInfo['audioUrl'];
+        recordAudio(playInfo);
         previewFrameUrl = playInfo['previewUrl'] as String?;
 
         String? playUrl;
@@ -674,6 +679,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     currentCodec = playInfo['codec'] ?? '';
     _recordStream(playInfo);
     currentAudioUrl = playInfo['audioUrl'];
+    recordAudio(playInfo);
     previewFrameUrl = playInfo['previewUrl'] as String?;
 
     // 暖機播放器正在靜音播放：先立刻顯示畫面並開聲音，不等平台呼叫回來，
@@ -922,10 +928,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
     if (settingsMenuType == SettingsMenuType.subtitle &&
         subtitleTracks.isEmpty) {
       settingsMenuType = SettingsMenuType.main;
-      focusedSettingIndex = 5;
+      focusedSettingIndex = 6;
     }
     final max = switch (settingsMenuType) {
-      SettingsMenuType.main => subtitleTracks.isNotEmpty ? 6 : 5,
+      SettingsMenuType.main => subtitleTracks.isNotEmpty ? 7 : 6,
+      SettingsMenuType.audio =>
+        audioOptions.isEmpty ? 0 : audioOptions.length - 1,
       SettingsMenuType.subtitle => subtitleTracks.length,
       _ => focusedSettingIndex,
     };
@@ -1111,6 +1119,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     try {
       final playInfo = await BilibiliApi.getVideoPlayUrl(
         bvid: playingBvid,
+        audioOverride: audioOverrideNow,
         cid: cid!,
         qn: currentQuality,
         forceCodec: VideoCodec.avc,
@@ -1132,6 +1141,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       currentCodec = playInfo['codec'] ?? 'avc';
       _recordStream(playInfo);
       currentAudioUrl = playInfo['audioUrl'];
+      recordAudio(playInfo);
       previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
 
@@ -1405,6 +1415,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
       final playInfo = await BilibiliApi.getVideoPlayUrl(
         bvid: playingBvid,
+        audioOverride: audioOverrideNow,
         cid: startCid!,
         qn: startQuality,
         forceCodec: codec,
@@ -1423,6 +1434,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       }
       _recordStream(playInfo);
       currentAudioUrl = playInfo['audioUrl'];
+      recordAudio(playInfo);
       previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
 
@@ -1676,6 +1688,20 @@ mixin PlayerActionMixin on PlayerStateMixin {
     // 播放中解碼器錯誤 (AC-A1)
     if (value.hasError) {
       final err = value.errorDescription ?? '';
+      // 杜比/Hi-Res 音軌播放失敗：先退回標準音質（本影片只試一次）。
+      // 只有錯誤訊息與音訊有關才退回，避免把網路或視訊解碼錯誤誤判成音軌錯誤。
+      final audioRelated = RegExp(
+        r'audio|e-?ac-?3|flac|joc',
+        caseSensitive: false,
+      ).hasMatch(err);
+      if (currentAudioKind != AudioKind.standard &&
+          audioOverrideNow != AudioKind.standard &&
+          !stallSwitching &&
+          !isFallingBackToAvc &&
+          audioRelated) {
+        fallbackAudioToStandard();
+        return;
+      }
       if (!isFallingBackToAvc && _isDecoderError(err) && !isCurrentCodecAvc) {
         _fallbackToAvc(
           resumePosition: lastPlaybackPosition,
@@ -2198,6 +2224,10 @@ mixin PlayerActionMixin on PlayerStateMixin {
   bool isCtrlBtnEnabled(int index) {
     if (index == CtrlBtn.prev) return hasPrev;
     if (index == CtrlBtn.next) return hasNext;
+    // 設定中隱藏的讚／幣／藏按鈕不顯示，左右鍵要跳過
+    if (index == CtrlBtn.like) return SettingsService.showLikeButton;
+    if (index == CtrlBtn.coin) return SettingsService.showCoinButton;
+    if (index == CtrlBtn.fav) return SettingsService.showFavButton;
     // 字幕按鈕沒有字幕軌時只是變暗，仍可聚焦（按下會 toast 原因）
     return true;
   }
@@ -2408,31 +2438,17 @@ mixin PlayerActionMixin on PlayerStateMixin {
     setState(() {});
   }
 
-  /// 計算連按快進/快退每次移動秒數 (AC-B2)
-  int _calculateSeekStep(bool forward) {
-    final now = DateTime.now();
-    if (lastSeekPressTime != null &&
-        now.difference(lastSeekPressTime!) <
-            const Duration(milliseconds: 800) &&
-        lastSeekDirection == forward) {
-      seekPressCount++;
-    } else {
-      seekPressCount = 1;
-      lastSeekDirection = forward;
-    }
-    lastSeekPressTime = now;
-
-    if (seekPressCount > 8) {
-      return 60;
-    } else if (seekPressCount > 3) {
-      return 30;
-    } else {
-      return 10;
-    }
+  /// 放開方向鍵：結束按住快轉（預覽位置保留，由 1.5 秒計時器或確定鍵跳轉）
+  void endSeekHold() {
+    seekHoldStart = null;
+    seekHoldLast = null;
+    seekHoldDirection = null;
   }
 
   /// 執行快退/快進操作（Netflix 式進度預覽，不立即跳轉）
-  void _performSeek(bool forward) {
+  ///
+  /// [repeat] 為 false 是短按，預覽位置移動 10 秒；為 true 是按住，依按住時間計速。
+  void _performSeek(bool forward, {bool repeat = false}) {
     if (videoController == null) return;
 
     if (!isSeekPreviewMode) {
@@ -2447,23 +2463,29 @@ mixin PlayerActionMixin on PlayerStateMixin {
         previewPosition ?? originalSeekPosition ?? Duration.zero;
     final total = videoController!.value.duration;
 
-    Duration target;
-    if (videoshotData != null && videoshotData!.frameCount > 1) {
-      // 有縮圖資料：每次按鍵移動一幀 (AC-C5)
-      final currentK = videoshotData!.indexAt(currentPreview, total);
-      final nextK = forward ? currentK + 1 : currentK - 1;
-      final clampedK = nextK.clamp(0, videoshotData!.frameCount - 1);
-      target = videoshotData!.timeOfIndex(clampedK, total);
+    final now = DateTime.now();
+    Duration delta;
+    if (repeat && seekHoldStart != null && seekHoldDirection == forward) {
+      // 按住：依經過時間推進，速度隨按住時間提高
+      final held = now.difference(seekHoldStart!);
+      var dt = now.difference(seekHoldLast ?? now);
+      if (dt > const Duration(milliseconds: 250)) {
+        dt = const Duration(milliseconds: 250);
+      }
+      seekHoldLast = now;
+      final speed = holdSeekSpeed(held, total);
+      delta = Duration(milliseconds: (speed * dt.inMilliseconds).round());
     } else {
-      // 沒有縮圖資料：維持現有 10／30／60 秒加速 (AC-C6)
-      final step = _calculateSeekStep(forward);
-      target = forward
-          ? currentPreview + Duration(seconds: step)
-          : currentPreview - Duration(seconds: step);
-
-      if (target < Duration.zero) target = Duration.zero;
-      if (target > total) target = total;
+      // 短按（或按住的第一個事件）：一步 10 秒，並開始計按住時間
+      seekHoldStart = now;
+      seekHoldLast = now;
+      seekHoldDirection = forward;
+      delta = const Duration(seconds: 10);
     }
+
+    var target = forward ? currentPreview + delta : currentPreview - delta;
+    if (target > total) target = total;
+    if (target < Duration.zero) target = Duration.zero;
 
     setState(() {
       previewPosition = target;
@@ -2480,20 +2502,22 @@ mixin PlayerActionMixin on PlayerStateMixin {
     });
   }
 
-  void seekForward() => _performSeek(true);
+  void seekForward({bool repeat = false}) => _performSeek(true, repeat: repeat);
 
-  void seekBackward() => _performSeek(false);
+  void seekBackward({bool repeat = false}) =>
+      _performSeek(false, repeat: repeat);
 
   /// 預覽模式下繼續快進/快退
-  void seekPreviewForward() => _performSeek(true);
+  void seekPreviewForward({bool repeat = false}) =>
+      _performSeek(true, repeat: repeat);
 
-  void seekPreviewBackward() => _performSeek(false);
+  void seekPreviewBackward({bool repeat = false}) =>
+      _performSeek(false, repeat: repeat);
 
   /// 確認預覽跳轉 (AC-B3, AC-B4)
   void confirmPreviewSeek() {
     autoSeekTimer?.cancel();
-    seekPressCount = 0;
-    lastSeekPressTime = null;
+    endSeekHold();
     if (previewPosition != null && videoController != null) {
       final target = previewPosition!;
       videoController!.seekTo(target);
@@ -2508,8 +2532,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
   /// 取消預覽跳轉 (AC-B3, AC-B4)
   void cancelPreviewSeek() {
     autoSeekTimer?.cancel();
-    seekPressCount = 0;
-    lastSeekPressTime = null;
+    endSeekHold();
     if (originalSeekPosition != null && videoController != null) {
       videoController!.seekTo(originalSeekPosition!);
       resetDanmakuIndex(originalSeekPosition!);
@@ -2522,8 +2545,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
   void _endPreviewMode() {
     autoSeekTimer?.cancel();
-    seekPressCount = 0;
-    lastSeekPressTime = null;
+    endSeekHold();
     setState(() {
       isSeekPreviewMode = false;
       previewPosition = null;
@@ -2737,6 +2759,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     subtitleGen++;
     subtitleCid = null;
+    // 切集後重新判斷音軌，避免沿用上一集的杜比／Hi-Res 狀態
+    currentAudioKind = AudioKind.standard;
     setState(() {
       cid = newCid;
       subtitleTracks = [];
@@ -2762,6 +2786,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     try {
       final playInfo = await BilibiliApi.getVideoPlayUrl(
         bvid: playingBvid,
+        audioOverride: audioOverrideNow,
         cid: cid!,
         qn: currentQuality,
         forceCodec: SettingsService.codecFallbackAvc ? VideoCodec.avc : null,
@@ -2792,6 +2817,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       currentCodec = playInfo['codec'] ?? currentCodec;
       _recordStream(playInfo);
       currentAudioUrl = playInfo['audioUrl'];
+      recordAudio(playInfo);
       previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(playInfo['qualities'] ?? []);
 
@@ -2880,35 +2906,44 @@ mixin PlayerActionMixin on PlayerStateMixin {
           break;
         case 1:
           setState(() {
-            settingsMenuType = SettingsMenuType.danmaku;
-            focusedSettingIndex = 0;
+            settingsMenuType = SettingsMenuType.audio;
+            final i = audioOptions.indexWhere(
+              (o) => o.kind == currentAudioKind,
+            );
+            focusedSettingIndex = i < 0 ? 0 : i;
           });
           break;
         case 2:
           setState(() {
-            settingsMenuType = SettingsMenuType.speed;
+            settingsMenuType = SettingsMenuType.danmaku;
             focusedSettingIndex = 0;
           });
           break;
         case 3:
           setState(() {
-            settingsMenuType = SettingsMenuType.cdn;
+            settingsMenuType = SettingsMenuType.speed;
             focusedSettingIndex = 0;
           });
           break;
         case 4:
+          setState(() {
+            settingsMenuType = SettingsMenuType.cdn;
+            focusedSettingIndex = 0;
+          });
+          break;
+        case 5:
           // 收藏：開收藏夾選擇對話框（關閉後焦點回到播放器），套用後更新星星
           favoriteVideoFlow(context, aid, video: favVideo).then((faved) {
             if (mounted && faved != null) videoActions.setFavorited(faved);
           });
           break;
-        case 5:
+        case 6:
           setState(() {
             settingsMenuType = SettingsMenuType.playEnd;
             focusedSettingIndex = SettingsService.playRepeat.index;
           });
           break;
-        case 6:
+        case 7:
           if (subtitleTracks.isNotEmpty) {
             setState(() {
               settingsMenuType = SettingsMenuType.subtitle;
@@ -2933,28 +2968,37 @@ mixin PlayerActionMixin on PlayerStateMixin {
       SettingsService.setPlayRepeat(mode);
       setState(() {
         settingsMenuType = SettingsMenuType.main;
-        focusedSettingIndex = 5;
+        focusedSettingIndex = 6;
       });
+    } else if (settingsMenuType == SettingsMenuType.audio) {
+      _activateAudio();
     } else if (settingsMenuType == SettingsMenuType.subtitle) {
       selectSubtitle(focusedSettingIndex - 1);
       setState(() {
         settingsMenuType = SettingsMenuType.main;
-        focusedSettingIndex = subtitleTracks.isNotEmpty ? 6 : 5;
+        focusedSettingIndex = subtitleTracks.isNotEmpty ? 7 : 6;
       });
     }
   }
 
   /// [auto] 為 true 表示由卡頓自動降畫質觸發；使用者手動選擇會停止該影片的自動降級
-  Future<void> switchQuality(int qn, {bool auto = false}) async {
+  Future<void> switchQuality(
+    int qn, {
+    bool auto = false,
+    String? doneMsg, // 非 null 時改用此訊息（空字串表示不顯示）
+    Duration? resumeAt,
+  }) async {
     if (stallSwitching) return;
     if (!auto) perfTracker.userPicked = true;
-    final position = videoController?.value.position ?? Duration.zero;
+    final position =
+        resumeAt ?? videoController?.value.position ?? Duration.zero;
 
     setState(() => isLoading = true);
 
     try {
       var playInfo = await BilibiliApi.getVideoPlayUrl(
         bvid: playingBvid,
+        audioOverride: audioOverrideNow,
         cid: cid!,
         qn: qn,
         forceCodec: SettingsService.codecFallbackAvc ? VideoCodec.avc : null,
@@ -2988,6 +3032,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         if (cap != null && cap < qn) {
           final retry = await BilibiliApi.getVideoPlayUrl(
             bvid: playingBvid,
+            audioOverride: audioOverrideNow,
             cid: cid!,
             qn: cap,
             forceCodec: SettingsService.codecFallbackAvc
@@ -3020,6 +3065,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       currentCodec = playInfo['codec'] ?? currentCodec;
       _recordStream(playInfo);
       currentAudioUrl = playInfo['audioUrl'];
+      recordAudio(playInfo);
       previewFrameUrl = playInfo['previewUrl'] as String?;
       qualities = List<Map<String, dynamic>>.from(
         playInfo['qualities'] ?? qualities,
@@ -3079,11 +3125,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
       setState(() => isLoading = false);
 
-      showZhToast(
-        msg: auto
-            ? '播放不順，已自動降為 $currentQualityDesc'
-            : '已切換到 $currentQualityDesc',
-      );
+      final msg =
+          doneMsg ??
+          (auto
+              ? "播放不順，已自動降為 $currentQualityDesc"
+              : "已切換到 $currentQualityDesc");
+      if (msg.isNotEmpty) showZhToast(msg: msg);
     } catch (e) {
       if (_isDecoderError(e) && !isCurrentCodecAvc) {
         await _fallbackToAvc(
@@ -3098,6 +3145,48 @@ mixin PlayerActionMixin on PlayerStateMixin {
         isLoading = false;
       });
     }
+  }
+
+  /// 音質子選單確認：不支援的音軌不可選；選定後記住並從目前位置重新載入
+  void _activateAudio() {
+    if (audioOptions.isEmpty) return;
+    final i = focusedSettingIndex.clamp(0, audioOptions.length - 1);
+    final opt = audioOptions[i];
+    if (!opt.supported) {
+      showZhToast(msg: "此裝置不支援");
+      return;
+    }
+    setState(() {
+      settingsMenuType = SettingsMenuType.main;
+      focusedSettingIndex = 1;
+    });
+    if (opt.kind == currentAudioKind) return;
+    switchAudio(opt.kind);
+  }
+
+  Future<void> switchAudio(AudioKind kind) async {
+    // 正在切換畫質／重載時 switchQuality 會直接返回，先擋下避免偏好與實際音軌不一致
+    if (stallSwitching) return;
+    await SettingsService.setPreferredAudio(kind);
+    setAudioOverride(kind);
+    await switchQuality(
+      currentQuality,
+      auto: true,
+      doneMsg: "已切換到音質：${audioKindLabel(kind)}",
+      resumeAt: lastPlaybackPosition,
+    );
+  }
+
+  /// 杜比/Hi-Res 播放失敗：本影片改用標準音質重新載入（不改使用者偏好）
+  Future<void> fallbackAudioToStandard() async {
+    setAudioOverride(AudioKind.standard);
+    showZhToast(msg: "此裝置無法播放杜比音軌，已改用標準音質", toastLength: Toast.LENGTH_LONG);
+    await switchQuality(
+      currentQuality,
+      auto: true,
+      doneMsg: "",
+      resumeAt: lastPlaybackPosition,
+    );
   }
 
   void showQualityPicker() {

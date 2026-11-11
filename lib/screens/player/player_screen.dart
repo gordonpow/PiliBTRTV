@@ -290,6 +290,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                   playEndLabel: SettingsService.playRepeat.label,
                   subtitleTracks: subtitleTracks,
                   subtitleIndex: subtitleIndex,
+                  audioOptions: audioOptions,
+                  audioKind: currentAudioKind,
                   danmakuEnabled: danmakuEnabled,
                   danmakuOpacity: danmakuOpacity,
                   danmakuFontSize: danmakuFontSize,

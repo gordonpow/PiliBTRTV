@@ -5,6 +5,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:bili_tv_app/models/play_repeat.dart';
+import 'package:bili_tv_app/services/audio_track.dart';
 import 'package:bili_tv_app/utils/zh_convert.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 
@@ -315,6 +316,19 @@ class SettingsService {
     await setCodecFallbackAvc(false);
   }
 
+  // 首選音軌（標準／杜比全景聲／Hi-Res），預設標準
+  static const String _preferredAudioKey = 'preferred_audio';
+
+  static AudioKind get preferredAudio {
+    final index = _prefs?.getInt(_preferredAudioKey) ?? 0;
+    return AudioKind.values[index.clamp(0, AudioKind.values.length - 1)];
+  }
+
+  static Future<void> setPreferredAudio(AudioKind kind) async {
+    await init();
+    await _prefs!.setInt(_preferredAudioKey, kind.index);
+  }
+
   // 迷你進度條設定
   static const String _showMiniProgressKey = 'show_mini_progress';
 
@@ -327,6 +341,35 @@ class SettingsService {
   static Future<void> setShowMiniProgress(bool value) async {
     await init();
     await _prefs!.setBool(_showMiniProgressKey, value);
+  }
+
+  // 控制列讚／幣／藏按鈕顯示設定（預設顯示）
+  static const String _showLikeButtonKey = 'show_like_button';
+  static const String _showCoinButtonKey = 'show_coin_button';
+  static const String _showFavButtonKey = 'show_fav_button';
+
+  /// 是否顯示按讚按鈕
+  static bool get showLikeButton => _prefs?.getBool(_showLikeButtonKey) ?? true;
+
+  /// 是否顯示投幣按鈕
+  static bool get showCoinButton => _prefs?.getBool(_showCoinButtonKey) ?? true;
+
+  /// 是否顯示收藏按鈕
+  static bool get showFavButton => _prefs?.getBool(_showFavButtonKey) ?? true;
+
+  static Future<void> setShowLikeButton(bool value) async {
+    await init();
+    await _prefs!.setBool(_showLikeButtonKey, value);
+  }
+
+  static Future<void> setShowCoinButton(bool value) async {
+    await init();
+    await _prefs!.setBool(_showCoinButtonKey, value);
+  }
+
+  static Future<void> setShowFavButton(bool value) async {
+    await init();
+    await _prefs!.setBool(_showFavButtonKey, value);
   }
 
   // 預設隱藏控制欄設定

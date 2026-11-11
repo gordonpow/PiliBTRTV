@@ -23,6 +23,7 @@ import 'api/pgc_api.dart';
 import 'api/space_api.dart';
 import 'api/fav_api.dart';
 import 'settings_service.dart' show VideoCodec;
+import 'audio_track.dart' show AudioKind;
 import '../models/space_data.dart';
 import '../models/video.dart';
 import '../models/videoshot.dart';
@@ -162,12 +163,14 @@ class BilibiliApi {
     int qn = 80,
     VideoCodec? forceCodec,
     int? epId,
+    AudioKind? audioOverride,
   }) => PlaybackApi.getVideoPlayUrl(
     bvid: bvid,
     cid: cid,
     qn: qn,
     forceCodec: forceCodec,
     epId: epId,
+    audioOverride: audioOverride,
   );
 
   /// 獲取彈幕資料

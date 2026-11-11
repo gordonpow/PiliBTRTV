@@ -182,6 +182,11 @@ mixin PlayerEventMixin on PlayerActionMixin {
 
     // 處理 KeyUpEvent - 鬆開左右鍵時提交進度
     if (event is KeyUpEvent) {
+      // 放開左右鍵：結束按住快轉計速（不吃掉事件，後續行為不變）
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+          event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        endSeekHold();
+      }
       if (isProgressBarFocused && previewPosition != null) {
         if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
             event.logicalKey == LogicalKeyboardKey.arrowRight) {
@@ -463,8 +468,10 @@ mixin PlayerEventMixin on PlayerActionMixin {
     if (isSeekPreviewMode && previewPosition != null) {
       final result = PlayerFocusHandler.handleSeekPreviewNavigation(
         event,
-        onSeekBackward: seekPreviewBackward,
-        onSeekForward: seekPreviewForward,
+        onSeekBackward: () =>
+            seekPreviewBackward(repeat: event is KeyRepeatEvent),
+        onSeekForward: () =>
+            seekPreviewForward(repeat: event is KeyRepeatEvent),
         onConfirm: confirmPreviewSeek,
         onCancel: () {
           if (event.logicalKey == LogicalKeyboardKey.goBack ||
@@ -499,11 +506,11 @@ mixin PlayerEventMixin on PlayerActionMixin {
 
     // 左右鍵快退/快進 (支援按住重複觸發)
     if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      seekBackward();
+      seekBackward(repeat: event is KeyRepeatEvent);
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      seekForward();
+      seekForward(repeat: event is KeyRepeatEvent);
       return KeyEventResult.handled;
     }
 
@@ -578,21 +585,29 @@ mixin PlayerEventMixin on PlayerActionMixin {
       } else if (settingsMenuType == SettingsMenuType.danmaku) {
         adjustDanmakuSetting(-1);
       } else if (settingsMenuType == SettingsMenuType.speed) {
-        setState(() => settingsMenuType = SettingsMenuType.main);
-      } else if (settingsMenuType == SettingsMenuType.cdn) {
         setState(() {
           settingsMenuType = SettingsMenuType.main;
           focusedSettingIndex = 3;
         });
+      } else if (settingsMenuType == SettingsMenuType.cdn) {
+        setState(() {
+          settingsMenuType = SettingsMenuType.main;
+          focusedSettingIndex = 4;
+        });
       } else if (settingsMenuType == SettingsMenuType.playEnd) {
         setState(() {
           settingsMenuType = SettingsMenuType.main;
-          focusedSettingIndex = 5;
+          focusedSettingIndex = 6;
         });
       } else if (settingsMenuType == SettingsMenuType.subtitle) {
         setState(() {
           settingsMenuType = SettingsMenuType.main;
-          focusedSettingIndex = 6;
+          focusedSettingIndex = 7;
+        });
+      } else if (settingsMenuType == SettingsMenuType.audio) {
+        setState(() {
+          settingsMenuType = SettingsMenuType.main;
+          focusedSettingIndex = 1;
         });
       }
       return KeyEventResult.handled;
@@ -602,25 +617,33 @@ mixin PlayerEventMixin on PlayerActionMixin {
       if (settingsMenuType == SettingsMenuType.main) {
         if (focusedSettingIndex == 1) {
           setState(() {
-            settingsMenuType = SettingsMenuType.danmaku;
-            focusedSettingIndex = 0;
+            settingsMenuType = SettingsMenuType.audio;
+            final i = audioOptions.indexWhere(
+              (o) => o.kind == currentAudioKind,
+            );
+            focusedSettingIndex = i < 0 ? 0 : i;
           });
         } else if (focusedSettingIndex == 2) {
           setState(() {
-            settingsMenuType = SettingsMenuType.speed;
+            settingsMenuType = SettingsMenuType.danmaku;
             focusedSettingIndex = 0;
           });
         } else if (focusedSettingIndex == 3) {
           setState(() {
+            settingsMenuType = SettingsMenuType.speed;
+            focusedSettingIndex = 0;
+          });
+        } else if (focusedSettingIndex == 4) {
+          setState(() {
             settingsMenuType = SettingsMenuType.cdn;
             focusedSettingIndex = 0;
           });
-        } else if (focusedSettingIndex == 5) {
+        } else if (focusedSettingIndex == 6) {
           setState(() {
             settingsMenuType = SettingsMenuType.playEnd;
             focusedSettingIndex = SettingsService.playRepeat.index;
           });
-        } else if (focusedSettingIndex == 6 && subtitleTracks.isNotEmpty) {
+        } else if (focusedSettingIndex == 7 && subtitleTracks.isNotEmpty) {
           setState(() {
             settingsMenuType = SettingsMenuType.subtitle;
             focusedSettingIndex = subtitleIndex + 1;
@@ -656,12 +679,14 @@ mixin PlayerEventMixin on PlayerActionMixin {
     return KeyEventResult.ignored;
   }
 
-  /// 從子選單返回主選單時，焦點回到進入的項目（CDN 3、彈幕 1）
+  /// 從子選單返回主選單時，焦點回到進入的項目（音質 1、彈幕 2、速度 3、CDN 4）
   int get _mainIndexAfterBack => switch (settingsMenuType) {
-    SettingsMenuType.cdn => 3,
-    SettingsMenuType.danmaku => 1,
-    SettingsMenuType.playEnd => 5,
-    SettingsMenuType.subtitle => 6,
+    SettingsMenuType.audio => 1,
+    SettingsMenuType.danmaku => 2,
+    SettingsMenuType.speed => 3,
+    SettingsMenuType.cdn => 4,
+    SettingsMenuType.playEnd => 6,
+    SettingsMenuType.subtitle => 7,
     _ => 0,
   };
 
@@ -669,13 +694,15 @@ mixin PlayerEventMixin on PlayerActionMixin {
   int _getSettingsMaxIndex() {
     switch (settingsMenuType) {
       case SettingsMenuType.main:
-        return subtitleTracks.isNotEmpty ? 6 : 5;
+        return subtitleTracks.isNotEmpty ? 7 : 6;
       case SettingsMenuType.danmaku:
         return 6;
       case SettingsMenuType.speed:
         return availableSpeeds.length - 1;
       case SettingsMenuType.playEnd:
         return PlayRepeat.values.length - 1;
+      case SettingsMenuType.audio:
+        return audioOptions.isEmpty ? 0 : audioOptions.length - 1;
       case SettingsMenuType.subtitle:
         return subtitleTracks.length; // 「關閉」＋各軌
       default:

@@ -8,6 +8,8 @@ import '../auth_service.dart';
 import '../codec_service.dart';
 import '../playback_perf.dart';
 import '../settings_service.dart';
+import '../audio_support.dart';
+import '../audio_track.dart';
 
 /// 播放相關 API (影片詳情、播放地址、彈幕、進度上報)
 class PlaybackApi {
@@ -33,6 +35,57 @@ class PlaybackApi {
       // print('getVideoInfo error: $e');
     }
     return null;
+  }
+
+  /// 解析 x/player/wbi/v2 回應的續播進度（last_play_time 為毫秒）。
+  /// code != 0 或欄位缺漏回 null；秒數可能為 0。
+  static ({int cid, int seconds})? parsePlayerProgress(Map json) {
+    if (json['code'] != 0) return null;
+    final data = json['data'];
+    if (data is! Map) return null;
+    final time = data['last_play_time'];
+    final cid = data['last_play_cid'];
+    if (time is! num || cid is! num) return null;
+    return (cid: cid.toInt(), seconds: time.toInt() ~/ 1000);
+  }
+
+  /// 取得伺服器記錄的續播進度（跨裝置）。
+  /// 未登入、逾時或失敗回 null。
+  static Future<({int cid, int seconds})?> getPlayerProgress({
+    required String bvid,
+    int? aid,
+    required int cid,
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (!AuthService.isLoggedIn) return null;
+    try {
+      await BaseApi.ensureWbiKeys();
+      final params = <String, String>{
+        if (aid != null && aid > 0) 'aid': aid.toString(),
+        if (aid == null || aid <= 0) 'bvid': bvid,
+        'cid': cid.toString(),
+      };
+      final signed = SignUtils.signWithWbi(
+        params,
+        BaseApi.imgKey!,
+        BaseApi.subKey!,
+      );
+      final qs = signed.entries
+          .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+          .join('&');
+      final response = await http
+          .get(
+            Uri.parse('https://api.bilibili.com/x/player/wbi/v2?$qs'),
+            headers: BaseApi.getHeaders(withCookie: true),
+          )
+          .timeout(timeout);
+      if (response.statusCode != 200) return null;
+      final json = jsonDecode(response.body);
+      return json is Map ? parsePlayerProgress(json) : null;
+    } catch (e) {
+      debugPrint('Failed to load player progress: $e');
+      return null;
+    }
   }
 
   /// 獲取影片的 cid (用於播放和彈幕)
@@ -67,6 +120,7 @@ class PlaybackApi {
     VideoCodec? forceCodec,
     int? epId, // 非 null 時走番劇 (PGC) playurl
     bool riskRetried = false, // 已因風控 (-351/-352) 重試過一次
+    AudioKind? audioOverride, // 強制指定音軌（播放中切換、退回標準時用）
   }) async {
     try {
       final isPgc = epId != null;
@@ -166,7 +220,6 @@ class PlaybackApi {
             isDash = true;
             final dash = data['dash'];
             final videos = dash['video'] as List? ?? [];
-            final audios = dash['audio'] as List? ?? [];
 
             if (videos.isNotEmpty) {
               final videosByQuality = <int, List<dynamic>>{};
@@ -330,15 +383,31 @@ class PlaybackApi {
                   ? 'av01'
                   : selectedCodec;
 
-              if (audios.isNotEmpty) {
-                var sortedAudios = List.from(audios);
-                sortedAudios.sort(
-                  (a, b) =>
-                      (b['bandwidth'] ?? 0).compareTo(a['bandwidth'] ?? 0),
-                );
-                audioUrl =
-                    sortedAudios.first['baseUrl'] ??
-                    sortedAudios.first['base_url'];
+              // 音軌：依使用者偏好與裝置支援選一條（杜比/Hi-Res 不支援時退回標準）
+              await AudioSupport.ensure();
+              final dashMap = dash as Map;
+              final wantAudio = audioOverride ?? SettingsService.preferredAudio;
+              final dolbyOk = AudioSupport.dolbyOk;
+              final hiresOk = AudioSupport.hiresOk;
+              final pickedAudio = selectAudio(
+                dashMap,
+                wantAudio,
+                dolbyOk: dolbyOk,
+                hiresOk: hiresOk,
+              );
+              final pickedKind = selectedAudioKind(
+                dashMap,
+                wantAudio,
+                dolbyOk: dolbyOk,
+                hiresOk: hiresOk,
+              );
+              final audioOptions = parseAudioOptions(
+                dashMap,
+                dolbyOk: dolbyOk,
+                hiresOk: hiresOk,
+              );
+              if (pickedAudio != null) {
+                audioUrl = pickedAudio['baseUrl'] ?? pickedAudio['base_url'];
               }
 
               // 試看：code 為 0 但只提供試看片段 (「试看」為伺服器簡體字串，保留原文)
@@ -386,6 +455,8 @@ class PlaybackApi {
                   'isPreview': isPgc && isPreview,
                   'url': videoUrl,
                   'audioUrl': audioUrl,
+                  'audioKind': pickedKind,
+                  'audioOptions': audioOptions,
                   'qualities': qualities,
                   // 實際選到的串流 id（可能與 data['quality'] 不同，例如 HDR 被改播 AVC）
                   'currentQuality':
@@ -394,8 +465,13 @@ class PlaybackApi {
                   'codec': parsedCodec,
                   // MPD 只放選定的影片串流，避免 ExoPlayer 自行選到無法硬解的軌
                   'dashData': {
-                    ...(data['dash'] as Map<String, dynamic>),
+                    ...(Map<String, dynamic>.of(
+                      data['dash'] as Map<String, dynamic>,
+                    )..removeWhere((k, _) => k == 'dolby' || k == 'flac')),
                     'video': [selectedVideo],
+                    // 同理 MPD 只放選定的音軌，避免 ExoPlayer 自行挑到不支援的杜比/Hi-Res；
+                    // 並移除 dolby／flac 原始鍵，沒選到音軌時 audio 為空清單
+                    'audio': pickedAudio != null ? [pickedAudio] : [],
                   },
                   'previewUrl': previewUrl,
                   'previewIsAvc': previewIsAvc,

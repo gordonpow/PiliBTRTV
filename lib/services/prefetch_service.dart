@@ -8,6 +8,8 @@ import 'api/pgc_api.dart';
 import 'bilibili_api.dart';
 import 'btr/btr_config.dart';
 import 'btr/btr_proxy.dart';
+import 'device_profile.dart';
+import 'memory_budget.dart';
 import 'play_params.dart';
 import 'playback_progress_cache.dart';
 import 'settings_service.dart';
@@ -45,7 +47,9 @@ class PrefetchService {
   static const Duration _entryTtl = Duration(minutes: 2);
   static const Duration _danmakuTtl = Duration(minutes: 5);
   static const Duration _waitLimit = Duration(seconds: 3);
-  static const int _cacheMax = 30;
+
+  /// 彈幕快取固定上限（不隨記憶體等級縮減，彈幕已壓縮）
+  static const int _danmakuMax = 30;
   static const int _headBytes = 2 * 1024 * 1024;
 
   final Map<String, _Entry> _entries = {}; // 依插入順序，最舊在前
@@ -63,7 +67,8 @@ class PrefetchService {
 
   static String _key(String bvid, int cid, int qn, VideoCodec? codec) =>
       '$bvid|$cid|$qn|${codec?.name}|${SettingsService.codecFallbackAvc}|'
-      '${SettingsService.preferredCodec.name}';
+      '${SettingsService.preferredCodec.name}|'
+      '${SettingsService.preferredAudio.index}';
 
   /// 卡片焦點滿 0.3 秒後呼叫；同一時間只保留最新一個預載
   void schedule(Object owner, Video video) {
@@ -85,7 +90,8 @@ class PrefetchService {
     _owner = owner;
     final entry = _Entry(video.bvid);
     _entries[video.bvid] = entry;
-    while (_entries.length > _cacheMax) {
+    final effectiveCacheMax = MemoryBudget.cacheMax(DeviceProfile.currentTier);
+    while (_entries.length > effectiveCacheMax) {
       _entries.remove(_entries.keys.first);
     }
     _active = entry;
@@ -183,7 +189,7 @@ class PrefetchService {
       if (dead()) return;
       _danmaku.remove(cid);
       _danmaku[cid] = (list: danmaku, at: DateTime.now());
-      while (_danmaku.length > _cacheMax) {
+      while (_danmaku.length > _danmakuMax) {
         _danmaku.remove(_danmaku.keys.first);
       }
     }
@@ -229,15 +235,26 @@ class PrefetchService {
     return cid;
   }
 
+  /// 記憶體不足時釋放：清空彈幕快取
+  void trimMemory() {
+    _danmaku.clear();
+  }
+
   // ---- 鄰近卡片背景預先解析（只抓 videoInfo 與 playurl，序列執行）----
 
-  static const int _bgMax = 4;
+  static int get _bgMax => MemoryBudget.bgMax(DeviceProfile.currentTier);
   List<Video> _bgQueue = [];
   bool _bgRunning = false;
 
   /// 預先解析鄰近卡片；新呼叫取代尚未開始的舊佇列。
   /// 不抓 2MB 開頭與彈幕，不受 [cancel] 影響，不動 _active。
+  /// critical 等級時直接略過（規格 T-2 審查 #3）。
   void preResolve(List<Video> videos) {
+    // critical 時停用鄰近預解析
+    if (MemoryBudget.disablePreResolve(DeviceProfile.currentTier)) {
+      debugPrint('⚡ [PreResolve] skip: critical tier');
+      return;
+    }
     final queue = <Video>[];
     final seen = <String>{};
     for (final v in videos) {
@@ -269,7 +286,10 @@ class PrefetchService {
         _entries.remove(v.bvid);
         final entry = _Entry(v.bvid);
         _entries[v.bvid] = entry;
-        while (_entries.length > _cacheMax) {
+        final effectiveCacheMax = MemoryBudget.cacheMax(
+          DeviceProfile.currentTier,
+        );
+        while (_entries.length > effectiveCacheMax) {
           _entries.remove(_entries.keys.first);
         }
         try {

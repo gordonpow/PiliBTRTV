@@ -4,6 +4,7 @@ import 'package:video_player/video_player.dart';
 import '../models/video.dart';
 import 'api/base_api.dart';
 import 'api/pgc_api.dart';
+import 'api/playback_api.dart';
 import 'bilibili_api.dart';
 import 'btr/btr_proxy.dart';
 import 'local_server.dart';
@@ -13,6 +14,7 @@ import 'play_params.dart';
 import 'playback_perf.dart';
 import 'playback_progress_cache.dart';
 import 'prefetch_service.dart';
+import 'resume_resolver.dart';
 import 'settings_service.dart';
 
 /// 已完成初始化、尚未播放的 UGC 播放資料（只含資料與 controller，不含任何 UI 副作用）
@@ -101,23 +103,43 @@ class PlaybackPreparer {
       }
     }
 
-    final cachedRecord = await PlaybackProgressCache.getCachedRecord(bvid);
+    final cachedRecord = await PlaybackProgressCache.getCachedRecordWithTime(
+      bvid,
+    );
     if (cancelled()) return const PrepareOutcome(cancelled: true);
 
-    // cid 優先序：API 歷史 > 本地快取 > info.cid > 第一個分 P > 另外查詢
+    // 伺服器續播進度（僅已登入才發請求，逾時 3 秒，失敗退回本地邏輯）
+    ({int cid, int seconds})? serverProgress;
+    final infoCid = (videoInfo?['cid'] as num?)?.toInt();
+    if (videoInfo != null && infoCid != null) {
+      serverProgress = await PlaybackApi.getPlayerProgress(
+        bvid: bvid,
+        aid: (videoInfo['aid'] as num?)?.toInt(),
+        cid: infoCid,
+        timeout: const Duration(seconds: 3),
+      );
+      if (cancelled()) return const PrepareOutcome(cancelled: true);
+    }
+
+    // cid 優先序：伺服器 last_play_cid（需在分 P 中）> 本地快取 > info.cid > 第一個分 P > 另外查詢
     int? cid;
     if (videoInfo != null) {
-      final history = videoInfo['history'];
-      if (history != null && history['cid'] != null) {
-        cid = history['cid'];
-        debugPrint('🎬 [Init] Using API history cid: $cid');
+      final pages = videoInfo['pages'] ?? [];
+      final server = serverProgress;
+      if (server != null) {
+        final inPages =
+            pages is List &&
+            pages.any((p) => p is Map && p['cid'] == server.cid);
+        if (inPages || server.cid == infoCid) {
+          cid = server.cid;
+          debugPrint('🎬 [Init] Using SERVER last_play_cid: $cid');
+        }
       }
       if (cid == null && cachedRecord != null) {
         cid = cachedRecord.cid;
         debugPrint('🎬 [Init] Using LOCAL CACHE cid: $cid');
       }
-      cid ??= videoInfo['cid'];
-      final pages = videoInfo['pages'] ?? [];
+      cid ??= infoCid;
       if (cid == null && pages is List && pages.isNotEmpty) {
         cid = pages[0]['cid'];
       }
@@ -312,38 +334,21 @@ class PlaybackPreparer {
         return const PrepareOutcome(cancelled: true);
       }
 
-      // 續播進度：API 歷史 > 本地快取 > 列表傳入
-      int historyProgress = 0;
-      final history = videoInfo?['history'];
-      if (history != null) {
-        debugPrint(
-          '🎬 [Resume] API History: cid=${history['cid']}, progress=${history['progress']}',
-        );
-        historyProgress = history['progress'] as int? ?? 0;
-        final historyCid = history['cid'] as int?;
-        if (historyCid != null && historyCid != resolvedCid) {
-          debugPrint(
-            '🎬 [Resume] CID mismatch: historyCid=$historyCid, cid=$resolvedCid - resetting progress',
-          );
-          historyProgress = 0;
-        }
-      } else {
-        debugPrint('🎬 [Resume] No API history available');
-      }
-      if (historyProgress == 0 &&
-          cachedRecord != null &&
-          cachedRecord.cid == resolvedCid) {
-        debugPrint(
-          '🎬 [Resume] Using LOCAL CACHE: cid=${cachedRecord.cid}, progress=${cachedRecord.progress}',
-        );
-        historyProgress = cachedRecord.progress;
-      }
-      if (historyProgress == 0 && video.progress > 0) {
-        debugPrint(
-          '🎬 [Resume] Using list progress (fallback): ${video.progress}',
-        );
-        historyProgress = video.progress;
-      }
+      // 續播進度：伺服器 > 本地快取／列表（比新舊）
+      final resume = ResumeResolver.resolve(
+        resolvedCid: resolvedCid,
+        serverCid: serverProgress?.cid,
+        serverSeconds: serverProgress?.seconds,
+        cacheCid: cachedRecord?.cid,
+        cacheProgress: cachedRecord?.progress ?? 0,
+        cacheSavedAt: cachedRecord?.savedAt ?? 0,
+        listProgress: video.progress,
+        listViewAt: video.viewAt,
+      );
+      final historyProgress = resume.seconds;
+      debugPrint(
+        '🎬 [Resume] source=${resume.source} progress=$historyProgress',
+      );
 
       var resumeSeconds = 0;
       if (historyProgress > 0) {

@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
+
+import '../services/device_profile.dart';
 
 /// 判斷方向鍵是否長按中，並決定卡片焦點停穩後多久才啟動預載／預覽。
 class NavSettle {
@@ -17,6 +20,7 @@ class NavSettle {
 
   final Map<LogicalKeyboardKey, DateTime> _downAt = {};
   DateTime? _lastFocusAt;
+  final List<DateTime> _recentFocus = [];
   bool _registered = false;
 
   void _ensureRegistered() {
@@ -58,15 +62,32 @@ class NavSettle {
     return false;
   }
 
+  /// 測試用：清除取得焦點紀錄
+  @visibleForTesting
+  void resetForTest() {
+    _lastFocusAt = null;
+    _recentFocus.clear();
+    _downAt.clear();
+  }
+
   /// 卡片取得焦點時呼叫，回傳要等多久再啟動；並更新取得焦點時間。
-  Duration onFocusArrived() {
+  /// 2 秒內（含這次）達 3 次視為連續移動，等待更久。[now] 只給測試用。
+  Duration onFocusArrived({DateTime? now}) {
     _ensureRegistered();
-    final now = DateTime.now();
+    now ??= DateTime.now();
     final last = _lastFocusAt;
     _lastFocusAt = now;
+    _recentFocus.removeWhere(
+      (t) => now!.difference(t) > const Duration(seconds: 2),
+    );
+    _recentFocus.add(now);
+    final burst = _recentFocus.length >= 3;
     final single =
         (last == null || now.difference(last).inMilliseconds >= 300) &&
         !isHeld;
-    return Duration(milliseconds: single ? 150 : 250);
+    final low = DeviceProfile.lowMemory;
+    if (burst) return Duration(milliseconds: low ? 600 : 500);
+    if (single) return Duration(milliseconds: low ? 300 : 150);
+    return Duration(milliseconds: low ? 300 : 250);
   }
 }

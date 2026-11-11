@@ -8,6 +8,7 @@ import '../../../widgets/conditional_marquee.dart';
 import '../mixins/player_state_mixin.dart' show CtrlBtn;
 import '../video_actions_controller.dart';
 import 'tv_progress_bar.dart';
+import '../../../services/settings_service.dart';
 
 class ControlsOverlay extends StatelessWidget {
   final Video video;
@@ -294,32 +295,37 @@ class ControlsOverlay extends StatelessWidget {
                       ),
                       // 左側按鈕群與右側（讚/幣/藏）至少間隔 48，避免字幕鈕加入後貼在一起
                       const Spacer(),
-                      const SizedBox(width: 48),
-                      _buildControlButton(
-                        index: CtrlBtn.like,
-                        icon: actions.isLiked
-                            ? Icons.thumb_up
-                            : Icons.thumb_up_outlined,
-                        iconColor: actions.isLiked ? accent : Colors.white,
-                      ),
-                      const SizedBox(width: 12),
-                      _buildControlButton(
-                        index: CtrlBtn.coin,
-                        icon: actions.coinCount > 0
-                            ? Icons.monetization_on
-                            : Icons.monetization_on_outlined,
-                        iconColor: actions.coinCount > 0
-                            ? accent
-                            : Colors.white,
-                      ),
-                      const SizedBox(width: 12),
-                      _buildControlButton(
-                        index: CtrlBtn.fav,
-                        icon: actions.isFavorited
-                            ? Icons.star
-                            : Icons.star_border,
-                        iconColor: actions.isFavorited ? accent : Colors.white,
-                      ),
+                      // 依設定過濾後，按鈕之間才補間距；全部隱藏時不留間距
+                      for (final (i, btn) in [
+                        if (SettingsService.showLikeButton)
+                          _buildControlButton(
+                            index: CtrlBtn.like,
+                            icon: actions.isLiked
+                                ? Icons.thumb_up
+                                : Icons.thumb_up_outlined,
+                            iconColor: actions.isLiked ? accent : Colors.white,
+                          ),
+                        if (SettingsService.showCoinButton)
+                          _buildControlButton(
+                            index: CtrlBtn.coin,
+                            icon: actions.coinCount > 0
+                                ? Icons.monetization_on
+                                : Icons.monetization_on_outlined,
+                            iconColor: actions.coinCount > 0
+                                ? accent
+                                : Colors.white,
+                          ),
+                        if (SettingsService.showFavButton)
+                          _buildControlButton(
+                            index: CtrlBtn.fav,
+                            icon: actions.isFavorited
+                                ? Icons.star
+                                : Icons.star_border,
+                            iconColor: actions.isFavorited
+                                ? accent
+                                : Colors.white,
+                          ),
+                      ].indexed) ...[SizedBox(width: i == 0 ? 48 : 12), btn],
                     ],
                   ),
                 ],

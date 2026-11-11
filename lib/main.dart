@@ -9,8 +9,12 @@ import 'package:bili_tv_app/plugins/ad_filter_plugin.dart';
 import 'package:bili_tv_app/plugins/danmaku_enhance_plugin.dart';
 import 'services/auth_service.dart';
 import 'services/btr/btr_host_ranker.dart';
+import 'services/card_preview_service.dart';
+import 'services/device_profile.dart';
 import 'services/local_server.dart';
 import 'services/log_service.dart';
+import 'services/memory_budget.dart';
+import 'services/prefetch_service.dart';
 import 'services/settings_service.dart';
 import 'services/translate/content_translator.dart';
 import 'utils/zh_convert.dart';
@@ -26,13 +30,20 @@ Future<void> _main() async {
 
   // 語言設定需要 SharedPreferences，先初始化再載入繁簡轉換表
   await SettingsService.init();
+  await DeviceProfile.init();
   await ZhConvert.init();
   // 翻譯 B 站內容：開關為 true 才在背景檢查模型（不阻塞啟動）
   unawaited(ContentTranslator.instance.init());
 
-  // 🔥 增大圖片記憶體快取，防止播放影片時主頁圖片被回收
-  PaintingBinding.instance.imageCache.maximumSize = 500; // 500張圖片
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 200 << 20; // 200MB
+  // 🔥 依記憶體等級設定圖片快取上限
+  _applyImageCacheBudget();
+  // 監聽等級變化，即時更新圖片快取
+  DeviceProfile.tierNotifier.addListener(_applyImageCacheBudget);
+
+  WidgetsBinding.instance.addObserver(_AppLifecycleObserver());
+
+  // 啟動記憶體即時監控（每 15 秒查詢一次）
+  DeviceProfile.startMonitor();
 
   // 初始化外掛管理器並註冊外掛
   final pluginManager = PluginManager();
@@ -54,6 +65,41 @@ Future<void> _main() async {
   BtrHostRanker.instance.warmUp();
 
   runApp(const BiliTvApp());
+}
+
+/// 依目前記憶體等級更新圖片快取上限
+void _applyImageCacheBudget() {
+  final tier = DeviceProfile.currentTier;
+  PaintingBinding.instance.imageCache.maximumSize =
+      MemoryBudget.imageCacheCount(tier);
+  PaintingBinding.instance.imageCache.maximumSizeBytes =
+      MemoryBudget.imageCacheBytes(tier);
+}
+
+/// 監聽 App 生命週期與記憶體壓力事件
+class _AppLifecycleObserver with WidgetsBindingObserver {
+  @override
+  void didHaveMemoryPressure() {
+    debugPrint('🧹 [Memory] pressure');
+    // 通知 DeviceProfile 立即進入 critical
+    DeviceProfile.onMemoryPressure();
+    CardPreviewService.instance.onMemoryPressure();
+    PrefetchService.instance.trimMemory();
+    final cache = PaintingBinding.instance.imageCache;
+    cache.clear();
+    cache.clearLiveImages();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // App 進入背景時停止計時器，回前景恢復，節省資源（規格審查 #4）
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      DeviceProfile.stopMonitor();
+    } else if (state == AppLifecycleState.resumed) {
+      DeviceProfile.startMonitor();
+    }
+  }
 }
 
 class BiliTvApp extends StatelessWidget {
