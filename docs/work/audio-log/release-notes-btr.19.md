@@ -7,7 +7,7 @@ An unofficial third-party Bilibili client for Android TV with BTR multi-CDN acce
 - 從 App 內更新時，會自動選擇符合裝置的版本。In-app update picks the right one automatically.
 
 ## 變更
-- 錯誤回報加入音質的詳細紀錄（#35）：電視是否支援杜比（解碼或 HDMI 直通）、每部影片提供的音軌、實際使用的音軌與原因、杜比播放失敗的錯誤訊息。杜比播不出聲音時，請在「設定 → 其他設定」送出錯誤回報。
+- 錯誤回報加入音質的詳細紀錄（#35）：電視是否支援杜比（解碼或 HDMI 直通）、每部影片提供的音軌、實際使用的音軌與原因、杜比播放失敗的錯誤訊息。杜比播不出聲音時，請在「設定 → 關於軟體」送出錯誤回報。
 
 ## Changes
 - Error reports now include detailed audio information: Dolby support (decoder or HDMI passthrough), available and selected audio tracks, and Dolby playback errors. If Dolby audio doesn't play, please send an error report.
