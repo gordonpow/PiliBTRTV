@@ -308,3 +308,10 @@
 - 實作：agy 不在 Git Bash PATH，改用完整路徑 `C:\Users\abcz0\AppData\Local\agy\bin\agy.exe`；agy Sonnet 只完成 API 部分就結束，其餘由 Claude Sonnet 完成。`flutter analyze` 無問題，測試 311 個通過，i18n 未翻譯 0。尚未做 diff 審查與實機驗證。
 - 模擬器測試：#38 通過（原文模式介面繁體、標題顯示簡體原文）。#39 第一次失敗：面板開啟後收不到按鍵（`autofocus` 在 playerFocusNode 已有焦點時不生效），改為 initState 後主動 `requestFocus` 後通過（切分頁、載入更多、確認鍵不切換播放、返回鍵關閉）。置頂標籤與簡介捲動因測試影片條件無法驗證。模擬器途中自行關閉，快照載入失敗，以 `-no-snapshot-load` 冷開機。
 - 發布 v1.2.2-btr.21：commit `a29b2ce`（#38）、`6ece022`（#39）、`d737cd6`（版本 `1.2.2-btr.21+25`）。versionCode 2025／1025，簽章 `17fcf8ed…`。已觸發 F-Droid 套件庫更新。發布說明 `docs/work/player-info-panel/release-notes-btr.21.md`。
+
+### 2026-11-12（凌晨）：遙控器操作與過場動畫整理
+- 使用者回報（#40）：簡介面板在簡介分頁按左鍵應關閉；登出確認沒有預設焦點；要求全域檢查反直覺操作。另要求補漸變動畫（#41）。Explore 稽核找到 18 個操作問題與約 20 處缺動畫，規格在 `docs/work/ux-polish/2-spec.md`。
+- 新增 `lib/utils/anim.dart`（`Anim` 時長常數，低記憶體回傳 0；`EnterTransition` 進場淡入＋滑入，不做離場動畫）。
+- 實作（已實作未 commit）：agy Sonnet 只完成 T-C（直播），T-A、T-B 兩次只讀檔，改由 Claude Sonnet 平行完成。撤回影片畫面淡入。`flutter analyze` 無問題，測試 311 個通過，i18n 未翻譯 0。agy Sonnet diff 審查 6 項，查證後都不採用。尚未在模擬器驗證。
+- 發布 v1.2.2-btr.22：commit `22a9028`（#40、#41）、`4a40701`（規格）、`caca0b7`（版本 `1.2.2-btr.22+26`）。`flutter analyze` 無問題、311 項測試通過。versionCode 2026／1026，簽章 `17fcf8ed…`，arm64-v8a 39.4MB、armeabi-v7a 32.8MB。已觸發 F-Droid 套件庫更新，#40、#41 已關閉。發布說明 `docs/work/ux-polish/release-notes-btr.22.md`。使用者修改中的 4 個檔案（`auth_api.dart`、`live_api.dart`、`btr_config.dart`、`app_restart.dart`）只有排版差異，未 commit。
+- 安裝到 TV 模擬器：有視窗模式三次卡在 GPU 初始化（log 停在 `Storing crashdata`，adb 看不到裝置），結束殘留的 `crashpad_handler` 後改用 `-no-window -gpu swiftshader_indirect` 冷開機成功。x86_64 版（versionCode 4026）安裝並開啟首頁正常；#40、#41 尚未在模擬器操作驗證。
