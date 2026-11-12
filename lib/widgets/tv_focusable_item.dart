@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/settings_service.dart';
 import '../core/focus/focus_navigation.dart';
+import '../utils/anim.dart';
 import 'vip_avatar_badge.dart';
 
 /// 側邊欄焦點項元件
@@ -47,7 +48,9 @@ class TvFocusableItem extends StatelessWidget {
     child: Builder(
       builder: (c) {
         final f = Focus.of(c).hasFocus;
-        return Container(
+        return AnimatedContainer(
+          duration: Anim.of(Anim.fast),
+          curve: Anim.curve,
           height: 50,
           margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
           decoration: BoxDecoration(

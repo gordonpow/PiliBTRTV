@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/utils/anim.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -15,14 +16,24 @@ class PauseIndicator extends StatelessWidget {
     final isBuffering = controller!.value.isBuffering;
 
     if (!isPlaying && !isBuffering) {
+      // 出現時淡入並由 0.8 倍放大到 1 倍；消失不做動畫
       return Center(
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.5),
-            shape: BoxShape.circle,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: 1),
+          duration: Anim.of(Anim.fast),
+          curve: Anim.curve,
+          builder: (context, t, child) => Opacity(
+            opacity: t,
+            child: Transform.scale(scale: 0.8 + 0.2 * t, child: child),
           ),
-          padding: const EdgeInsets.all(20),
-          child: const Icon(Icons.pause, color: Colors.white, size: 64),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            padding: const EdgeInsets.all(20),
+            child: const Icon(Icons.pause, color: Colors.white, size: 64),
+          ),
         ),
       );
     }

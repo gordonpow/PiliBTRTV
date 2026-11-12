@@ -11,6 +11,7 @@ import 'home/profile/profile_tab.dart';
 import 'home/settings/settings_view.dart';
 import 'home/dynamic_tab.dart';
 import 'home/live_tab.dart';
+import '../utils/anim.dart';
 import '../widgets/tv_focusable_item.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
@@ -251,6 +252,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           return;
         }
 
+        // 焦點在內容區：第一次返回先回到側欄目前的分頁；焦點已在側欄才走下面的流程
+        final inSidebar = _sideBarFocusNodes.any((n) => n.hasFocus);
+        if (FocusManager.instance.primaryFocus != null && !inSidebar) {
+          _sideBarFocusNodes[_selectedTabIndex].requestFocus();
+          return;
+        }
+
         if (_selectedTabIndex != 1) {
           // 其他標籤（動態、直播、歷史、個人、設定）按返回鍵都回到主頁
           setState(() => _selectedTabIndex = 1);
@@ -372,7 +380,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildRightContent() {
-    // 使用 IndexedStack 保持所有 Tab 狀態，避免切換時重新載入
+    // 使用 IndexedStack 保持所有 Tab 狀態，避免切換時重新載入；
+    // 外層的淡入動畫不換 key，IndexedStack 的子樹與狀態都保留
+    return _TabFade(index: _selectedTabIndex, child: _buildTabStack());
+  }
+
+  Widget _buildTabStack() {
     return IndexedStack(
       index: _selectedTabIndex,
       children: [
@@ -430,6 +443,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           sidebarFocusNode: _sideBarFocusNodes[6],
         ),
       ],
+    );
+  }
+}
+
+/// 分頁切換時內容淡入；不更換 key，所以子樹的狀態不會被重建。
+class _TabFade extends StatefulWidget {
+  const _TabFade({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<_TabFade> createState() => _TabFadeState();
+}
+
+class _TabFadeState extends State<_TabFade>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: Anim.fast,
+    value: 1,
+  );
+
+  @override
+  void didUpdateWidget(_TabFade old) {
+    super.didUpdateWidget(old);
+    if (old.index != widget.index && !Anim.reduced) _c.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: _c, curve: Anim.curve),
+      child: widget.child,
     );
   }
 }

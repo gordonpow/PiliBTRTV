@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/utils/anim.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 
 import '../../../models/play_repeat.dart';
@@ -130,46 +131,64 @@ class _SettingsPanelState extends State<SettingsPanel> {
       right: 0,
       bottom: 0,
       width: 350,
-      child: Container(
-        color: const Color(0xFF1F1F1F).withValues(alpha: 0.95),
-        child: Column(
-          children: [
-            // 標題欄
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.1),
+      child: EnterTransition(
+        child: Container(
+          color: const Color(0xFF1F1F1F).withValues(alpha: 0.95),
+          child: Column(
+            children: [
+              // 標題欄
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
                   ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  /*
+                child: Row(
+                  children: [
+                    /*
                   if (widget.menuType != SettingsMenuType.main)
                     Padding(
                       padding: const EdgeInsets.only(right: 12),
                       child: const Icon(Icons.arrow_back, color: Colors.white),
                     ),
                   */
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                    TweenAnimationBuilder<double>(
+                      key: ValueKey(widget.menuType),
+                      tween: Tween(begin: 0, end: 1),
+                      duration: Anim.of(Anim.fast),
+                      builder: (_, t, child) =>
+                          Opacity(opacity: t, child: child),
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  if (widget.menuType == SettingsMenuType.main)
-                    const Icon(Icons.settings, color: Colors.white54),
-                ],
+                    const Spacer(),
+                    if (widget.menuType == SettingsMenuType.main)
+                      const Icon(Icons.settings, color: Colors.white54),
+                  ],
+                ),
               ),
-            ),
-            // 列表內容
-            Expanded(child: _buildSettingsList()),
-          ],
+              // 列表內容
+              // 只淡入、不保留舊內容：各子選單共用同一個捲動控制器
+              Expanded(
+                child: TweenAnimationBuilder<double>(
+                  key: ValueKey(widget.menuType),
+                  tween: Tween(begin: 0, end: 1),
+                  duration: Anim.of(Anim.fast),
+                  builder: (_, t, child) => Opacity(opacity: t, child: child),
+                  child: _buildSettingsList(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

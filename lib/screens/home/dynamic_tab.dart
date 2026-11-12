@@ -5,6 +5,7 @@ import '../../models/video.dart';
 import '../../services/bilibili_api.dart';
 import 'package:keframe/keframe.dart';
 import '../../services/auth_service.dart';
+import '../../utils/anim.dart';
 import '../../widgets/tv_video_card.dart';
 import '../../widgets/time_display.dart';
 import '../player/player_screen.dart';
@@ -135,6 +136,17 @@ class DynamicTabState extends State<DynamicTab> {
 
   @override
   Widget build(BuildContext context) {
+    // 載入中 → 內容以淡入切換（只依載入狀態換 key，內容間的更新不觸發動畫）
+    return AnimatedSwitcher(
+      duration: Anim.of(Anim.normal),
+      child: KeyedSubtree(
+        key: ValueKey(AuthService.isLoggedIn && _isLoading),
+        child: _buildBody(),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
     if (!AuthService.isLoggedIn) {
       return Center(
         child: Column(
@@ -239,6 +251,11 @@ class DynamicTabState extends State<DynamicTab> {
                                 onMoveDown: (index + 4 < _videos.length)
                                     ? () => _getFocusNode(
                                         index + 4,
+                                      ).requestFocus()
+                                    : ((index ~/ 4 + 1) * 4 < _videos.length)
+                                    // 最後一列不滿四張：移到最後一張
+                                    ? () => _getFocusNode(
+                                        _videos.length - 1,
                                       ).requestFocus()
                                     : null,
                                 onFocus: () {

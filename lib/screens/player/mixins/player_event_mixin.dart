@@ -5,6 +5,7 @@ import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../../../models/play_repeat.dart';
+import '../../../core/plugin/plugin_types.dart';
 import '../../../models/video.dart';
 import '../../../services/settings_service.dart';
 import '../../../widgets/video_action_dialogs.dart';
@@ -206,6 +207,20 @@ mixin PlayerEventMixin on PlayerActionMixin {
     // 只處理 KeyDownEvent 和 KeyRepeatEvent
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
+    }
+
+    // 跳過按鈕顯示中、沒有開著面板時：確認鍵直接跳過
+    // （按鈕的焦點常被播放器焦點搶走，不能只靠按鈕自己接收按鍵）
+    if (currentSkipAction is SkipActionShowButton &&
+        upNextSeconds == null &&
+        !showSettingsPanel &&
+        !showEpisodePanel &&
+        !showInfoPanel &&
+        !showRelatedPanel &&
+        event is KeyDownEvent &&
+        PlayerFocusHandler.isSelectKey(event)) {
+      executeSkipAction();
+      return KeyEventResult.handled;
     }
 
     // 倒數連播中的按鍵（含 KeyRepeat）

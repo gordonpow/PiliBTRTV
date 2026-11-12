@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/utils/anim.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 
 enum LiveSettingsMenuType { main, quality, danmaku, line }
@@ -110,39 +111,42 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
       right: 0,
       bottom: 0,
       width: 350,
-      child: Container(
-        color: const Color(0xFF1F1F1F).withValues(alpha: 0.95),
-        child: Column(
-          children: [
-            // 標題欄
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+      // 右側滑入進場（#41）；EnterTransition 必須在 Positioned 裡面
+      child: EnterTransition(
+        child: Container(
+          color: const Color(0xFF1F1F1F).withValues(alpha: 0.95),
+          child: Column(
+            children: [
+              // 標題欄
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.1),
                     ),
                   ),
-                  const Spacer(),
-                  if (widget.menuType == LiveSettingsMenuType.main)
-                    const Icon(Icons.settings, color: Colors.white54),
-                ],
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (widget.menuType == LiveSettingsMenuType.main)
+                      const Icon(Icons.settings, color: Colors.white54),
+                  ],
+                ),
               ),
-            ),
-            // 列表內容
-            Expanded(child: _buildSettingsList()),
-          ],
+              // 列表內容
+              Expanded(child: _buildSettingsList()),
+            ],
+          ),
         ),
       ),
     );

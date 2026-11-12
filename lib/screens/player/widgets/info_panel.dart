@@ -1,5 +1,6 @@
 import 'package:bili_tv_app/models/reply_item.dart';
 import 'package:bili_tv_app/services/bilibili_api.dart';
+import 'package:bili_tv_app/utils/anim.dart';
 import 'package:bili_tv_app/utils/format_count.dart';
 import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
@@ -151,7 +152,14 @@ class _InfoPanelState extends State<InfoPanel> {
     if (PlayerFocusHandler.isBackKey(event)) return KeyEventResult.ignored;
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowLeft) {
-      if (event is KeyDownEvent) _switchTab(0);
+      if (event is KeyDownEvent) {
+        // 簡介分頁按左鍵關閉面板；留言分頁回到簡介
+        if (_tab == 0) {
+          widget.onClose();
+        } else {
+          _switchTab(0);
+        }
+      }
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.arrowRight) {
@@ -186,17 +194,28 @@ class _InfoPanelState extends State<InfoPanel> {
       right: 0,
       bottom: 0,
       width: 520,
-      child: Focus(
-        focusNode: _focusNode,
-        autofocus: true,
-        onKeyEvent: _onKey,
-        child: Container(
-          color: const Color(0xFF1F1F1F).withValues(alpha: 0.95),
-          child: Column(
-            children: [
-              _buildTabs(),
-              Expanded(child: _tab == 0 ? _buildDesc() : _buildReplies()),
-            ],
+      child: EnterTransition(
+        child: Focus(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKeyEvent: _onKey,
+          child: Container(
+            color: const Color(0xFF1F1F1F),
+            child: Column(
+              children: [
+                _buildTabs(),
+                Expanded(
+                  // 只淡入、不保留舊分頁：留言與簡介共用 GlobalKey／捲動控制器
+                  child: TweenAnimationBuilder<double>(
+                    key: ValueKey(_tab),
+                    tween: Tween(begin: 0, end: 1),
+                    duration: Anim.of(Anim.fast),
+                    builder: (_, t, child) => Opacity(opacity: t, child: child),
+                    child: _tab == 0 ? _buildDesc() : _buildReplies(),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -207,7 +226,9 @@ class _InfoPanelState extends State<InfoPanel> {
     Widget tab(String label, int index) {
       final active = _tab == index;
       return Expanded(
-        child: Container(
+        child: AnimatedContainer(
+          duration: Anim.of(Anim.fast),
+          curve: Anim.curve,
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(

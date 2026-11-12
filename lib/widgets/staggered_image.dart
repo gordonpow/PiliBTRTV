@@ -56,24 +56,20 @@ class _StaggeredImageState extends State<StaggeredImage> {
       );
     }
 
-    return AnimatedOpacity(
-      opacity: 1.0,
-      duration: const Duration(milliseconds: 150),
-      child: CachedNetworkImage(
-        imageUrl: widget.imageUrl,
-        width: widget.width,
-        height: widget.height,
-        fit: widget.fit,
-        memCacheWidth: widget.cacheWidth,
-        memCacheHeight: widget.cacheHeight,
-        cacheManager: BiliCacheManager.instance, // 使用有限制的快取管理器
-        fadeInDuration: const Duration(milliseconds: 100),
-        fadeOutDuration: Duration.zero,
-        placeholder: (context, url) => Container(color: Colors.grey[900]),
-        errorWidget: (context, url, error) => Container(
-          color: Colors.grey[800],
-          child: const Icon(Icons.broken_image, color: Colors.grey),
-        ),
+    return CachedNetworkImage(
+      imageUrl: widget.imageUrl,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      memCacheWidth: widget.cacheWidth,
+      memCacheHeight: widget.cacheHeight,
+      cacheManager: BiliCacheManager.instance, // 使用有限制的快取管理器
+      fadeInDuration: const Duration(milliseconds: 100),
+      fadeOutDuration: Duration.zero,
+      placeholder: (context, url) => Container(color: Colors.grey[900]),
+      errorWidget: (context, url, error) => Container(
+        color: Colors.grey[800],
+        child: const Icon(Icons.broken_image, color: Colors.grey),
       ),
     );
   }

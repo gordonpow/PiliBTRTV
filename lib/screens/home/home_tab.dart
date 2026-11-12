@@ -9,7 +9,9 @@ import '../../widgets/tv_video_card.dart';
 import '../../widgets/time_display.dart';
 import '../../core/plugin/plugin_manager.dart';
 import '../../core/plugin/plugin_types.dart';
+import '../../utils/anim.dart';
 import '../player/player_screen.dart';
+import '../up_space/widgets/space_button.dart';
 
 class HomeTab extends StatefulWidget {
   final FocusNode? sidebarFocusNode;
@@ -98,6 +100,7 @@ class HomeTabState extends State<HomeTab> {
     for (final node in _videoFocusNodes.values) {
       node.dispose();
     }
+    _retryNode.dispose();
     _videoFocusNodes.clear();
     super.dispose();
   }
@@ -106,6 +109,10 @@ class HomeTabState extends State<HomeTab> {
   FocusNode _getFocusNode(int index) {
     return _videoFocusNodes.putIfAbsent(index, () => FocusNode());
   }
+
+  // 目前分類載入失敗（無資料）時顯示「重試」按鈕
+  bool _loadFailed = false;
+  final FocusNode _retryNode = FocusNode();
 
   List<Video> get _currentVideos =>
       _categoryVideos[_selectedCategoryIndex] ?? [];
@@ -116,6 +123,7 @@ class HomeTabState extends State<HomeTab> {
     bool refresh = false,
   }) async {
     if (_categoryLoading[categoryIndex] == true) return;
+    _loadFailed = false;
 
     // ... (保持原有的分頁邏輯) ...
     final currentPage = _categoryPage[categoryIndex] ?? 1;
@@ -168,9 +176,20 @@ class HomeTabState extends State<HomeTab> {
 
     // 非重新整理且取回 0 筆（失敗或空）：只還原 loading 與 page，下次往下移動會重試
     if (!refresh && videos.isEmpty) {
+      final noData = (_categoryVideos[categoryIndex] ?? []).isEmpty;
       setState(() {
         _categoryLoading[categoryIndex] = false;
         if (currentPage > 1) _categoryPage[categoryIndex] = currentPage - 1;
+        // 首次載入就失敗：顯示重試按鈕，並通知父元件啟用焦點系統
+        if (noData && categoryIndex == _selectedCategoryIndex) {
+          _loadFailed = true;
+        }
+        if (noData && !_firstLoadDone) {
+          _firstLoadDone = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            widget.onFirstLoadComplete?.call();
+          });
+        }
       });
       return;
     }
@@ -200,6 +219,10 @@ class HomeTabState extends State<HomeTab> {
       }
       _categoryLoading[categoryIndex] = false;
       _isRefreshing = false; // 重新整理完成
+      if ((_categoryVideos[categoryIndex] ?? []).isEmpty &&
+          categoryIndex == _selectedCategoryIndex) {
+        _loadFailed = true;
+      }
 
       if (!_firstLoadDone) {
         _firstLoadDone = true;
@@ -224,6 +247,7 @@ class HomeTabState extends State<HomeTab> {
     // 切換分類後不再是初始預載入狀態
     _usedPreloadedData = false;
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    _loadFailed = false;
     setState(() => _selectedCategoryIndex = index);
     if ((_categoryVideos[index] ?? []).isEmpty) _loadVideosForCategory(index);
   }
@@ -240,6 +264,38 @@ class HomeTabState extends State<HomeTab> {
     ).push(MaterialPageRoute(builder: (context) => PlayerScreen(video: video)));
   }
 
+  Widget _buildRetry() {
+    return Center(
+      key: const ValueKey('retry'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '載入失敗，請檢查網路後重試',
+            style: TextStyle(color: Colors.white70, fontSize: 16),
+          ),
+          const SizedBox(height: 16),
+          SpaceButton(
+            focusNode: _retryNode,
+            autofocus: true,
+            onTap: () =>
+                _loadVideosForCategory(_selectedCategoryIndex, refresh: true),
+            onLeft: () => widget.sidebarFocusNode?.requestFocus(),
+            onUp: () =>
+                _categoryFocusNodes[_selectedCategoryIndex].requestFocus(),
+            builder: (focused) => spacePill(
+              focused: focused,
+              color: Colors.grey[800]!,
+              horizontal: 18,
+              icon: Icons.refresh,
+              label: '重試',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 判斷是否是"啟動後的第一屏資料"
@@ -252,144 +308,154 @@ class HomeTabState extends State<HomeTab> {
       children: [
         Positioned.fill(
           child: FocusTraversalGroup(
-            child: _isLoading && _currentVideos.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : SizeCacheWidget(
-                    child: CustomScrollView(
-                      controller: _scrollController,
-                      slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(30, 100, 30, 80),
-                          sliver: SliverGrid(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 4,
-                                  childAspectRatio: 320 / 280,
-                                  crossAxisSpacing: 20,
-                                  mainAxisSpacing: 30,
-                                ),
-                            delegate: SliverChildBuilderDelegate((
-                              context,
-                              index,
-                            ) {
-                              final video = _currentVideos[index];
+            child: AnimatedSwitcher(
+              duration: Anim.of(Anim.normal),
+              child: _isLoading && _currentVideos.isEmpty
+                  ? const Center(
+                      key: ValueKey('loading'),
+                      child: CircularProgressIndicator(),
+                    )
+                  : _loadFailed && _currentVideos.isEmpty
+                  ? _buildRetry()
+                  : SizeCacheWidget(
+                      key: const ValueKey('content'),
+                      child: CustomScrollView(
+                        controller: _scrollController,
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(30, 100, 30, 80),
+                            sliver: SliverGrid(
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 4,
+                                    childAspectRatio: 320 / 280,
+                                    crossAxisSpacing: 20,
+                                    mainAxisSpacing: 30,
+                                  ),
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final video = _currentVideos[index];
 
-                              // 【最佳化】只有重新整理時才使用交錯載入
-                              // 初始載入和從播放器返回時，圖片已在快取中，直接顯示
-                              final int? staggerIdx = _isRefreshing
-                                  ? (index % 8)
-                                  : null;
+                                // 【最佳化】只有重新整理時才使用交錯載入
+                                // 初始載入和從播放器返回時，圖片已在快取中，直接顯示
+                                final int? staggerIdx = _isRefreshing
+                                    ? (index % 8)
+                                    : null;
 
-                              // 構建卡片內容
-                              Widget buildCard(BuildContext ctx) {
-                                return TvVideoCard(
-                                  video: video,
-                                  focusNode: _getFocusNode(index),
-                                  autofocus: isInitialLoad && index == 0,
-                                  disableCache: false,
-                                  staggerIndex: staggerIdx,
-                                  onTap: () => _onVideoTap(video),
-                                  onMoveLeft: (index % 4 == 0)
-                                      ? () => widget.sidebarFocusNode
-                                            ?.requestFocus()
-                                      : () => _getFocusNode(
-                                          index - 1,
-                                        ).requestFocus(),
-                                  // 強制向右導航，避免 ScaleTransition 導致的誤判
-                                  onMoveRight:
-                                      (index + 1 < _currentVideos.length)
-                                      ? () => _getFocusNode(
-                                          index + 1,
-                                        ).requestFocus()
-                                      : null,
-                                  // 嚴格按列向上移動（4個一行），最頂行跳到分類標籤
-                                  onMoveUp: index >= 4
-                                      ? () => _getFocusNode(
-                                          index - 4,
-                                        ).requestFocus()
-                                      : () =>
-                                            _categoryFocusNodes[_selectedCategoryIndex]
-                                                .requestFocus(),
-                                  // 嚴格按列向下移動
-                                  onMoveDown:
-                                      (index + 4 < _currentVideos.length)
-                                      ? () => _getFocusNode(
-                                          index + 4,
-                                        ).requestFocus()
-                                      : ((index ~/ 4 + 1) * 4 <
-                                                _currentVideos.length)
-                                      // 最後一列不滿四張：移到最後一張
-                                      ? () => _getFocusNode(
-                                          _currentVideos.length - 1,
-                                        ).requestFocus()
-                                      // 真正最後一列：觸發載入更多
-                                      : () => _loadMore(),
-                                  onFocus: () {
-                                    // 焦點接近底部時載入更多（不在 build 中呼叫）
-                                    if (index >= _currentVideos.length - 12) {
-                                      _loadMore();
-                                    }
-                                    if (!_scrollController.hasClients) {
-                                      return;
-                                    }
-
-                                    final RenderObject? object = ctx
-                                        .findRenderObject();
-                                    if (object != null && object is RenderBox) {
-                                      final viewport =
-                                          RenderAbstractViewport.of(object);
-                                      final offsetToReveal = viewport
-                                          .getOffsetToReveal(object, 0.0)
-                                          .offset;
-                                      final targetOffset =
-                                          (offsetToReveal - 120).clamp(
-                                            0.0,
-                                            _scrollController
-                                                .position
-                                                .maxScrollExtent,
-                                          );
-
-                                      if ((_scrollController.offset -
-                                                  targetOffset)
-                                              .abs() >
-                                          50) {
-                                        _scrollController.animateTo(
-                                          targetOffset,
-                                          duration: const Duration(
-                                            milliseconds: 500,
-                                          ),
-                                          curve: Curves.easeOutCubic,
-                                        );
+                                // 構建卡片內容
+                                Widget buildCard(BuildContext ctx) {
+                                  return TvVideoCard(
+                                    video: video,
+                                    focusNode: _getFocusNode(index),
+                                    autofocus: isInitialLoad && index == 0,
+                                    disableCache: false,
+                                    staggerIndex: staggerIdx,
+                                    onTap: () => _onVideoTap(video),
+                                    onMoveLeft: (index % 4 == 0)
+                                        ? () => widget.sidebarFocusNode
+                                              ?.requestFocus()
+                                        : () => _getFocusNode(
+                                            index - 1,
+                                          ).requestFocus(),
+                                    // 強制向右導航，避免 ScaleTransition 導致的誤判
+                                    onMoveRight:
+                                        (index + 1 < _currentVideos.length)
+                                        ? () => _getFocusNode(
+                                            index + 1,
+                                          ).requestFocus()
+                                        : null,
+                                    // 嚴格按列向上移動（4個一行），最頂行跳到分類標籤
+                                    onMoveUp: index >= 4
+                                        ? () => _getFocusNode(
+                                            index - 4,
+                                          ).requestFocus()
+                                        : () =>
+                                              _categoryFocusNodes[_selectedCategoryIndex]
+                                                  .requestFocus(),
+                                    // 嚴格按列向下移動
+                                    onMoveDown:
+                                        (index + 4 < _currentVideos.length)
+                                        ? () => _getFocusNode(
+                                            index + 4,
+                                          ).requestFocus()
+                                        : ((index ~/ 4 + 1) * 4 <
+                                              _currentVideos.length)
+                                        // 最後一列不滿四張：移到最後一張
+                                        ? () => _getFocusNode(
+                                            _currentVideos.length - 1,
+                                          ).requestFocus()
+                                        // 真正最後一列：觸發載入更多
+                                        : () => _loadMore(),
+                                    onFocus: () {
+                                      // 焦點接近底部時載入更多（不在 build 中呼叫）
+                                      if (index >= _currentVideos.length - 12) {
+                                        _loadMore();
                                       }
-                                    }
-                                  },
-                                );
-                              }
+                                      if (!_scrollController.hasClients) {
+                                        return;
+                                      }
 
-                              // 只有重新整理時使用分幀渲染，其他情況直接渲染
-                              if (_isRefreshing) {
-                                return FrameSeparateWidget(
-                                  index: index,
-                                  placeHolder: const Center(
-                                    child: SizedBox(
-                                      width: 30,
-                                      height: 30,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
+                                      final RenderObject? object = ctx
+                                          .findRenderObject();
+                                      if (object != null &&
+                                          object is RenderBox) {
+                                        final viewport =
+                                            RenderAbstractViewport.of(object);
+                                        final offsetToReveal = viewport
+                                            .getOffsetToReveal(object, 0.0)
+                                            .offset;
+                                        final targetOffset =
+                                            (offsetToReveal - 120).clamp(
+                                              0.0,
+                                              _scrollController
+                                                  .position
+                                                  .maxScrollExtent,
+                                            );
+
+                                        if ((_scrollController.offset -
+                                                    targetOffset)
+                                                .abs() >
+                                            50) {
+                                          _scrollController.animateTo(
+                                            targetOffset,
+                                            duration: const Duration(
+                                              milliseconds: 500,
+                                            ),
+                                            curve: Curves.easeOutCubic,
+                                          );
+                                        }
+                                      }
+                                    },
+                                  );
+                                }
+
+                                // 只有重新整理時使用分幀渲染，其他情況直接渲染
+                                if (_isRefreshing) {
+                                  return FrameSeparateWidget(
+                                    index: index,
+                                    placeHolder: const Center(
+                                      child: SizedBox(
+                                        width: 30,
+                                        height: 30,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  child: Builder(builder: buildCard),
-                                );
-                              }
+                                    child: Builder(builder: buildCard),
+                                  );
+                                }
 
-                              return Builder(builder: buildCard);
-                            }, childCount: _currentVideos.length),
+                                return Builder(builder: buildCard);
+                              }, childCount: _currentVideos.length),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+            ),
           ),
         ),
 

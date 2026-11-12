@@ -3,6 +3,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../utils/format_count.dart';
 import '../../../widgets/local_fav_import.dart';
+import '../../../widgets/video_action_dialogs.dart';
 import '../../../widgets/vip_avatar_badge.dart';
 import '../../up_space/up_space_screen.dart';
 import '../../up_space/widgets/space_button.dart';
@@ -143,26 +144,12 @@ class ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _confirmLogout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF2A2A2A),
-        title: const Text('確認退出', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          '確定要退出登入嗎？',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消', style: TextStyle(color: Colors.white54)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('確認', style: TextStyle(color: _pink)),
-          ),
-        ],
-      ),
+    // 預設焦點在「取消」，避免誤觸登出
+    final confirmed = await showConfirmDialog(
+      context,
+      title: '確認退出',
+      message: '確定要退出登入嗎？',
+      confirmLabel: '確認',
     );
     if (confirmed != true || !mounted) return;
     widget.onLogout?.call();

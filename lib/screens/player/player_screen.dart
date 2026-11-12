@@ -1,4 +1,5 @@
 import 'package:bili_tv_app/services/translate/content_translator.dart';
+import 'package:bili_tv_app/utils/anim.dart';
 import '../../services/prefetch_service.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
@@ -164,14 +165,13 @@ class _PlayerScreenState extends State<PlayerScreen>
               if (!isLoading && videoController != null)
                 PauseIndicator(controller: videoController),
 
-              // 迷你進度條 (控制欄隱藏且非快退快進預覽時顯示)
+              // 迷你進度條 (控制欄隱藏且非快退快進預覽時顯示；與控制列交替淡入淡出)
               if (!isLoading &&
-                  !showSeekIndicator &&
-                  !isSeekPreviewMode &&
                   videoController != null &&
-                  !showControls &&
                   SettingsService.showMiniProgress)
                 MiniProgressBar(
+                  visible:
+                      !showSeekIndicator && !isSeekPreviewMode && !showControls,
                   position: videoController!.value.position,
                   duration: videoController!.value.duration,
                 ),
@@ -183,28 +183,30 @@ class _PlayerScreenState extends State<PlayerScreen>
                 _buildNetflixSeekOverlay()
               else if (showSeekIndicator && videoController != null)
                 Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 14,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${_formatSeekTime(videoController!.value.position)} / ${_formatSeekTime(videoController!.value.duration)}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        shadows: [
-                          Shadow(
-                            blurRadius: 4,
-                            color: Colors.black,
-                            offset: Offset(0, 1),
-                          ),
-                        ],
+                  child: _fadeIn(
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${_formatSeekTime(videoController!.value.position)} / ${_formatSeekTime(videoController!.value.duration)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(
+                              blurRadius: 4,
+                              color: Colors.black,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -323,10 +325,13 @@ class _PlayerScreenState extends State<PlayerScreen>
                 Positioned(
                   right: 32,
                   bottom: 48,
-                  child: UpNextCard(
-                    info: upNextInfo!,
-                    seconds: upNextSeconds!,
-                    total: upNextTotal,
+                  child: EnterTransition(
+                    offset: const Offset(0.15, 0.15),
+                    child: UpNextCard(
+                      info: upNextInfo!,
+                      seconds: upNextSeconds!,
+                      total: upNextTotal,
+                    ),
                   ),
                 ),
 
@@ -371,41 +376,53 @@ class _PlayerScreenState extends State<PlayerScreen>
       bottom: 60,
       left: 40,
       right: 40,
-      child: Column(
-        children: [
-          Text(
-            '${formatDuration(preview)} / ${formatDuration(total)}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+      child: _fadeIn(
+        Column(
+          children: [
+            Text(
+              '${formatDuration(preview)} / ${formatDuration(total)}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            height: 8,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: progress.clamp(0.0, 1.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFfb7299),
-                  borderRadius: BorderRadius.circular(4),
+            const SizedBox(height: 8),
+            Container(
+              height: 8,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: FractionallySizedBox(
+                alignment: Alignment.centerLeft,
+                widthFactor: progress.clamp(0.0, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFfb7299),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '← → 拖動  ↑ 取消  確定 跳轉',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
-          ),
-        ],
+            const SizedBox(height: 8),
+            const Text(
+              '← → 拖動  ↑ 取消  確定 跳轉',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  /// 掛上時淡入 120ms（快退快進時間提示用）；低記憶體裝置不做動畫
+  Widget _fadeIn(Widget child) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Anim.of(const Duration(milliseconds: 120)),
+      builder: (context, t, child) => Opacity(opacity: t, child: child),
+      child: child,
     );
   }
 
@@ -428,70 +445,65 @@ class _PlayerScreenState extends State<PlayerScreen>
     return Positioned(
       bottom: 120,
       right: 40,
-      child: Builder(
-        builder: (context) {
-          return Focus(
-            autofocus: true, // Auto focus when it appears
-            onKeyEvent: (node, event) {
-              if (event is KeyDownEvent &&
-                  (event.logicalKey == LogicalKeyboardKey.select ||
-                      event.logicalKey == LogicalKeyboardKey.enter)) {
-                _executeSkip(action);
-                return KeyEventResult.handled;
-              }
-              return KeyEventResult.ignored;
-            },
-            child: Builder(
-              builder: (ctx) {
-                final hasFocus = Focus.of(ctx).hasFocus;
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: hasFocus
-                        ? Theme.of(context).primaryColor
-                        : Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: hasFocus ? Colors.white : Colors.white30,
-                      width: hasFocus ? 2 : 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.fast_forward,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        action.label,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+      child: EnterTransition(
+        child: Builder(
+          builder: (context) {
+            return Focus(
+              autofocus: true, // Auto focus when it appears
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent &&
+                    (event.logicalKey == LogicalKeyboardKey.select ||
+                        event.logicalKey == LogicalKeyboardKey.enter)) {
+                  executeSkipAction();
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
               },
-            ),
-          );
-        },
+              child: Builder(
+                builder: (ctx) {
+                  final hasFocus = Focus.of(ctx).hasFocus;
+                  return AnimatedContainer(
+                    duration: Anim.of(Anim.fast),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: hasFocus
+                          ? Theme.of(context).primaryColor
+                          : Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: hasFocus ? Colors.white : Colors.white30,
+                        width: hasFocus ? 2 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.fast_forward,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          action.label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
       ),
     );
-  }
-
-  void _executeSkip(SkipActionShowButton action) {
-    videoController!.seekTo(Duration(milliseconds: action.skipToMs));
-    resetDanmakuIndex(Duration(milliseconds: action.skipToMs));
-    setState(() {
-      currentSkipAction = null;
-    });
   }
 
   /// Netflix 式快退快進進度條與縮圖列

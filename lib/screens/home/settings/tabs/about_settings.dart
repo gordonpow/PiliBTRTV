@@ -162,9 +162,12 @@ class _UpdateDialog extends StatefulWidget {
 
 class _UpdateDialogState extends State<_UpdateDialog> {
   final ScrollController _scroll = ScrollController();
+  final FocusNode _downloadFocus = FocusNode(debugLabel: 'updateDownload');
+  bool _wasDownloading = false;
 
   @override
   void dispose() {
+    _downloadFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -195,6 +198,13 @@ class _UpdateDialogState extends State<_UpdateDialog> {
       valueListenable: UpdateService.progress,
       builder: (context, progress, _) {
         final downloading = progress != null;
+        // 下載失敗後按鈕恢復可按：焦點在下載中被停用的按鈕上會遺失，這裡還給它
+        if (_wasDownloading && !downloading) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _downloadFocus.requestFocus();
+          });
+        }
+        _wasDownloading = downloading;
         return PopScope(
           canPop: !downloading,
           child: Focus(
@@ -228,6 +238,7 @@ class _UpdateDialogState extends State<_UpdateDialog> {
                   ),
                 ),
                 TextButton(
+                  focusNode: _downloadFocus,
                   autofocus: true,
                   onPressed: downloading
                       ? null

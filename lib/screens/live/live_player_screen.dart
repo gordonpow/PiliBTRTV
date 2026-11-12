@@ -472,7 +472,14 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
       }
 
       if (event.logicalKey == LogicalKeyboardKey.escape) {
-        // if (_showSettingsPanel) handled by _handleSettingsKeyEvent below
+        // 設定面板開著時，Escape 優先關閉設定面板
+        if (_showSettingsPanel) {
+          setState(() {
+            _showSettingsPanel = false;
+            _settingsMenuType = LiveSettingsMenuType.main;
+          });
+          return KeyEventResult.handled;
+        }
 
         if (_showControls) {
           _hideControls();
@@ -642,10 +649,10 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
   void _adjustDanmakuSetting(int index, int direction) async {
     // direction: -1 (Left/Reduce), 1 (Right/Increase)
     switch (index) {
-      case 0: // Enabled (Switch)
-        // Left/Right doesn't usually toggle switch, Enter does.
-        // But for convenience:
-        // if direction matches state? No, let's keep it to Enter for toggle.
+      case 0: // 開關類：左右鍵也能切換（#40）
+      case 5:
+      case 6:
+        _toggleDanmakuSetting(index);
         break;
       case 1: // Opacity (Slider)
         double newVal = _danmakuOpacity + (direction * 0.1);
@@ -682,7 +689,6 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
           await _saveSettings();
         }
         break;
-      // 5, 6 are boolean switches (Hide Top/Bottom)
     }
   }
 
@@ -723,19 +729,44 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
 
   void _toggleDanmakuSetting(int index) {
     switch (index) {
-      case 0: // Toggle Enable
+      case 0: // Toggle danmaku enable/disable
         setState(() => _danmakuEnabled = !_danmakuEnabled);
         _saveSettings();
         break;
-      case 1: // Opacity
-        double newVal = _danmakuOpacity + 0.2;
-        if (newVal > 1.0) newVal = 0.2;
-        setState(() => _danmakuOpacity = newVal);
+      case 1: // Opacity: cycle forward by 0.2 (Enter acts like right arrow)
+        double newOpacity = _danmakuOpacity + 0.2;
+        if (newOpacity > 1.0) newOpacity = 0.2;
+        setState(
+          () => _danmakuOpacity = double.parse(newOpacity.toStringAsFixed(1)),
+        );
         _saveSettings();
         break;
-      // ... others
-      // For now, simplify or rely on UI panel's click usage.
-      // The UI panel uses InkWell, so Enter key often triggers it if focused.
+      case 2: // Font size: cycle forward by 1 step (Enter acts like right arrow)
+        double newFontSize = _danmakuFontSize + 1.0;
+        if (newFontSize > 30.0) newFontSize = 10.0;
+        setState(() => _danmakuFontSize = newFontSize);
+        _saveSettings();
+        break;
+      case 3: // Display area: cycle forward by 0.25 (Enter acts like right arrow)
+        double newArea = _danmakuArea + 0.25;
+        if (newArea > 1.0) newArea = 0.25;
+        setState(() => _danmakuArea = newArea);
+        _saveSettings();
+        break;
+      case 4: // Speed: cycle forward by 1 (Enter acts like right arrow)
+        double newSpeed = _danmakuSpeed + 1.0;
+        if (newSpeed > 20.0) newSpeed = 5.0;
+        setState(() => _danmakuSpeed = newSpeed);
+        _saveSettings();
+        break;
+      case 5: // Toggle hide top danmaku
+        setState(() => _hideTopDanmaku = !_hideTopDanmaku);
+        _saveSettings();
+        break;
+      case 6: // Toggle hide bottom danmaku
+        setState(() => _hideBottomDanmaku = !_hideBottomDanmaku);
+        _saveSettings();
+        break;
     }
   }
 
@@ -827,7 +858,7 @@ class _LivePlayerScreenState extends State<LivePlayerScreen>
               // Controls Layer
               if (_showControls) _buildControls(),
 
-              // Settings Panel
+              // Settings Panel（進場動畫在 LiveSettingsPanel 內）
               if (_showSettingsPanel)
                 LiveSettingsPanel(
                   menuType: _settingsMenuType,

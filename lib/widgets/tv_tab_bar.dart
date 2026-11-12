@@ -1,5 +1,6 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
+import '../utils/anim.dart';
 
 /// 通用 TV 橫向分頁標籤列：左右鍵切換、聚焦即選取。
 /// 樣式與首頁分類標籤一致（粉紅字＋底線，焦點時粉紅底）。
@@ -91,7 +92,9 @@ class TvTabBar extends StatelessWidget {
                   final selected = i == selectedIndex;
                   return GestureDetector(
                     onTap: () => focusNodes[i].requestFocus(),
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: Anim.of(Anim.fast),
+                      curve: Anim.curve,
                       padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
                       decoration: BoxDecoration(
                         color: f ? const Color(0xFFfb7299) : Colors.transparent,

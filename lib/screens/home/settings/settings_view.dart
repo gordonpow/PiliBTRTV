@@ -1,6 +1,7 @@
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../services/update_service.dart';
+import '../../../utils/anim.dart';
 import 'tabs/playback_settings.dart';
 import 'tabs/btr_settings.dart';
 import 'tabs/interface_settings.dart';
@@ -561,9 +562,21 @@ class SettingsViewState extends State<SettingsView>
                 child: SingleChildScrollView(
                   controller: _contentScroll,
                   padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: _searching
-                      ? _buildSearchResults()
-                      : _buildContent(moveToCurrentTab),
+                  // 切換子分頁時淡入；離場的舊內容以同樣的約束疊在下方
+                  child: AnimatedSwitcher(
+                    duration: Anim.of(Anim.fast),
+                    layoutBuilder: (current, previous) => Stack(
+                      fit: StackFit.passthrough,
+                      alignment: Alignment.topLeft,
+                      children: [...previous, ?current],
+                    ),
+                    child: KeyedSubtree(
+                      key: ValueKey(_searching ? -1 : _selectedCategoryIndex),
+                      child: _searching
+                          ? _buildSearchResults()
+                          : _buildContent(moveToCurrentTab),
+                    ),
+                  ),
                 ),
               ),
             ),

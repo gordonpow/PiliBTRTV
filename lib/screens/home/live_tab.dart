@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../services/api/live_api.dart';
 import '../../services/auth_service.dart';
 import '../../services/settings_service.dart';
+import '../../utils/anim.dart';
 import '../../widgets/time_display.dart';
 import 'live/live_room_grid.dart';
 
@@ -256,37 +257,53 @@ class LiveTabState extends State<LiveTab> {
       children: [
         Positioned.fill(
           child: FocusTraversalGroup(
-            child: isFollowCat && !AuthService.isLoggedIn
-                ? const Center(
-                    child: Text('請先登入', style: TextStyle(color: Colors.white)),
-                  )
-                : isLoading && currentRooms.isEmpty
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFfb7299)),
-                  )
-                : currentRooms.isEmpty
-                ? const Center(
-                    child: Text(
-                      "暫無開播的主播",
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+            // 載入中 → 內容以淡入切換（只依載入狀態換 key）
+            child: AnimatedSwitcher(
+              duration: Anim.of(Anim.normal),
+              child: KeyedSubtree(
+                key: ValueKey(
+                  !(isFollowCat && !AuthService.isLoggedIn) &&
+                      isLoading &&
+                      currentRooms.isEmpty,
+                ),
+                child: isFollowCat && !AuthService.isLoggedIn
+                    ? const Center(
+                        child: Text(
+                          '請先登入',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      )
+                    : isLoading && currentRooms.isEmpty
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFfb7299),
+                        ),
+                      )
+                    : currentRooms.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "暫無開播的主播",
+                          style: TextStyle(
+                            color: Colors.white54,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )
+                    : LiveRoomGrid(
+                        rooms: currentRooms,
+                        sidebarFocusNode: widget.sidebarFocusNode,
+                        scrollController: _scrollController,
+                        onLoadMore: _loadMore,
+                        topPadding: 100,
+                        autofocusFirst: isInitialLoad,
+                        isRefreshing: _isRefreshing,
+                        onMoveUpFromTop: () =>
+                            _categoryFocusNodes[_selectedCategoryIndex]
+                                .requestFocus(),
                       ),
-                    ),
-                  )
-                : LiveRoomGrid(
-                    rooms: currentRooms,
-                    sidebarFocusNode: widget.sidebarFocusNode,
-                    scrollController: _scrollController,
-                    onLoadMore: _loadMore,
-                    topPadding: 100,
-                    autofocusFirst: isInitialLoad,
-                    isRefreshing: _isRefreshing,
-                    onMoveUpFromTop: () =>
-                        _categoryFocusNodes[_selectedCategoryIndex]
-                            .requestFocus(),
-                  ),
+              ),
+            ),
           ),
         ),
 

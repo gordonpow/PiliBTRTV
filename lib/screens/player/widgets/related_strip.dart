@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/utils/anim.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/services.dart';
 import '../../../models/video.dart';
@@ -246,28 +247,31 @@ class _RelatedStripState extends State<RelatedStrip> {
     final expanded = widget.expanded;
     return Align(
       alignment: Alignment.bottomCenter,
-      child: Focus(
-        focusNode: _fallbackNode,
-        onKeyEvent: _onFallbackKey,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          width: double.infinity,
-          height: expanded ? size.height * 0.65 : _stripHeight,
-          decoration: BoxDecoration(
-            color: expanded ? Colors.black.withValues(alpha: 0.55) : null,
-            gradient: expanded
-                ? null
-                : LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.6),
-                      Colors.transparent,
-                    ],
-                  ),
+      child: EnterTransition(
+        offset: const Offset(0, 0.3),
+        child: Focus(
+          focusNode: _fallbackNode,
+          onKeyEvent: _onFallbackKey,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            width: double.infinity,
+            height: expanded ? size.height * 0.65 : _stripHeight,
+            decoration: BoxDecoration(
+              color: expanded ? Colors.black.withValues(alpha: 0.55) : null,
+              gradient: expanded
+                  ? null
+                  : LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.6),
+                        Colors.transparent,
+                      ],
+                    ),
+            ),
+            child: _buildBody(size.width),
           ),
-          child: _buildBody(size.width),
         ),
       ),
     );

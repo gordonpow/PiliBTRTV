@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/bilibili_api.dart';
 import '../../up_space/up_space_screen.dart';
+import '../../up_space/widgets/space_button.dart';
 
 /// 關注列表：4 欄卡片（頭像、名稱、簽名），焦點接近底部時載入下一頁。
 class FollowingsScreen extends StatefulWidget {
@@ -25,6 +26,7 @@ class _FollowingsScreenState extends State<FollowingsScreen> {
   bool _loading = false;
   bool _hasMore = true;
   bool _failed = false;
+  final FocusNode _retryNode = FocusNode();
 
   @override
   void initState() {
@@ -34,6 +36,7 @@ class _FollowingsScreenState extends State<FollowingsScreen> {
 
   @override
   void dispose() {
+    _retryNode.dispose();
     _scroll.dispose();
     for (final n in _nodes) {
       n.dispose();
@@ -81,6 +84,15 @@ class _FollowingsScreenState extends State<FollowingsScreen> {
     final target = index + delta;
     if (target < 0 || target >= _nodes.length) return;
     _nodes[target].requestFocus();
+  }
+
+  /// 下移一列；最後一列不滿時移到最後一張。
+  void _moveDown(int index) {
+    if (index + _columns < _nodes.length) {
+      _nodes[index + _columns].requestFocus();
+    } else if ((index ~/ _columns + 1) * _columns < _nodes.length) {
+      _nodes.last.requestFocus();
+    }
   }
 
   void _onFocused(int index) {
@@ -133,9 +145,29 @@ class _FollowingsScreenState extends State<FollowingsScreen> {
     if (_users.isEmpty) {
       if (_loading) return const Center(child: CircularProgressIndicator());
       return Center(
-        child: Text(
-          _failed ? '載入失敗，請按返回後重試' : '尚未關注任何人',
-          style: const TextStyle(color: Colors.white54, fontSize: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _failed ? '載入失敗，請重試' : '尚未關注任何人',
+              style: const TextStyle(color: Colors.white54, fontSize: 16),
+            ),
+            if (_failed) ...[
+              const SizedBox(height: 16),
+              SpaceButton(
+                focusNode: _retryNode,
+                autofocus: true,
+                onTap: _loadMore,
+                builder: (focused) => spacePill(
+                  focused: focused,
+                  color: Colors.grey[800]!,
+                  horizontal: 18,
+                  icon: Icons.refresh,
+                  label: '重試',
+                ),
+              ),
+            ],
+          ],
         ),
       );
     }
@@ -158,7 +190,7 @@ class _FollowingsScreenState extends State<FollowingsScreen> {
         onLeft: i % _columns == 0 ? null : () => _move(i, -1),
         onRight: i % _columns == _columns - 1 ? null : () => _move(i, 1),
         onUp: () => _move(i, -_columns),
-        onDown: () => _move(i, _columns),
+        onDown: () => _moveDown(i),
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'package:bili_tv_app/utils/anim.dart';
 import 'package:bili_tv_app/widgets/content_text.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 
@@ -76,57 +77,59 @@ class _EpisodePanelState extends State<EpisodePanel> {
       right: 0,
       bottom: 0,
       width: 350,
-      child: Container(
-        color: const Color(0xFF1F1F1F).withValues(alpha: 0.95),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-              ),
-              child: const Row(
-                children: [
-                  Text(
-                    '選集',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+      child: EnterTransition(
+        child: Container(
+          color: const Color(0xFF1F1F1F).withValues(alpha: 0.95),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.1),
                     ),
                   ),
-                ],
+                ),
+                child: const Row(
+                  children: [
+                    Text(
+                      '選集',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                itemCount: widget.episodes.length,
-                itemBuilder: (context, index) {
-                  final episode = widget.episodes[index];
-                  final isCurrent = episode['cid'] == widget.currentCid;
-                  final partName =
-                      episode['part'] ?? episode['page_part'] ?? '';
-                  // 番劇的 part 已含「第 N 話 標題」，不加 P 前綴
-                  final prefix = episode['is_pgc'] == true
-                      ? ''
-                      : 'P${index + 1} ';
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: widget.episodes.length,
+                  itemBuilder: (context, index) {
+                    final episode = widget.episodes[index];
+                    final isCurrent = episode['cid'] == widget.currentCid;
+                    final partName =
+                        episode['part'] ?? episode['page_part'] ?? '';
+                    // 番劇的 part 已含「第 N 話 標題」，不加 P 前綴
+                    final prefix = episode['is_pgc'] == true
+                        ? ''
+                        : 'P${index + 1} ';
 
-                  return _EpisodeItem(
-                    prefix: prefix,
-                    title: '$partName',
-                    isSelected: isCurrent,
-                    isFocused: widget.focusedIndex == index,
-                    onTap: () => widget.onEpisodeSave(episode['cid']),
-                  );
-                },
+                    return _EpisodeItem(
+                      prefix: prefix,
+                      title: '$partName',
+                      isSelected: isCurrent,
+                      isFocused: widget.focusedIndex == index,
+                      onTap: () => widget.onEpisodeSave(episode['cid']),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

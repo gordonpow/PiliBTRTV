@@ -435,7 +435,7 @@
   "載入中...": "Loading...",
   "載入中…": "Loading...",
   "載入失敗，按確定重試": "Load failed. Press OK to retry",
-  "載入失敗，請按返回後重試": "Load failed. Press Back and retry",
+  "載入失敗，請檢查網路後重試": "Load failed. Check your network and retry",
   "載入失敗，請重試": "Load failed. Please retry",
   "輸入UP主名稱": "Enter uploader name",
   "輸入關鍵詞": "Enter keyword",

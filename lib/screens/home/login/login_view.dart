@@ -51,6 +51,9 @@ class LoginViewState extends State<LoginView> {
   /// TV 掃碼輪詢回 48007（帳號不支援 TV 掃碼）
   bool _is48007 = false;
 
+  /// 上一次 build 時 QR 是否為失效狀態（偵測「重新產生」按鈕剛出現）
+  bool _prevQrFailed = false;
+
   /// QR 產生世代：切換模式、重產、登入成功時遞增，丟棄過期的非同步回應
   int _qrGen = 0;
 
@@ -732,6 +735,18 @@ class LoginViewState extends State<LoginView> {
   @override
   Widget build(BuildContext context) {
     final qrFailed = _status == 'expired' || _status == 'error';
+    // QR 剛失效、「重新產生」按鈕剛出現：焦點若在按鈕列，移到該鈕
+    if (qrFailed && !_prevQrFailed && !_is48007) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_switchFocus.hasFocus ||
+            _refreshFocus.hasFocus ||
+            _reportFocus.hasFocus) {
+          _regenFocus.requestFocus();
+        }
+      });
+    }
+    _prevQrFailed = qrFailed;
     return Center(
       child: SingleChildScrollView(
         child: Column(

@@ -12,6 +12,7 @@ import '../../widgets/video_action_dialogs.dart';
 import '../../widgets/history_video_card.dart';
 import '../../widgets/time_display.dart';
 import '../../widgets/tv_tab_bar.dart';
+import '../../utils/anim.dart';
 import '../player/player_screen.dart';
 import 'history/fav_view.dart';
 import 'history/watch_later_view.dart';
@@ -580,6 +581,17 @@ class HistoryTabState extends State<HistoryTab> {
   }
 
   Widget _buildHistoryBody(BuildContext context) {
+    // 載入中 → 內容以淡入切換（只依載入狀態換 key）
+    return AnimatedSwitcher(
+      duration: Anim.of(Anim.normal),
+      child: KeyedSubtree(
+        key: ValueKey(AuthService.isLoggedIn && _isLoading && _videos.isEmpty),
+        child: _buildHistoryContent(context),
+      ),
+    );
+  }
+
+  Widget _buildHistoryContent(BuildContext context) {
     // 未登入提示
     if (!AuthService.isLoggedIn) {
       return Center(

@@ -287,6 +287,8 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
     bool wide = false,
   }) {
     final button = TextButton(
+      // 帶入階段，切換階段時重新建立按鈕，autofocus 才會重新生效
+      key: ValueKey('$_stage-$label'),
       autofocus: autofocus,
       onPressed: onPressed,
       style: ButtonStyle(
@@ -315,9 +317,8 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
 
     switch (_stage) {
       case _Stage.select:
-        final defaultCat = _hasCrash
-            ? ReportCategory.crash
-            : ReportCategory.values.first;
+        // 閃退後自動跳出時，預設焦點放在「取消」，避免誤送；手動開啟則停在第一個類別
+        final defaultCat = _hasCrash ? null : ReportCategory.values.first;
         content = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,7 +350,7 @@ class _ErrorReportDialogState extends State<_ErrorReportDialog> {
         actions = [
           _btn('用手機輸入', _startPhoneInput),
           _btn('改用手機查看', _share),
-          _btn('取消', () => Navigator.of(context).pop()),
+          _btn('取消', () => Navigator.of(context).pop(), autofocus: _hasCrash),
         ];
       case _Stage.sending:
         content = const Row(
@@ -586,7 +587,8 @@ class _ReportHistoryDialogState extends State<_ReportHistoryDialog> {
                           _ReportRecordTile(
                             record: records[i],
                             autofocus: i == 0,
-                            status: statuses[records[i].id.trim().toUpperCase()],
+                            status:
+                                statuses[records[i].id.trim().toUpperCase()],
                           ),
                       ],
                     ),

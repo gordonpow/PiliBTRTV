@@ -62,6 +62,13 @@ class _SettingDropdownRowState<T> extends State<SettingDropdownRow<T>>
     widget.onChanged(widget.items[nextIndex]);
   }
 
+  void _prevValue() {
+    final currentIndex = widget.items.indexOf(widget.value);
+    final prevIndex =
+        (currentIndex - 1 + widget.items.length) % widget.items.length;
+    widget.onChanged(widget.items[prevIndex]);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -72,7 +79,12 @@ class _SettingDropdownRowState<T> extends State<SettingDropdownRow<T>>
 
         switch (event.logicalKey) {
           case LogicalKeyboardKey.arrowLeft:
-            widget.sidebarFocusNode?.requestFocus();
+            // 已在第一個值時回側欄，否則切到前一個值
+            if (widget.items.indexOf(widget.value) <= 0) {
+              widget.sidebarFocusNode?.requestFocus();
+            } else {
+              _prevValue();
+            }
             return KeyEventResult.handled;
 
           case LogicalKeyboardKey.arrowUp:
@@ -80,14 +92,18 @@ class _SettingDropdownRowState<T> extends State<SettingDropdownRow<T>>
               widget.onMoveUp!();
               return KeyEventResult.handled;
             }
-            return widget.isFirst ? KeyEventResult.handled : KeyEventResult.ignored;
+            return widget.isFirst
+                ? KeyEventResult.handled
+                : KeyEventResult.ignored;
 
           case LogicalKeyboardKey.arrowDown:
             if (widget.isLast && widget.onMoveDown != null) {
               widget.onMoveDown!();
               return KeyEventResult.handled;
             }
-            return widget.isLast ? KeyEventResult.handled : KeyEventResult.ignored;
+            return widget.isLast
+                ? KeyEventResult.handled
+                : KeyEventResult.ignored;
 
           case LogicalKeyboardKey.arrowRight:
           case LogicalKeyboardKey.enter:

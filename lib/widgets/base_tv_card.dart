@@ -378,8 +378,9 @@ class _BaseTvCardState extends State<BaseTvCard>
                               : _buildCover(),
                         ),
                         // 聚焦時的邊框
-                        if (_isFocused)
-                          IgnorePointer(
+                        IgnorePointer(
+                          child: FadeTransition(
+                            opacity: _glowAnim,
                             child: Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
@@ -391,6 +392,7 @@ class _BaseTvCardState extends State<BaseTvCard>
                               ),
                             ),
                           ),
+                        ),
                       ],
                     ),
                   ],

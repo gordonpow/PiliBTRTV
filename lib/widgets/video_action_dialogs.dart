@@ -533,9 +533,21 @@ class _NameInputDialogState extends State<_NameInputDialog> {
   late final TextEditingController _controller = TextEditingController(
     text: widget.initial,
   );
+  late final FocusNode _fieldNode = FocusNode(onKeyEvent: _onFieldKey);
+
+  /// 下鍵離開輸入框，移到下方按鈕。
+  KeyEventResult _onFieldKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      node.nextFocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
 
   @override
   void dispose() {
+    _fieldNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -563,6 +575,7 @@ class _NameInputDialogState extends State<_NameInputDialog> {
               const SizedBox(height: 14),
               TextField(
                 controller: _controller,
+                focusNode: _fieldNode,
                 autofocus: true,
                 maxLength: 20,
                 style: const TextStyle(color: Colors.white, fontSize: 18),

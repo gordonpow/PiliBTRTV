@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:bili_tv_app/utils/anim.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
@@ -105,77 +106,82 @@ class _SeekThumbnailStripState extends State<SeekThumbnailStrip> {
       right: 0,
       bottom: 0,
       height: overlayH,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [
-              Colors.black.withValues(alpha: 0.95),
-              Colors.black.withValues(alpha: 0.65),
-              Colors.transparent,
-            ],
-            stops: const [0.0, 0.7, 1.0],
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: Anim.of(const Duration(milliseconds: 120)),
+        builder: (context, t, child) => Opacity(opacity: t, child: child),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.95),
+                Colors.black.withValues(alpha: 0.65),
+                Colors.transparent,
+              ],
+              stops: const [0.0, 0.7, 1.0],
+            ),
           ),
-        ),
-        child: ClipRect(
-          child: Stack(
-            children: [
-              // 縮圖列 (有縮圖資料時顯示)
-              if (widget.videoshotData != null &&
-                  widget.videoshotData!.frameCount > 0)
-                _buildThumbnailStrip(screenW, screenH),
+          child: ClipRect(
+            child: Stack(
+              children: [
+                // 縮圖列 (有縮圖資料時顯示)
+                if (widget.videoshotData != null &&
+                    widget.videoshotData!.frameCount > 0)
+                  _buildThumbnailStrip(screenW, screenH),
 
-              // 下方進度條 (留白 80，左邊預覽時間，右邊總長)
-              Positioned(
-                left: 80,
-                right: 80,
-                bottom: 36,
-                child: Row(
-                  children: [
-                    Text(
-                      _formatDuration(widget.previewPosition),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    const SizedBox(width: 24),
-                    Expanded(
-                      child: Container(
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(2),
+                // 下方進度條 (留白 80，左邊預覽時間，右邊總長)
+                Positioned(
+                  left: 80,
+                  right: 80,
+                  bottom: 36,
+                  child: Row(
+                    children: [
+                      Text(
+                        _formatDuration(widget.previewPosition),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFeatures: [FontFeature.tabularFigures()],
                         ),
-                        child: FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: progress,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFB7299),
-                              borderRadius: BorderRadius.circular(2),
+                      ),
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Container(
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: progress,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFB7299),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 24),
-                    Text(
-                      _formatDuration(widget.duration),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        fontFeatures: [FontFeature.tabularFigures()],
+                      const SizedBox(width: 24),
+                      Text(
+                        _formatDuration(widget.duration),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

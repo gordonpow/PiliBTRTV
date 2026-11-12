@@ -1921,6 +1921,18 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
+  /// 執行目前的 SponsorBlock 跳過按鈕動作（按鈕上按確認鍵、或全域確認鍵）
+  void executeSkipAction() {
+    final action = currentSkipAction;
+    if (action is! SkipActionShowButton) return;
+    final pos = Duration(milliseconds: action.skipToMs);
+    videoController?.seekTo(pos);
+    resetDanmakuIndex(pos);
+    setState(() {
+      currentSkipAction = null;
+    });
+  }
+
   /// 清理播放器監聽器
   void cancelPlayerListeners() {
     videoController?.removeListener(_onPlayerStateChange);

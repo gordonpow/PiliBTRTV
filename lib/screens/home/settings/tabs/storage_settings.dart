@@ -63,6 +63,7 @@ class _StorageSettingsState extends State<StorageSettings> {
         content: Text(message, style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
+            autofocus: true,
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('取消', style: TextStyle(color: Colors.white54)),
           ),

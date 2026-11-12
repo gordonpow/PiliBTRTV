@@ -68,14 +68,16 @@ class _QualityPickerSheetState extends State<QualityPickerSheet> {
           if (_focusedIndex > 0) {
             setState(() => _focusedIndex--);
             _scrollToFocused();
-            return KeyEventResult.handled;
           }
+          // 已在最上一項：吞掉按鍵，不讓焦點跑出清單
+          return KeyEventResult.handled;
         } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
           if (_focusedIndex < widget.qualities.length - 1) {
             setState(() => _focusedIndex++);
             _scrollToFocused();
-            return KeyEventResult.handled;
           }
+          // 已在最下一項：吞掉按鍵，不讓焦點跑出清單
+          return KeyEventResult.handled;
         } else if (event.logicalKey == LogicalKeyboardKey.select ||
             event.logicalKey == LogicalKeyboardKey.enter) {
           widget.onSelect(widget.qualities[_focusedIndex]['qn']);
