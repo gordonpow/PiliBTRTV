@@ -314,4 +314,4 @@
 - 新增 `lib/utils/anim.dart`（`Anim` 時長常數，低記憶體回傳 0；`EnterTransition` 進場淡入＋滑入，不做離場動畫）。
 - 實作（已實作未 commit）：agy Sonnet 只完成 T-C（直播），T-A、T-B 兩次只讀檔，改由 Claude Sonnet 平行完成。撤回影片畫面淡入。`flutter analyze` 無問題，測試 311 個通過，i18n 未翻譯 0。agy Sonnet diff 審查 6 項，查證後都不採用。尚未在模擬器驗證。
 - 發布 v1.2.2-btr.22：commit `22a9028`（#40、#41）、`4a40701`（規格）、`caca0b7`（版本 `1.2.2-btr.22+26`）。`flutter analyze` 無問題、311 項測試通過。versionCode 2026／1026，簽章 `17fcf8ed…`，arm64-v8a 39.4MB、armeabi-v7a 32.8MB。已觸發 F-Droid 套件庫更新，#40、#41 已關閉。發布說明 `docs/work/ux-polish/release-notes-btr.22.md`。使用者修改中的 4 個檔案（`auth_api.dart`、`live_api.dart`、`btr_config.dart`、`app_restart.dart`）只有排版差異，未 commit。
-- 安裝到 TV 模擬器：有視窗模式三次卡在 GPU 初始化（log 停在 `Storing crashdata`，adb 看不到裝置），結束殘留的 `crashpad_handler` 後改用 `-no-window -gpu swiftshader_indirect` 冷開機成功。x86_64 版（versionCode 4026）安裝並開啟首頁正常；#40、#41 尚未在模擬器操作驗證。
+- 安裝到 TV 模擬器：有視窗模式三次卡在 GPU 初始化（log 停在 `Storing crashdata`，adb 看不到裝置），結束殘留的 `crashpad_handler` 後改用 `-no-window -gpu swiftshader_indirect` 冷開機成功；之後以 `QT_OPENGL=angle` 加 `-gpu swiftshader_indirect` 開啟有視窗的模擬器成功。x86_64 版（versionCode 4026）安裝並開啟首頁正常；#40、#41 尚未在模擬器操作驗證。
