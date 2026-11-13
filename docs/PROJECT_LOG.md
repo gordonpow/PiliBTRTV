@@ -99,6 +99,9 @@
   - #56 時移模式畫面卡住：停住偵測（8 秒未前進先跳最新、30 秒內再停重建播放器）；背景縮圖在穩定播放 10 秒後才開始、緩衝／停住／預覽時暫停。
   - #57 彈幕每 20 秒斷線：移除 `socket.pingInterval`（B 站不回 pong，dart:io 20 秒後以 1001 自行關閉）；認證後立即心跳、每 30 秒心跳、70 秒無封包才重連。
 
+- #58 點影片秒開：原生模式也接手暖機播放器（4K／HDR／杜比／直式例外，`CardPreviewService.warmRejectReason`）；沒接手時沿用暖機與預載的 videoInfo／playurl（`takePlayUrl(consume: false)`、`prepare(seed:)`），續播進度與 playurl 並行；`PlayerRoute` 淡入 120ms。計時 log：`⏱ [E2E] open`、`PiliStartup firstFrame`。規格見 `docs/work/fast-open/`。
+- #59 播放掉幀：位置更新改遞增 `positionTick`（ValueNotifier），只有狀態旗標改變才整頁 setState；彈幕改毫秒同步；RelatedStrip callback 穩定化；DanmakuOption 快取；新增 `FrameMonitor`（`⏱ [Jank]`）。
+
 ### 待辦
 
 - 執行中途的 -101（登入在使用中失效）尚未處理，只在啟動時檢查。
@@ -368,3 +371,10 @@
 | 請求 | 結果 |
 |---|---|
 | 推送並發布 | 分 5 個 commit：`5f85055`（#43）、`c7f7090`（#44）、`04091d2`（#45～#57）、`1040a7d`（規格與紀錄）、版本 `1.2.2-btr.24+28`；另加發布說明 `8aea82f`（`docs/work/live-seek-preview/release-notes-btr.24.md`）。排除只有排版差異的 `btr_config.dart`、`app_restart.dart` 與 `img/`、`log/`、`docs/work` 中間檔。`flutter analyze` 無問題、328 項測試通過；versionCode 2028／1028，簽章 `17fcf8ed…`，`libapp.so` 內含 `v1.2.2-btr.24`，arm64-v8a 39.4MB、armeabi-v7a 32.9MB。推送並發布 GitHub Release v1.2.2-btr.24；F-Droid 套件庫已更新到 btr.24；#43～#57 已關閉。功能面除長按與留言設定外未經實機驗證 |
+
+### 2026-11-14：點影片秒開（#58）與播放掉幀（#59）
+
+| 請求 | 結果 |
+|---|---|
+| 驗證載入速度，盡量做到 100～300ms | 使用者選量「點影片到開始播放」。TV 模擬器基準：馬上按 OK 2.7～3.9 秒；暖機 ready 後按 OK 6.6 秒（原生模式不接手暖機，且暖機吃掉預載 playurl）。使用者選「原生也接手暖機」（4K／HDR／杜比／直式例外）。Sonnet 實作 T-1。改後：暖機 ready 後按 OK，`open`→`shown` 1～2ms（另加 120ms 淡入）；馬上按 OK 約 2.3 秒到 play（playInfo 0.74 秒、initialize 1.16 秒，網路與解碼器初始化為下限）；按 OK 時暖機尚在準備則等它完成（一次 3.1 秒，模擬器網路慢） |
+| 播放彈幕、選相關影片時掉幀 | Explore 找出每 100ms 整頁 setState、彈幕整秒集中加入等；Sonnet 實作 T-2。模擬器為軟體 GPU，每幀 raster 都超過 16ms，無法判定掉幀改善，待使用者在電視上確認。`flutter analyze` 無問題、328 項測試通過；未 commit |
