@@ -58,6 +58,9 @@
 | `7d9aca0` | UP主頁改為全螢幕頁面，新增主頁／動態／投稿分頁（規格：`docs/work/up-space-page/`） |
 | `99a1742` | 修正 TV 掃碼登入 48007（改用 android_hd appkey），登入流程加 log |
 | `edefb36` | 修正直播間載入失敗時閃退（null controller） |
+| `5f85055` | 登入在伺服器端失效時自動刷新或登出（#43，btr.24） |
+| `c7f7090` | 設定頁左右切換選項改用次級選單彈窗（#44，btr.24） |
+| `04091d2` | 直播改版：時移預覽、彈出式留言、自動重連、多線路（#45～#57，btr.24） |
 | `2f0d008` | 一鍵回報問題，經 Google Apps Script 寄到開發者 Gmail（規格：`docs/work/report-to-gmail/`，部署：`docs/report-gmail/`） |
 
 版本號：`lib/btr_version.dart` 為 `v1.2.2-btr.6`（pubspec `1.2.2+6`）。發布：v1.2.2-btr.2（2026-11-07，附 release APK 57.6MB）；v1.2.2-btr.3（2026-11-08，分 64 位元 arm64-v8a 21.3MB 與 32 位元 armeabi-v7a 19.2MB 兩個 APK）；v1.2.2-btr.4（2026-11-08，arm64-v8a 21.6MB、armeabi-v7a 19.5MB）；v1.2.2-btr.5（2026-11-08）；v1.2.2-btr.6（2026-11-09）。
@@ -81,7 +84,7 @@
   - 相關影片改成底部橫排。
   - 用手機輸入回報問題／建議。
 
-- 使用者回饋 2026-11-12（規格見 `docs/work/feedback-1112/`）：
+- 使用者回饋 2026-11-12（規格見 `docs/work/feedback-1112/`；以下 #43～#57 已在 btr.24 commit 並發布）：
   - #43 登入失效：啟動時檢查 nav，-101 時用 TV refresh_token 刷新，失敗則登出並提示「登入已失效，請重新登入」；`logout()` 清除大會員狀態。
   - #44 設定頁 7 個左右切換選項改用次級選單彈窗，左鍵一律跳側欄；刪除 `SettingDropdownRow`。
   - #45 彈幕設定面板（直播與一般影片）：左鍵退出，數值項目用次級選單選值。
@@ -359,3 +362,9 @@
 - 使用者回報：進直播偶爾畫面卡住、留言仍動（#56）。logcat：開播約 4 秒後解碼器重設 surface 後不再出畫格、無錯誤，同時背景縮圖在解碼；時移看門狗只看 hasError。Sonnet 子代理實作停住偵測與縮圖節流。
 - 同時發現彈幕每 20 秒以 1001 斷線（#57）。Opus 用獨立 Dart 腳本驗證：設 pingInterval 10 秒時 20 秒被關閉，不設可連 50 秒以上。Opus 直接修正 `live_socket_service.dart`。
 - analyze 無問題、328 項測試通過，x86_64 release 已安裝到模擬器。未 commit，尚未操作驗證。
+
+### 2026-11-13（上午）：發布 v1.2.2-btr.24
+
+| 請求 | 結果 |
+|---|---|
+| 推送並發布 | 分 5 個 commit：`5f85055`（#43）、`c7f7090`（#44）、`04091d2`（#45～#57）、`1040a7d`（規格與紀錄）、版本 `1.2.2-btr.24+28`；另加發布說明 `8aea82f`（`docs/work/live-seek-preview/release-notes-btr.24.md`）。排除只有排版差異的 `btr_config.dart`、`app_restart.dart` 與 `img/`、`log/`、`docs/work` 中間檔。`flutter analyze` 無問題、328 項測試通過；versionCode 2028／1028，簽章 `17fcf8ed…`，`libapp.so` 內含 `v1.2.2-btr.24`，arm64-v8a 39.4MB、armeabi-v7a 32.9MB。推送並發布 GitHub Release v1.2.2-btr.24；F-Droid 套件庫已更新到 btr.24；#43～#57 已關閉。功能面除長按與留言設定外未經實機驗證 |
