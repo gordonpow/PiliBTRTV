@@ -394,14 +394,16 @@ class PrefetchService {
 
   // ---- 查詢（播放器、卡片預覽使用）----
 
-  /// 取得預載的最終 playInfo；參數須與預載完全相同，且只能取用一次。
-  /// 預載仍在進行時最多等 3 秒。
+  /// 取得預載的最終 playInfo；參數須與預載完全相同。
+  /// [consume] 為 true（預設）時只能取用一次；暖機傳 false，不消耗，
+  /// 讓之後的播放頁仍能取得。預載仍在進行時最多等 3 秒。
   Future<Map<String, dynamic>?> takePlayUrl(
     String bvid,
     int cid,
     int qn,
-    VideoCodec? codec,
-  ) async {
+    VideoCodec? codec, {
+    bool consume = true,
+  }) async {
     final e = _entries[bvid];
     if (e == null || !_fresh(e) || e.consumed) {
       debugPrint('⚡ [Prefetch] miss playurl $bvid (none)');
@@ -412,7 +414,7 @@ class PrefetchService {
       debugPrint('⚡ [Prefetch] miss playurl $bvid (mismatch or failed)');
       return null;
     }
-    e.consumed = true;
+    if (consume) e.consumed = true;
     debugPrint('⚡ [Prefetch] hit playurl $bvid cid=$cid');
     return info;
   }

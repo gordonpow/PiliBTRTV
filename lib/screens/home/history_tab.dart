@@ -13,7 +13,7 @@ import '../../widgets/history_video_card.dart';
 import '../../widgets/time_display.dart';
 import '../../widgets/tv_tab_bar.dart';
 import '../../utils/anim.dart';
-import '../player/player_screen.dart';
+import '../player/player_route.dart';
 import 'history/fav_view.dart';
 import 'history/watch_later_view.dart';
 
@@ -394,7 +394,7 @@ class HistoryTabState extends State<HistoryTab> {
   Future<void> _onVideoTap(Video video) async {
     await Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => PlayerScreen(video: video)));
+    ).push(PlayerRoute(video: video));
     // 播放器在 dispose 時才上報進度（非同步），稍等再重抓，避免拿到上報前的資料
     await Future.delayed(const Duration(seconds: 1));
     if (mounted) refreshSilently();

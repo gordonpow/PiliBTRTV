@@ -47,6 +47,9 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   // 從卡片暖機接手、尚未使用的播放資料（initState 同步 take）
   PreparedPlayback? warmPlayback;
 
+  /// 被拒絕接手的暖機結果（controller 已釋放）；冷啟動只讀它的 videoInfo／playInfo
+  PreparedPlayback? warmLeftover;
+
   // 控制器
   VideoPlayerController? videoController;
   DanmakuController? danmakuController;
@@ -222,6 +225,16 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   String currentCodec = ''; // 當前編解碼器 (avc/hev/av01)
   bool isFallingBackToAvc = false; // 是否正在自動降級為 AVC
   Duration lastPlaybackPosition = Duration.zero; // 記錄最近播放進度 (供解碼失敗回退使用)
+
+  /// 播放位置更新通知：只重建需要位置的元件（進度條、時間、字幕），
+  /// 避免 video_player 每 100ms 觸發整個 PlayerScreen 重建。
+  final ValueNotifier<int> positionTick = ValueNotifier<int>(0);
+
+  /// 上一次整頁 setState 時的播放狀態旗標，用來判斷是否需要整頁重建
+  Object? lastStateFlags;
+
+  /// 迷你進度條上一次更新的整秒數
+  int lastMiniProgressSecond = -1;
 
   /// 當前編碼是否為 AVC
   bool get isCurrentCodecAvc => currentCodec.toLowerCase().startsWith('avc');

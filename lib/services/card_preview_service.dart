@@ -93,6 +93,19 @@ class CardPreviewService {
     return p;
   }
 
+  /// 播放頁能否接手這個暖機播放器；不能時回傳原因，可以則回傳 null。
+  ///
+  /// 相容模式（textureView）一律可接手。原生模式下暖機播放器仍是 textureView，
+  /// 無法隧道播放：4K／HDR／杜比（qn 120、125、126）與直式影片改走冷啟動。
+  String? warmRejectReason(PreparedPlayback p) {
+    if (SettingsService.playerTextureView) return null;
+    final q = (p.playInfo['currentQuality'] as num?)?.toInt() ?? 0;
+    if (q == 120 || q == 125 || q == 126) return 'quality $q';
+    final size = p.controller.value.size;
+    if (size.height > size.width) return 'portrait';
+    return null;
+  }
+
   /// 已保留給播放頁（或已被接手）的 controller；卡片不得再顯示它
   VideoPlayerController? _claimedController;
 

@@ -52,18 +52,18 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    debugPrint('⏱ [E2E] open ${widget.video.bvid}');
     PlayerScreen.activeCount++;
     ContentTranslator.instance.changes.addListener(onTranslatorChanged);
     // 第一個 await 之前同步接手暖機播放器；沒有就釋放卡片預覽的解碼器。
-    // 暖機播放器是 textureView：畫面模式為「原生」時不接手，改用 platformView
-    // 重新準備（textureView 無法隧道播放，部分裝置直式影片會出現綠塊）。
-    warmPlayback = SettingsService.playerTextureView
-        ? CardPreviewService.instance.take(widget.video.bvid)
-        : null;
+    // 兩種畫面模式都接手暖機播放器；原生模式遇到 4K／HDR／杜比或直式影片
+    // 才拒絕（見 CardPreviewService.warmRejectReason），改走冷啟動並沿用其資料。
+    warmPlayback = vetWarmPlayback(
+      CardPreviewService.instance.take(widget.video.bvid),
+    );
     // 暖機還在準備且已保留給本頁時不要停掉它，initializePlayer 會等它完成
     if (warmPlayback == null &&
-        (!SettingsService.playerTextureView ||
-            !CardPreviewService.instance.isPendingFor(widget.video.bvid))) {
+        !CardPreviewService.instance.isPendingFor(widget.video.bvid)) {
       CardPreviewService.instance.stopAll();
     }
     SystemChannels.textInput.invokeMethod('TextInput.hide');
@@ -110,6 +110,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     disposePlayer();
     playerFocusNode.dispose();
     videoActions.dispose();
+    positionTick.dispose();
     super.dispose();
   }
 
@@ -139,15 +140,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               if (!isLoading && videoController != null && danmakuEnabled)
                 DanmakuLayer(
                   onCreated: (c) => danmakuController = c,
-                  option: DanmakuOption(
-                    opacity: danmakuOpacity,
-                    fontSize: danmakuFontSize,
-                    // 彈幕飛行速度隨播放倍速同步調整
-                    duration: danmakuSpeed / playbackSpeed,
-                    area: danmakuArea,
-                    hideTop: hideTopDanmaku,
-                    hideBottom: hideBottomDanmaku,
-                  ),
+                  option: _danmakuOptionFor(),
                 ),
 
               // CC 字幕層
@@ -155,10 +148,13 @@ class _PlayerScreenState extends State<PlayerScreen>
                   videoController != null &&
                   subtitleIndex >= 0 &&
                   subtitleLines.isNotEmpty)
-                SubtitleLayer(
-                  lines: subtitleLines,
-                  position: videoController!.value.position,
-                  controlsVisible: showControls,
+                ValueListenableBuilder<int>(
+                  valueListenable: positionTick,
+                  builder: (context, _, _) => SubtitleLayer(
+                    lines: subtitleLines,
+                    position: videoController!.value.position,
+                    controlsVisible: showControls,
+                  ),
                 ),
 
               // 暫停指示器
@@ -169,11 +165,16 @@ class _PlayerScreenState extends State<PlayerScreen>
               if (!isLoading &&
                   videoController != null &&
                   SettingsService.showMiniProgress)
-                MiniProgressBar(
-                  visible:
-                      !showSeekIndicator && !isSeekPreviewMode && !showControls,
-                  position: videoController!.value.position,
-                  duration: videoController!.value.duration,
+                ValueListenableBuilder<int>(
+                  valueListenable: positionTick,
+                  builder: (context, _, _) => MiniProgressBar(
+                    visible:
+                        !showSeekIndicator &&
+                        !isSeekPreviewMode &&
+                        !showControls,
+                    position: videoController!.value.position,
+                    duration: videoController!.value.duration,
+                  ),
                 ),
 
               // Netflix 式快退快進進度條與預覽卡片 (AC-B1)
@@ -193,19 +194,22 @@ class _PlayerScreenState extends State<PlayerScreen>
                         color: Colors.black.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
-                        '${_formatSeekTime(videoController!.value.position)} / ${_formatSeekTime(videoController!.value.duration)}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          shadows: [
-                            Shadow(
-                              blurRadius: 4,
-                              color: Colors.black,
-                              offset: Offset(0, 1),
-                            ),
-                          ],
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: positionTick,
+                        builder: (context, _, _) => Text(
+                          '${_formatSeekTime(videoController!.value.position)} / ${_formatSeekTime(videoController!.value.duration)}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(
+                                blurRadius: 4,
+                                color: Colors.black,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -217,39 +221,43 @@ class _PlayerScreenState extends State<PlayerScreen>
                 AnimatedOpacity(
                   opacity: showControls ? 1.0 : 0.0,
                   duration: const Duration(milliseconds: 300),
-                  child: ControlsOverlay(
-                    video: getDisplayVideo(),
-                    controller: videoController!,
-                    showControls: showControls,
-                    focusedIndex: isCtrlBtnEnabled(focusedButtonIndex)
-                        ? focusedButtonIndex
-                        : CtrlBtn.playPause,
-                    hasPrev: hasPrev,
-                    hasNext: hasNext,
-                    onPlayPause: togglePlayPause,
-                    onSettings: () {
-                      setState(() {
-                        showSettingsPanel = true;
-                        hideTimer?.cancel();
-                      });
-                    },
-                    onEpisodes: () {
-                      setState(() {
-                        showEpisodePanel = true;
-                        hideTimer?.cancel();
-                      });
-                    },
-                    isDanmakuEnabled: danmakuEnabled,
-                    onToggleDanmaku: toggleDanmaku,
-                    hasSubtitleTracks: subtitleTracks.isNotEmpty,
-                    isSubtitleOn: subtitleIndex >= 0,
-                    currentQuality: currentQualityDesc,
-                    onQualityClick: showQualityPicker,
-                    isProgressBarFocused: isProgressBarFocused,
-                    previewPosition: previewPosition,
-                    alwaysShowPlayerTime: SettingsService.alwaysShowPlayerTime,
-                    onlineCount: onlineCount,
-                    actions: videoActions,
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: positionTick,
+                    builder: (context, _, _) => ControlsOverlay(
+                      video: getDisplayVideo(),
+                      controller: videoController!,
+                      showControls: showControls,
+                      focusedIndex: isCtrlBtnEnabled(focusedButtonIndex)
+                          ? focusedButtonIndex
+                          : CtrlBtn.playPause,
+                      hasPrev: hasPrev,
+                      hasNext: hasNext,
+                      onPlayPause: togglePlayPause,
+                      onSettings: () {
+                        setState(() {
+                          showSettingsPanel = true;
+                          hideTimer?.cancel();
+                        });
+                      },
+                      onEpisodes: () {
+                        setState(() {
+                          showEpisodePanel = true;
+                          hideTimer?.cancel();
+                        });
+                      },
+                      isDanmakuEnabled: danmakuEnabled,
+                      onToggleDanmaku: toggleDanmaku,
+                      hasSubtitleTracks: subtitleTracks.isNotEmpty,
+                      isSubtitleOn: subtitleIndex >= 0,
+                      currentQuality: currentQualityDesc,
+                      onQualityClick: showQualityPicker,
+                      isProgressBarFocused: isProgressBarFocused,
+                      previewPosition: previewPosition,
+                      alwaysShowPlayerTime:
+                          SettingsService.alwaysShowPlayerTime,
+                      onlineCount: onlineCount,
+                      actions: videoActions,
+                    ),
                   ),
                 ),
 
@@ -344,8 +352,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                   bvid: playingBvid,
                   seasonId: isPgc ? widget.video.seasonId : 0,
                   expanded: relatedExpanded,
-                  onExpandedChanged: (v) => setState(() => relatedExpanded = v),
-                  onVideoSelect: (video) => navigateTo(video),
+                  onExpandedChanged: _onRelatedExpandedChanged,
+                  onVideoSelect: navigateTo,
                   onClose: closeRelatedStrip,
                 ),
 
@@ -356,6 +364,36 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
       ),
     );
+  }
+
+  void _onRelatedExpandedChanged(bool v) => setState(() => relatedExpanded = v);
+
+  // 彈幕設定沒變時沿用同一個 DanmakuOption，避免每次 build 新建
+  DanmakuOption? _cachedDanmakuOption;
+  Object? _cachedDanmakuKey;
+
+  DanmakuOption _danmakuOptionFor() {
+    final key = Object.hash(
+      danmakuOpacity,
+      danmakuFontSize,
+      danmakuSpeed / playbackSpeed,
+      danmakuArea,
+      hideTopDanmaku,
+      hideBottomDanmaku,
+    );
+    if (_cachedDanmakuOption == null || _cachedDanmakuKey != key) {
+      _cachedDanmakuKey = key;
+      _cachedDanmakuOption = DanmakuOption(
+        opacity: danmakuOpacity,
+        fontSize: danmakuFontSize,
+        // 彈幕飛行速度隨播放倍速同步調整
+        duration: danmakuSpeed / playbackSpeed,
+        area: danmakuArea,
+        hideTop: hideTopDanmaku,
+        hideBottom: hideBottomDanmaku,
+      );
+    }
+    return _cachedDanmakuOption!;
   }
 
   Widget _buildProgressPreview() {

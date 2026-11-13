@@ -26,6 +26,7 @@ class PreparedPlayback {
     required this.cid,
     required this.playInfo,
     required this.resumeSeconds,
+    this.requestedQn = 0,
   });
 
   final String bvid;
@@ -36,6 +37,10 @@ class PreparedPlayback {
 
   /// 已 seek 到的續播秒數；0 表示從頭
   final int resumeSeconds;
+
+  /// 取得 [playInfo] 時請求的 qn（可能與 playInfo 的實際畫質不同）；
+  /// 冷啟動沿用時必須與當時請求的 qn 相同才有效。
+  final int requestedQn;
 }
 
 /// prepare 的結果；playback 為 null 時看其他欄位
@@ -75,11 +80,13 @@ class PlaybackPreparer {
   /// [onHdrFallback] 非暖機時 HDR 解碼失敗、改以較低非 HDR 畫質重試後呼叫（由呼叫端 toast）。
   /// [onDecoderFallback] 非暖機時解碼器失敗、已改用 AVC 後呼叫（由呼叫端 toast）。
   /// [isCancelled] 在寫入 LocalServer 前與建立 controller 後檢查。
+  /// [seed] 是被棄用的暖機結果：只讀它的 playInfo，且 cid 與請求 qn 都相同才沿用。
   static Future<PrepareOutcome> prepare(
     Video video, {
     required int qn,
     bool warm = false,
     Map<String, dynamic>? videoInfo,
+    PreparedPlayback? seed,
     bool Function()? isCancelled,
     void Function(String step)? onStep,
     void Function()? onDecoderFallback,
@@ -101,6 +108,42 @@ class PlaybackPreparer {
           PgcApi.parseBangumiUrl(redirectUrl) != null) {
         return const PrepareOutcome(redirect: true);
       }
+    }
+
+    // 第一輪（使用者編碼設定）的 playurl 來源：暖機留下的 > 預載 > 自行請求。
+    // 暖機不消耗預載（consume: false），讓之後的播放頁仍能用。
+    Future<Map<String, dynamic>?> fetchFirst(int c) async {
+      if (seed != null && seed.cid == c && seed.requestedQn == qn) {
+        debugPrint('⚡ [Startup] reuse warm playInfo cid=$c qn=$qn');
+        return seed.playInfo;
+      }
+      final pre = await PrefetchService.instance.takePlayUrl(
+        bvid,
+        c,
+        qn,
+        null,
+        consume: !warm,
+      );
+      if (pre != null) return pre;
+      return PlayParams.resolvePlayInfo(
+        bvid: bvid,
+        cid: c,
+        qn: qn,
+        codec: null,
+      );
+    }
+
+    // 與續播進度並行：先以 info.cid 發出 playurl；最後選定的 cid 相同才使用。
+    final specCid = (videoInfo?['cid'] as num?)?.toInt();
+    Future<Map<String, dynamic>?>? speculative;
+    if (specCid != null && specCid > 0) {
+      speculative = () async {
+        try {
+          return await fetchFirst(specCid);
+        } catch (_) {
+          return null;
+        }
+      }();
     }
 
     final cachedRecord = await PlaybackProgressCache.getCachedRecordWithTime(
@@ -183,20 +226,19 @@ class PlaybackPreparer {
       }
 
       // 只有第一輪（tryCodec == null）可使用焦點預載的結果
-      var playInfo = tryCodec == null
-          ? await PrefetchService.instance.takePlayUrl(
-              bvid,
-              resolvedCid,
-              currentQn,
-              tryCodec,
-            )
-          : null;
-      playInfo ??= await PlayParams.resolvePlayInfo(
-        bvid: bvid,
-        cid: resolvedCid,
-        qn: currentQn,
-        codec: tryCodec,
-      );
+      Map<String, dynamic>? playInfo;
+      if (tryCodec == null) {
+        playInfo = (speculative != null && resolvedCid == specCid)
+            ? await speculative
+            : await fetchFirst(resolvedCid);
+      } else {
+        playInfo = await PlayParams.resolvePlayInfo(
+          bvid: bvid,
+          cid: resolvedCid,
+          qn: currentQn,
+          codec: tryCodec,
+        );
+      }
       step('playInfo');
       if (cancelled()) return const PrepareOutcome(cancelled: true);
 
@@ -376,6 +418,7 @@ class PlaybackPreparer {
           cid: resolvedCid,
           playInfo: playInfo,
           resumeSeconds: resumeSeconds,
+          requestedQn: qn,
         ),
       );
     }

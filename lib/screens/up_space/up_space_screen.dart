@@ -1,3 +1,4 @@
+import '../player/player_route.dart';
 import 'package:bili_tv_app/widgets/content_text.dart';
 import 'dart:async';
 
@@ -7,7 +8,6 @@ import '../../models/space_data.dart';
 import '../../models/video.dart';
 import '../../services/bilibili_api.dart';
 import '../../utils/format_count.dart';
-import '../player/player_screen.dart';
 import 'tabs/space_tab.dart';
 import 'tabs/up_contribute_tab.dart';
 import 'tabs/up_dynamic_tab.dart';
@@ -236,7 +236,7 @@ class _UpSpaceScreenState extends State<UpSpaceScreen> {
     }
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => PlayerScreen(video: video)));
+    ).push(PlayerRoute(video: video));
   }
 
   // ===== 畫面 =====

@@ -6,7 +6,7 @@ import 'package:keframe/keframe.dart';
 import '../../../models/video.dart';
 import '../../../services/bilibili_api.dart';
 import '../../../widgets/tv_video_card.dart';
-import '../../player/player_screen.dart';
+import '../../player/player_route.dart';
 
 class SearchResultsView extends StatefulWidget {
   final String query;
@@ -154,7 +154,7 @@ class _SearchResultsViewState extends State<SearchResultsView> {
   void _onVideoTap(Video video) {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => PlayerScreen(video: video)));
+    ).push(PlayerRoute(video: video));
   }
 
   @override

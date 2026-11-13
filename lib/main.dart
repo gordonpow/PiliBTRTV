@@ -18,6 +18,7 @@ import 'services/memory_budget.dart';
 import 'services/prefetch_service.dart';
 import 'services/settings_service.dart';
 import 'services/translate/content_translator.dart';
+import 'utils/frame_monitor.dart';
 import 'utils/zh_convert.dart';
 
 Future<void> main() async {
@@ -27,6 +28,7 @@ Future<void> main() async {
 
 Future<void> _main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FrameMonitor.start();
   await LogService.init();
 
   // 語言設定需要 SharedPreferences，先初始化再載入繁簡轉換表

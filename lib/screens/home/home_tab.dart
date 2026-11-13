@@ -10,7 +10,7 @@ import '../../widgets/time_display.dart';
 import '../../core/plugin/plugin_manager.dart';
 import '../../core/plugin/plugin_types.dart';
 import '../../utils/anim.dart';
-import '../player/player_screen.dart';
+import '../player/player_route.dart';
 import '../up_space/widgets/space_button.dart';
 
 class HomeTab extends StatefulWidget {
@@ -261,7 +261,7 @@ class HomeTabState extends State<HomeTab> {
   void _onVideoTap(Video video) {
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (context) => PlayerScreen(video: video)));
+    ).push(PlayerRoute(video: video));
   }
 
   Widget _buildRetry() {

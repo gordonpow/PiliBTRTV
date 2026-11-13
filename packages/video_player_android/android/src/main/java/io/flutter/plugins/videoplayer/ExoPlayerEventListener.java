@@ -52,6 +52,12 @@ public abstract class ExoPlayerEventListener implements Player.Listener {
   protected abstract void sendInitialized();
 
   @Override
+  public void onRenderedFirstFrame() {
+    // 開播計時用：logcat 時間戳記與 Dart 端「⏱ [E2E] open」相減即為按下到出畫面
+    android.util.Log.i("PiliStartup", "firstFrame");
+  }
+
+  @Override
   public void onPlaybackStateChanged(final int playbackState) {
     PlatformPlaybackState platformState = PlatformPlaybackState.UNKNOWN;
     switch (playbackState) {

@@ -2,7 +2,7 @@ import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:flutter/rendering.dart';
 import '../../../models/video.dart';
 import '../../../widgets/tv_video_card.dart';
-import '../../player/player_screen.dart';
+import '../../player/player_route.dart';
 
 /// 收藏／稍後再看共用的 4 欄影片格（焦點管理、捲動、接近底部時要求載入更多）
 class HistoryVideoGrid extends StatefulWidget {
@@ -113,12 +113,10 @@ class HistoryVideoGridState extends State<HistoryVideoGrid> {
                       ? null
                       : () => widget.onLongPressVideo!(video, index),
                   onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PlayerScreen(
-                        video: video,
-                        // 本機收藏的分 P 影片：從存的 cid 開始（找不到時播放器忽略）
-                        startCid: video.isPgc ? 0 : video.cid,
-                      ),
+                    PlayerRoute(
+                      video: video,
+                      // 本機收藏的分 P 影片：從存的 cid 開始（找不到時播放器忽略）
+                      startCid: video.isPgc ? 0 : video.cid,
                     ),
                   ),
                   onMoveLeft: index % 4 == 0

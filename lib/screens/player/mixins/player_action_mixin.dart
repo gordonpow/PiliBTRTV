@@ -27,7 +27,7 @@ import '../../../services/api/base_api.dart';
 import '../widgets/settings_panel.dart';
 import '../../home/settings/widgets/tv_menu_dialog.dart';
 import '../../../widgets/video_action_dialogs.dart';
-import '../player_screen.dart';
+import '../player_route.dart';
 import '../widgets/quality_picker_sheet.dart';
 import 'player_state_mixin.dart';
 import '../../../core/plugin/plugin_manager.dart';
@@ -524,17 +524,27 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
   }
 
+  /// 檢查暖機播放器能否接手。不能時釋放它的 controller、把結果留在
+  /// [warmLeftover] 給冷啟動沿用，並回傳 null。
+  PreparedPlayback? vetWarmPlayback(PreparedPlayback? p) {
+    if (p == null) return null;
+    final reason = CardPreviewService.instance.warmRejectReason(p);
+    if (reason == null) return p;
+    debugPrint('⏱ [Startup] warm-rejected $reason');
+    warmLeftover = p;
+    unawaited(p.controller.dispose());
+    return null;
+  }
+
   /// UGC 初始化：先用卡片暖機好的播放器；沒有就自己 prepare。之後共用 [_adoptPlayback]。
   Future<void> _initializeUgc(void Function(String) mark) async {
     var prepared = warmPlayback;
     warmPlayback = null;
     // 按 OK 時暖機還在準備：等它完成後接手（比從頭再準備一次快）
-    // 「原生」畫面模式不接手 textureView 暖機播放器（見 PlayerScreen.initState）
     if (prepared == null &&
-        SettingsService.playerTextureView &&
         CardPreviewService.instance.isPendingFor(widget.video.bvid)) {
-      prepared = await CardPreviewService.instance.waitAndTake(
-        widget.video.bvid,
+      prepared = vetWarmPlayback(
+        await CardPreviewService.instance.waitAndTake(widget.video.bvid),
       );
       if (!mounted) {
         prepared?.controller.dispose();
@@ -543,11 +553,17 @@ mixin PlayerActionMixin on PlayerStateMixin {
       if (prepared != null) mark('waited warm');
     }
     final fromWarm = prepared != null;
+    final leftover = warmLeftover;
+    warmLeftover = null;
 
     if (fromWarm) {
       mark('adopted');
     } else {
-      final videoInfo = await BilibiliApi.getVideoInfo(widget.video.bvid);
+      // 冷啟動沿用已有資料：暖機留下的 > 預載的影片資訊 > 自行請求
+      final videoInfo =
+          leftover?.videoInfo ??
+          PrefetchService.instance.peekVideoInfo(widget.video.bvid) ??
+          await BilibiliApi.getVideoInfo(widget.video.bvid);
       mark('videoInfo');
 
       // UGC 影片其實是番劇時（view API 帶 redirect_url），轉向番劇播放
@@ -574,6 +590,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         widget.video,
         qn: currentQuality,
         videoInfo: videoInfo,
+        seed: leftover,
         isCancelled: () => !mounted,
         onStep: mark,
         onDecoderFallback: () => showZhToast(
@@ -733,15 +750,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
     debugPrint('🎬 [PGC] redirect to season=$seasonId ep=$epId');
     if (!mounted || upSpaceOpen) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
-          video: models.Video(
-            bvid: '',
-            title: widget.video.title,
-            pic: widget.video.pic,
-            seasonId: seasonId,
-            epId: epId,
-          ),
+      PlayerRoute(
+        video: models.Video(
+          bvid: '',
+          title: widget.video.title,
+          pic: widget.video.pic,
+          seasonId: seasonId,
+          epId: epId,
         ),
       ),
     );
@@ -1852,7 +1867,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     // 同步彈幕
     if (danmakuEnabled && danmakuController != null) {
-      syncDanmaku(value.position.inSeconds.toDouble());
+      syncDanmaku(value.position.inMilliseconds / 1000.0);
     }
 
     // 檢查是否需要預載入下一張雪碧圖
@@ -1874,8 +1889,30 @@ mixin PlayerActionMixin on PlayerStateMixin {
       onVideoComplete();
     }
 
-    // 觸發重繪以更新 UI (進度條等)
-    setState(() {});
+    // 狀態旗標改變才整頁重建；位置更新只通知進度相關元件
+    final flags = Object.hash(
+      value.isPlaying,
+      value.isBuffering,
+      value.hasError,
+      value.isInitialized,
+      value.duration,
+      value.size,
+      value.playbackSpeed,
+      value.isCompleted,
+    );
+    if (flags != lastStateFlags) {
+      lastStateFlags = flags;
+      setState(() {});
+    } else {
+      final sec = value.position.inSeconds;
+      // 控制列、快轉提示、字幕顯示中：每次更新；否則迷你進度條每整秒一次
+      final needFast =
+          showControls || showSeekIndicator || subtitleIndex >= 0;
+      if (needFast || sec != lastMiniProgressSecond) {
+        lastMiniProgressSecond = sec;
+        positionTick.value++;
+      }
+    }
 
     // 外掛處理 (Debounce logic internal to plugin, but we update UI here)
     _handlePlugins(value.position);
@@ -2365,9 +2402,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     }
     cancelUpNext();
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(video: video, startCid: startCid),
-      ),
+      PlayerRoute(video: video, startCid: startCid),
     );
   }
 
@@ -2493,7 +2528,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
       final nextDmTime = danmakuList[lastDanmakuIndex]['time'] as double;
       // 檢測跳轉 (Seek)
       if (currentTime - nextDmTime > 5.0) {
-        resetDanmakuIndex(Duration(seconds: currentTime.toInt()));
+        resetDanmakuIndex(
+          Duration(milliseconds: (currentTime * 1000).round()),
+        );
         return;
       }
     }
@@ -2551,7 +2588,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
   void resetDanmakuIndex(Duration position) {
     if (danmakuList.isEmpty) return;
-    final seconds = position.inSeconds.toDouble();
+    final seconds = position.inMilliseconds / 1000.0;
     int index = danmakuList.indexWhere(
       (dm) => (dm['time'] as double) >= seconds,
     );
