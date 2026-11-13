@@ -47,12 +47,20 @@ Map<String, String>? validateWebLoginCookies(Map<String, String> m) {
   return result;
 }
 
+/// nav 檢查結果：ok 正常、invalid 伺服器回 -101（登入失效）、unknown 其他（網路錯誤等）
+enum NavCheck { ok, invalid, unknown }
+
+/// refresh_token 結果：ok 成功、rejected 伺服器明確拒絕、unknown 網路錯誤或限流
+enum RefreshResult { ok, rejected, unknown }
+
+/// 啟動時登入狀態驗證結果
+enum SessionCheck { valid, expired, unknown }
+
 /// 認證相關 API
 class AuthApi {
-  /// 呼叫 /x/web-interface/nav（cookie），成功回傳 data，失敗回傳 null。
-  /// 個人頁與 [fetchAndSaveUserInfo] 共用，避免各自解析。
-  static Future<Map<String, dynamic>?> fetchNavData() async {
-    if (!AuthService.isLoggedIn) return null;
+  /// 呼叫 /x/web-interface/nav（cookie），回傳三態結果與 data（僅 ok 時有值）。
+  static Future<(NavCheck, Map<String, dynamic>?)> _checkNav() async {
+    if (!AuthService.isLoggedIn) return (NavCheck.unknown, null);
     try {
       final response = await http.get(
         Uri.parse('${BaseApi.apiBase}/x/web-interface/nav'),
@@ -61,23 +69,33 @@ class AuthApi {
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
         if (json['code'] == 0 && json['data'] is Map) {
-          return Map<String, dynamic>.from(json['data'] as Map);
+          return (NavCheck.ok, Map<String, dynamic>.from(json['data'] as Map));
         }
         debugPrint(
           'TvLogin: 取得使用者資訊失敗 code=${json['code']} message=${json['message']}',
         );
+        if (json['code'] == -101) return (NavCheck.invalid, null);
       } else {
         debugPrint('TvLogin: 取得使用者資訊失敗 HTTP ${response.statusCode}');
       }
     } catch (e) {
       debugPrint('TvLogin: 取得使用者資訊例外 ${e.runtimeType}');
     }
-    return null;
+    return (NavCheck.unknown, null);
   }
+
+  /// 呼叫 /x/web-interface/nav（cookie），成功回傳 data，失敗回傳 null。
+  /// 個人頁與 [fetchAndSaveUserInfo] 共用，避免各自解析。
+  static Future<Map<String, dynamic>?> fetchNavData() async =>
+      (await _checkNav()).$2;
 
   /// 獲取使用者資訊 (頭像、暱稱等)
   static Future<void> fetchAndSaveUserInfo() async {
     final data = await fetchNavData();
+    await _saveNavData(data);
+  }
+
+  static Future<void> _saveNavData(Map<String, dynamic>? data) async {
     if (data == null) return;
     final face = data['face'] as String? ?? '';
     final uname = data['uname'] as String? ?? '';
@@ -88,6 +106,144 @@ class AuthApi {
 
     if (face.isNotEmpty) {
       await AuthService.saveUserInfo(face: face, uname: uname, isVip: isVip);
+    }
+  }
+
+  /// 啟動時驗證登入狀態：
+  /// nav 正常則更新使用者資訊；-101 時嘗試 refresh_token，
+  /// 失敗（被拒絕或沒有 refresh_token）則登出並回傳 expired；
+  /// 其他錯誤（網路、限流）一律不動登入狀態。
+  static Future<SessionCheck> validateSession() async {
+    if (!AuthService.isLoggedIn) return SessionCheck.unknown;
+    final (check, data) = await _checkNav();
+    switch (check) {
+      case NavCheck.ok:
+        await _saveNavData(data);
+        return SessionCheck.valid;
+      case NavCheck.unknown:
+        return SessionCheck.unknown;
+      case NavCheck.invalid:
+        break;
+    }
+
+    final access = AuthService.accessToken;
+    final refresh = AuthService.refreshToken;
+    if (access == null ||
+        access.isEmpty ||
+        refresh == null ||
+        refresh.isEmpty) {
+      debugPrint('TvLogin: 登入失效且無 refresh_token，清除登入狀態');
+      await AuthService.logout();
+      return SessionCheck.expired;
+    }
+
+    final result = await refreshTvToken();
+    if (result == RefreshResult.unknown) return SessionCheck.unknown;
+    if (result == RefreshResult.rejected) {
+      await AuthService.logout();
+      return SessionCheck.expired;
+    }
+
+    // refresh 成功，用新 Cookie 再查一次
+    final (check2, data2) = await _checkNav();
+    switch (check2) {
+      case NavCheck.ok:
+        await _saveNavData(data2);
+        return SessionCheck.valid;
+      case NavCheck.unknown:
+        return SessionCheck.unknown;
+      case NavCheck.invalid:
+        await AuthService.logout();
+        return SessionCheck.expired;
+    }
+  }
+
+  /// 以 refresh_token 換新 access_token 與 Cookie（TV 登入）。
+  /// log 只記 code 與 message，不記任何 token 或 Cookie 值。
+  static Future<RefreshResult> refreshTvToken() async {
+    final access = AuthService.accessToken;
+    final refresh = AuthService.refreshToken;
+    if (access == null || access.isEmpty || refresh == null || refresh.isEmpty) {
+      return RefreshResult.rejected;
+    }
+    try {
+      final params = AppSign.appSign({
+        'access_key': access,
+        'refresh_token': refresh,
+        'local_id': '0',
+        'mobi_app': 'android_hd',
+        'platform': 'android',
+        'build': '2001100',
+      }).map((k, v) => MapEntry(k, v.toString()));
+
+      final response = await http
+          .post(
+            Uri.parse(
+              '${BaseApi.passportBase}/x/passport-login/oauth2/refresh_token',
+            ),
+            headers: _hdHeaders(),
+            body: params,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        debugPrint('TvLogin: refresh 失敗 HTTP ${response.statusCode}');
+        return RefreshResult.unknown;
+      }
+      final json = jsonDecode(response.body);
+      final code = json['code'];
+      if (code != 0) {
+        debugPrint('TvLogin: refresh 失敗 code=$code message=${json['message']}');
+        // 限流類錯誤不代表憑證失效
+        if (code == -412 || code == -509 || code == -799) {
+          return RefreshResult.unknown;
+        }
+        return RefreshResult.rejected;
+      }
+
+      final data = json['data'];
+      final tokenInfo = data is Map ? data['token_info'] : null;
+      final cookieInfo = data is Map ? data['cookie_info'] : null;
+      if (tokenInfo is! Map || cookieInfo is! Map) {
+        debugPrint('TvLogin: refresh 回應缺少 token_info 或 cookie_info');
+        return RefreshResult.rejected;
+      }
+      final newAccess = tokenInfo['access_token'];
+      final newRefresh = tokenInfo['refresh_token'];
+      final mid = BaseApi.toInt(tokenInfo['mid']);
+      final cookies = cookieInfo['cookies'];
+      var hasSess = false;
+      if (cookies is List) {
+        for (final c in cookies) {
+          if (c is Map &&
+              c['name'] == 'SESSDATA' &&
+              c['value'] is String &&
+              (c['value'] as String).isNotEmpty) {
+            hasSess = true;
+          }
+        }
+      }
+      if (newAccess is! String ||
+          newAccess.isEmpty ||
+          newRefresh is! String ||
+          newRefresh.isEmpty ||
+          mid <= 0 ||
+          !hasSess) {
+        debugPrint('TvLogin: refresh 回應欄位缺漏');
+        return RefreshResult.rejected;
+      }
+
+      await AuthService.saveLoginCredentials(
+        accessToken: newAccess,
+        refreshToken: newRefresh,
+        mid: mid,
+        cookieInfo: Map<String, dynamic>.from(cookieInfo),
+      );
+      debugPrint('TvLogin: refresh 成功');
+      return RefreshResult.ok;
+    } catch (e) {
+      debugPrint('TvLogin: refresh 例外 ${e.runtimeType}');
+      return RefreshResult.unknown;
     }
   }
 
@@ -316,9 +472,7 @@ class AuthApi {
                 : '缺少 ${missing.join('、')}';
             // 只記欄位名稱，不記任何值、qrcode_key 或完整網址
             final parsed = Uri.tryParse(raw);
-            final where = parsed == null
-                ? '?'
-                : '${parsed.host}${parsed.path}';
+            final where = parsed == null ? '?' : '${parsed.host}${parsed.path}';
             final urlNames = raw.contains('?')
                 ? raw
                       .substring(raw.indexOf('?') + 1)

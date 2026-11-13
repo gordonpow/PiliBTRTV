@@ -15,7 +15,6 @@ class AuthService {
 
   // 記憶體快取
   static String? _accessToken;
-  // ignore: unused_field
   static String? _refreshToken;
   static String? _sessdata;
   static String? _biliJct;
@@ -51,6 +50,9 @@ class AuthService {
 
   /// 獲取 access_token
   static String? get accessToken => _accessToken;
+
+  /// 獲取 refresh_token（Cookie 登入時為 null）
+  static String? get refreshToken => _refreshToken;
 
   /// 獲取使用者頭像
   static String? get face => _face;
@@ -141,6 +143,7 @@ class AuthService {
     _mid = null;
     _face = null;
     _uname = null;
+    _isVip = false;
 
     await _prefs?.remove(_keyAccessToken);
     await _prefs?.remove(_keyRefreshToken);
@@ -149,5 +152,6 @@ class AuthService {
     await _prefs?.remove(_keyMid);
     await _prefs?.remove(_keyFace);
     await _prefs?.remove(_keyUname);
+    await _prefs?.remove(_keyIsVip);
   }
 }

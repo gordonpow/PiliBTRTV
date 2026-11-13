@@ -11,6 +11,7 @@ library;
 
 // 匯出子模組，供外部直接使用
 export 'api/video_api.dart' show DynamicFeed;
+export 'api/auth_api.dart' show SessionCheck;
 export 'api/user_api.dart' show MyInfo, MyStat, FollowingUser, FollowingPage;
 
 import 'api/auth_api.dart';
@@ -37,6 +38,9 @@ class BilibiliApi {
 
   /// 獲取使用者資訊 (頭像、暱稱等)
   static Future<void> fetchAndSaveUserInfo() => AuthApi.fetchAndSaveUserInfo();
+
+  /// 啟動時驗證登入狀態（失效時嘗試 refresh，失敗則登出）
+  static Future<SessionCheck> validateSession() => AuthApi.validateSession();
 
   // ========== 個人頁面 ==========
 

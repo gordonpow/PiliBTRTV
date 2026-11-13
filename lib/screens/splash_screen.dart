@@ -1,6 +1,7 @@
 import 'package:bili_tv_app/services/btr/btr_config.dart';
 import 'dart:async';
 
+import 'package:bili_tv_app/utils/zh_toast.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:video_player/video_player.dart';
@@ -93,17 +94,41 @@ class _SplashScreenState extends State<SplashScreen> {
       debugPrint('BTR applyLocaleDefault failed: $e');
     }
 
-    // 4. 如果已登入，更新一下使用者資訊 (獲取最新 VIP 狀態)
-    // 不 await，讓它在後臺跑，或者如果很快完成也沒關係
-    // 這裡選擇放在後面單獨調一下，不阻塞核心服務初始化，但儘量在進入主頁前完成
+    // 4. 如果已登入，驗證登入狀態（失效時 refresh 或登出，並更新使用者資訊）。
+    // 這裡先啟動、不 await；進首頁前才等剩餘時間（上限 4 秒）。
+    // 逾時後背景結果仍會生效：判定失效時照樣登出並提示。
+    Future<SessionCheck>? sessionFuture;
+    final sessionWatch = Stopwatch()..start();
     if (AuthService.isLoggedIn) {
-      BilibiliApi.fetchAndSaveUserInfo().catchError((e) {
-        debugPrint('Failed to update user info on splash: $e');
-      });
+      sessionFuture = BilibiliApi.validateSession()
+          .catchError((Object e) {
+            debugPrint('Failed to validate session on splash: ${e.runtimeType}');
+            return SessionCheck.unknown;
+          })
+          .then((r) {
+            if (r == SessionCheck.expired) {
+              showZhToast(msg: '登入已失效，請重新登入');
+            }
+            return r;
+          });
+    }
+
+    // 進首頁前等待登入驗證，總共最多 4 秒；逾時視為 unknown
+    Future<void> waitSession() async {
+      final f = sessionFuture;
+      if (f == null) return;
+      final remaining = const Duration(seconds: 4) - sessionWatch.elapsed;
+      if (remaining <= Duration.zero) return;
+      try {
+        await f.timeout(remaining);
+      } catch (_) {
+        // 逾時視為 unknown，背景結果之後仍會生效
+      }
     }
 
     // 檢查是否停用了啟動動畫 或 影片初始化失敗
     if (!SettingsService.splashAnimationEnabled || !videoInitSuccess) {
+      await waitSession();
       _videoController?.removeListener(_onVideoPositionChanged);
       _videoController?.dispose();
       _videoController = null;
@@ -181,6 +206,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // 3. 等待影片真正播放完成 (而不是用 Future.delayed)
     await _videoCompleter!.future;
+    await waitSession();
 
     // 嘗試獲取預載入結果 (如果預載入還沒跑完，就不用等了，直接 timeout 拿空資料進主頁)
     try {
