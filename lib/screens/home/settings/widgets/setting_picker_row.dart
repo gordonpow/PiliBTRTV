@@ -68,7 +68,7 @@ class _SettingPickerRowState<T> extends State<SettingPickerRow<T>>
       current: widget.value,
       itemLabel: widget.itemLabel,
     );
-    if (picked == null) return;
+    if (picked == null || picked == widget.value) return;
     widget.onChanged(picked);
   }
 

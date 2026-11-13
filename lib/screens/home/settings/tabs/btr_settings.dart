@@ -5,7 +5,7 @@ import '../../../../services/btr/btr_config.dart';
 import '../../../../services/btr/btr_proxy.dart';
 import '../../../../services/settings_service.dart';
 import '../widgets/setting_action_row.dart';
-import '../widgets/setting_dropdown_row.dart';
+import '../widgets/setting_picker_row.dart';
 import '../widgets/setting_toggle_row.dart';
 
 /// 線程撕裂者（BTR）播放加速設定
@@ -89,7 +89,7 @@ class _BtrSettingsState extends State<BtrSettings> {
           },
         ),
         const SizedBox(height: 16),
-        SettingDropdownRow<BtrCdnMode>(
+        SettingPickerRow<BtrCdnMode>(
           label: 'CDN 模式',
           subtitle: '${BtrConfig.hosts.length} 個節點輪換使用，連續兩次 0 KiB 的節點會被停用',
           value: BtrConfig.cdnMode,
@@ -118,7 +118,7 @@ class _BtrSettingsState extends State<BtrSettings> {
           },
         ),
         const SizedBox(height: 16),
-        SettingDropdownRow<int>(
+        SettingPickerRow<int>(
           label: '執行緒數',
           subtitle: threadsSubtitle,
           value: BtrConfig.threadSteps.contains(threads)
@@ -129,7 +129,6 @@ class _BtrSettingsState extends State<BtrSettings> {
           isLast: true,
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (n) async {
-            if (n == null) return;
             await BtrConfig.setThreads(n);
             _saved();
           },

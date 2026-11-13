@@ -6,7 +6,7 @@ import '../../../../services/settings_service.dart';
 import '../../../../services/update_service.dart';
 import '../../../../widgets/error_report_dialog.dart';
 import '../widgets/setting_action_row.dart';
-import '../widgets/setting_dropdown_row.dart';
+import '../widgets/setting_picker_row.dart';
 import '../widgets/setting_toggle_row.dart';
 
 class AboutSettings extends StatefulWidget {
@@ -112,7 +112,7 @@ class _AboutSettingsState extends State<AboutSettings> {
           onChanged: _setAutoUpdate,
           sidebarFocusNode: widget.sidebarFocusNode,
         ),
-        SettingDropdownRow<int>(
+        SettingPickerRow<int>(
           label: '檢查間隔',
           value: _interval,
           items: SettingsService.updateIntervalOptions,
