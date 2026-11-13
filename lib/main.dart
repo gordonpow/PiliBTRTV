@@ -11,6 +11,7 @@ import 'services/auth_service.dart';
 import 'services/btr/btr_host_ranker.dart';
 import 'services/card_preview_service.dart';
 import 'services/device_profile.dart';
+import 'services/live/live_timeshift.dart';
 import 'services/local_server.dart';
 import 'services/log_service.dart';
 import 'services/memory_budget.dart';
@@ -31,6 +32,8 @@ Future<void> _main() async {
   // 語言設定需要 SharedPreferences，先初始化再載入繁簡轉換表
   await SettingsService.init();
   await DeviceProfile.init();
+  // 清掉上次殘留的直播時移暫存（不等待）
+  unawaited(LiveTimeshiftSession.cleanupStale());
   await ZhConvert.init();
   // 翻譯 B 站內容：開關為 true 才在背景檢查模型（不阻塞啟動）
   unawaited(ContentTranslator.instance.init());

@@ -105,13 +105,46 @@ mixin PlayerEventMixin on PlayerActionMixin {
   static const Duration _danmakuHoldDelay = Duration(milliseconds: 500);
   Timer? _danmakuHoldTimer;
   bool _danmakuHolding = false; // 確認鍵按下中，尚未判定短按或長按
-  bool _danmakuHoldFired = false; // 長按已觸發，後續的 Repeat 與 KeyUp 要吞掉
+  // 放開後 150ms 內沒有再按下才判定短按（容忍模擬器連發的按下／放開）
+  static const Duration _danmakuUpDelay = Duration(milliseconds: 150);
+  Timer? _danmakuUpTimer;
+  // 長按觸發後吞掉確認鍵事件，直到安靜 200ms
+  bool _danmakuSwallow = false;
+  Timer? _danmakuSwallowTimer;
 
   /// 取消彈幕按鈕的長按計時（控制列隱藏、焦點離開、dispose 時呼叫）
   void cancelDanmakuHold() {
     _danmakuHoldTimer?.cancel();
     _danmakuHoldTimer = null;
+    _danmakuUpTimer?.cancel();
+    _danmakuUpTimer = null;
+    _danmakuSwallowTimer?.cancel();
+    _danmakuSwallowTimer = null;
+    _danmakuSwallow = false;
     _danmakuHolding = false;
+  }
+
+  void _armDanmakuSwallow() {
+    _danmakuSwallow = true;
+    _danmakuSwallowTimer?.cancel();
+    _danmakuSwallowTimer = Timer(const Duration(milliseconds: 200), () {
+      _danmakuSwallowTimer = null;
+      _danmakuSwallow = false;
+    });
+  }
+
+  void _finishDanmakuShortPress() {
+    _danmakuUpTimer = null;
+    if (!mounted || !_danmakuHolding) return;
+    cancelDanmakuHold();
+    if (_canHoldDanmaku) {
+      if (focusedButtonIndex == CtrlBtn.subtitle) {
+        onSubtitleButton(); // 內含 toast
+      } else {
+        toggleDanmaku(); // toggleDanmaku 內含 toast
+      }
+      startHideTimer();
+    }
   }
 
   /// 長按有作用的按鈕：彈幕；字幕（有字幕軌時，沒有軌時走短按 toast）
@@ -130,11 +163,15 @@ mixin PlayerEventMixin on PlayerActionMixin {
     _danmakuHoldTimer = null;
     if (!mounted || !_danmakuHolding) return;
     _danmakuHolding = false;
+    _danmakuUpTimer?.cancel();
+    _danmakuUpTimer = null;
     if (!_canHoldDanmaku) return;
-    _danmakuHoldFired = true;
+    _armDanmakuSwallow();
     hideTimer?.cancel();
     final subtitle = focusedButtonIndex == CtrlBtn.subtitle;
     setState(() {
+      // 只影響彈幕選單；字幕選單的左鍵行為不變
+      danmakuPanelDirect = !subtitle;
       settingsMenuType = subtitle
           ? SettingsMenuType.subtitle
           : SettingsMenuType.danmaku;
@@ -151,15 +188,18 @@ mixin PlayerEventMixin on PlayerActionMixin {
       if (_danmakuHolding && event is KeyDownEvent) cancelDanmakuHold();
       return null;
     }
-    if (_danmakuHoldFired) {
-      if (event is KeyUpEvent) {
-        _danmakuHoldFired = false;
-        return KeyEventResult.handled;
-      }
-      if (event is KeyRepeatEvent) return KeyEventResult.handled;
-      _danmakuHoldFired = false; // 新的 KeyDown
+    // 長按已觸發：吞掉之後所有確認鍵事件，安靜 200ms 才解除
+    if (_danmakuSwallow) {
+      _armDanmakuSwallow();
+      return KeyEventResult.handled;
     }
     if (event is KeyDownEvent) {
+      if (_danmakuHolding && _danmakuUpTimer != null) {
+        // 放開後 150ms 內再按下：視為持續按住（連發），不重設長按計時
+        _danmakuUpTimer?.cancel();
+        _danmakuUpTimer = null;
+        return KeyEventResult.handled;
+      }
       if (!_canHoldDanmaku) return null;
       _danmakuHolding = true;
       _danmakuHoldTimer?.cancel();
@@ -167,17 +207,15 @@ mixin PlayerEventMixin on PlayerActionMixin {
       return KeyEventResult.handled;
     }
     if (!_danmakuHolding) return null;
-    if (event is KeyRepeatEvent) return KeyEventResult.handled;
+    if (event is KeyRepeatEvent) {
+      _danmakuUpTimer?.cancel();
+      _danmakuUpTimer = null;
+      return KeyEventResult.handled;
+    }
     if (event is KeyUpEvent) {
-      cancelDanmakuHold();
-      if (_canHoldDanmaku) {
-        if (focusedButtonIndex == CtrlBtn.subtitle) {
-          onSubtitleButton(); // 內含 toast
-        } else {
-          toggleDanmaku(); // toggleDanmaku 內含 toast
-        }
-        startHideTimer();
-      }
+      // 不立刻判定短按，等 150ms 看是否又被按下
+      _danmakuUpTimer?.cancel();
+      _danmakuUpTimer = Timer(_danmakuUpDelay, _finishDanmakuShortPress);
       return KeyEventResult.handled;
     }
     return null;
@@ -623,7 +661,19 @@ mixin PlayerEventMixin on PlayerActionMixin {
         });
         startHideTimer();
       } else if (settingsMenuType == SettingsMenuType.danmaku) {
-        adjustDanmakuSetting(-1);
+        if (danmakuPanelDirect) {
+          // 長按彈幕鍵直接開啟：左鍵關閉面板
+          setState(() {
+            showSettingsPanel = false;
+            showControls = true;
+          });
+          startHideTimer();
+        } else {
+          setState(() {
+            settingsMenuType = SettingsMenuType.main;
+            focusedSettingIndex = 2;
+          });
+        }
       } else if (settingsMenuType == SettingsMenuType.speed) {
         setState(() {
           settingsMenuType = SettingsMenuType.main;
@@ -665,6 +715,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
           });
         } else if (focusedSettingIndex == 2) {
           setState(() {
+            danmakuPanelDirect = false;
             settingsMenuType = SettingsMenuType.danmaku;
             focusedSettingIndex = 0;
           });
@@ -690,7 +741,7 @@ mixin PlayerEventMixin on PlayerActionMixin {
           });
         }
       } else if (settingsMenuType == SettingsMenuType.danmaku) {
-        adjustDanmakuSetting(1);
+        activateDanmakuItem();
       }
       return KeyEventResult.handled;
     }

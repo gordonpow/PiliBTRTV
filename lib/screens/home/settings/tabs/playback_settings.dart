@@ -3,7 +3,7 @@ import '../../../../models/play_repeat.dart';
 import '../../../../services/settings_service.dart';
 import '../../../../services/codec_service.dart';
 import '../widgets/setting_toggle_row.dart';
-import '../widgets/setting_dropdown_row.dart';
+import '../widgets/setting_picker_row.dart';
 
 class PlaybackSettings extends StatefulWidget {
   final VoidCallback onMoveUp;
@@ -42,7 +42,7 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SettingDropdownRow<PlayRepeat>(
+        SettingPickerRow<PlayRepeat>(
           label: '播放完畢後',
           subtitle: '播完暫停、直接播下一部、倒數後播下一部、循環播放此影片、列表循環',
           value: SettingsService.playRepeat,
@@ -52,14 +52,12 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
           onMoveUp: widget.onMoveUp,
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (v) async {
-            if (v != null) {
-              await SettingsService.setPlayRepeat(v);
-              setState(() {});
-            }
+            await SettingsService.setPlayRepeat(v);
+            setState(() {});
           },
         ),
         const SizedBox(height: 16),
-        SettingDropdownRow<int>(
+        SettingPickerRow<int>(
           label: '連播倒數',
           subtitle: '「倒數後播下一部」模式播完後倒數幾秒',
           value: SettingsService.upNextCountdown,
@@ -67,10 +65,8 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
           itemLabel: (v) => '$v 秒後',
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (v) async {
-            if (v != null) {
-              await SettingsService.setUpNextCountdown(v);
-              setState(() {});
-            }
+            await SettingsService.setUpNextCountdown(v);
+            setState(() {});
           },
         ),
         const SizedBox(height: 16),
@@ -140,7 +136,20 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
           },
         ),
         const SizedBox(height: 16),
-        SettingDropdownRow<bool>(
+        SettingPickerRow<int>(
+          label: '直播時移',
+          subtitle: '在本機暫存直播，可倒退與快轉；會占用儲存空間',
+          value: SettingsService.liveTimeshiftMinutes,
+          items: SettingsService.liveTimeshiftOptions,
+          itemLabel: (v) => v == 0 ? '關閉' : '$v 分鐘',
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onChanged: (v) async {
+            await SettingsService.setLiveTimeshiftMinutes(v);
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 16),
+        SettingPickerRow<bool>(
           label: '播放畫面模式',
           subtitle: '影片顏色或順暢度異常時可切換試試',
           value: SettingsService.playerTextureView,
@@ -148,10 +157,8 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
           itemLabel: (v) => v ? '相容' : '原生（預設）',
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (v) async {
-            if (v != null) {
-              await SettingsService.setPlayerTextureView(v);
-              setState(() {});
-            }
+            await SettingsService.setPlayerTextureView(v);
+            setState(() {});
           },
         ),
         const SizedBox(height: 16),
@@ -166,7 +173,7 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
           },
         ),
         const SizedBox(height: 16),
-        SettingDropdownRow<VideoCodec>(
+        SettingPickerRow<VideoCodec>(
           label: '影片解碼器',
           subtitle: '自動=按硬體支援選最優，失敗時降級到其他格式',
           value: SettingsService.preferredCodec,
@@ -179,10 +186,8 @@ class _PlaybackSettingsState extends State<PlaybackSettings> {
           itemLabel: (codec) => codec.label,
           sidebarFocusNode: widget.sidebarFocusNode,
           onChanged: (codec) async {
-            if (codec != null) {
-              await SettingsService.setPreferredCodec(codec);
-              setState(() {});
-            }
+            await SettingsService.setPreferredCodec(codec);
+            setState(() {});
           },
         ),
         const SizedBox(height: 16),

@@ -55,6 +55,29 @@ class LiveApi {
     return null;
   }
 
+  /// v2 取流：多線路、HLS fmp4、畫質表。回傳 `data`；失敗回 null。
+  static Future<Map<String, dynamic>?> getRoomPlayInfo(
+    int roomId, {
+    int qn = 10000,
+  }) async {
+    try {
+      final url =
+          'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=$roomId&protocol=0,1&format=0,1,2&codec=0,1&qn=$qn&platform=web&ptype=8&dolby=5&panorama=1';
+      final response = await http
+          .get(Uri.parse(url), headers: BaseApi.getHeaders(withCookie: true))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['code'] == 0 && json['data'] != null) {
+          return json['data'];
+        }
+      }
+    } catch (e) {
+      debugPrint('LiveApi: getRoomPlayInfo error: $e');
+    }
+    return null;
+  }
+
   /// 獲取彈幕伺服器配置
   static Future<Map<String, dynamic>?> getDanmakuConf(int roomId) async {
     // 1. Try XLIVE API (New)
@@ -179,7 +202,9 @@ class LiveApi {
           return list;
         }
       }
-      debugPrint('getFollowedLive: HTTP ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}');
+      debugPrint(
+        'getFollowedLive: HTTP ${response.statusCode} ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}',
+      );
     } catch (e) {
       debugPrint('getFollowedLive error: $e');
     }

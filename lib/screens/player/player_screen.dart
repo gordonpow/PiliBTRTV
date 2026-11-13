@@ -304,6 +304,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                   hideBottomDanmaku: hideBottomDanmaku,
                   onNavigate: (type, index) {
                     setState(() {
+                      if (type == SettingsMenuType.danmaku) {
+                        danmakuPanelDirect = false;
+                      }
                       settingsMenuType = type;
                       focusedSettingIndex = index;
                     });

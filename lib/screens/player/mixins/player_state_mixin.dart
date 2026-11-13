@@ -210,6 +210,12 @@ mixin PlayerStateMixin on State<PlayerScreen> {
   int focusedButtonIndex = CtrlBtn.playPause; // 見 CtrlBtn
   int focusedSettingIndex = 0;
 
+  /// 彈幕設定面板是否由長按彈幕鍵直接開啟（true：左鍵關閉面板；false：左鍵回主選單）
+  bool danmakuPanelDirect = false;
+
+  /// 彈幕數值選單彈窗開啟中（避免重複開窗、並暫停控制列自動隱藏）
+  bool danmakuValueDialogOpen = false;
+
   // 解析度
   List<Map<String, dynamic>> qualities = [];
   int currentQuality = 80;

@@ -1,7 +1,7 @@
 import 'package:bili_tv_app/utils/anim.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 
-enum LiveSettingsMenuType { main, quality, danmaku, line }
+enum LiveSettingsMenuType { main, quality, danmaku, line, chat }
 
 class LiveSettingsPanel extends StatefulWidget {
   final LiveSettingsMenuType menuType;
@@ -22,6 +22,12 @@ class LiveSettingsPanel extends StatefulWidget {
   final double danmakuSpeed;
   final bool hideTopDanmaku;
   final bool hideBottomDanmaku;
+
+  // Chat Settings
+  final bool chatVisible;
+  final bool chatPopup;
+  final bool chatOnLeft;
+  final Function(int) onChatItem;
 
   // Callbacks
   final Function(LiveSettingsMenuType, int) onNavigate;
@@ -49,7 +55,13 @@ class LiveSettingsPanel extends StatefulWidget {
     required this.onQualitySelect,
     required this.onLineSelect,
     required this.onDanmakuSettingChange,
+    this.chatVisible = false,
+    this.chatPopup = true,
+    this.chatOnLeft = true,
+    this.onChatItem = _noopChatItem,
   });
+
+  static void _noopChatItem(int _) {}
 
   @override
   State<LiveSettingsPanel> createState() => _LiveSettingsPanelState();
@@ -62,7 +74,8 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
   void didUpdateWidget(LiveSettingsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if ((widget.menuType == LiveSettingsMenuType.danmaku ||
-            widget.menuType == LiveSettingsMenuType.line) &&
+            widget.menuType == LiveSettingsMenuType.line ||
+            widget.menuType == LiveSettingsMenuType.chat) &&
         widget.focusedIndex != oldWidget.focusedIndex) {
       _scrollToFocused();
     }
@@ -105,6 +118,7 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
     if (widget.menuType == LiveSettingsMenuType.danmaku) title = '彈幕設定';
     if (widget.menuType == LiveSettingsMenuType.quality) title = '畫質選擇';
     if (widget.menuType == LiveSettingsMenuType.line) title = '線路選擇';
+    if (widget.menuType == LiveSettingsMenuType.chat) title = '留言設定';
 
     return Positioned(
       top: 0,
@@ -160,6 +174,8 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
         return _buildQualitySettingsList();
       case LiveSettingsMenuType.line:
         return _buildLineSettingsList();
+      case LiveSettingsMenuType.chat:
+        return _buildChatSettingsList();
       case LiveSettingsMenuType.main:
         return _buildMainSettingsList();
     }
@@ -274,6 +290,35 @@ class _LiveSettingsPanelState extends State<LiveSettingsPanel> {
             'hideBottom',
             !widget.hideBottomDanmaku,
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChatSettingsList() {
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        _buildSettingItem(
+          index: 0,
+          icon: Icons.chat_bubble,
+          title: '顯示留言',
+          value: widget.chatVisible ? '開' : '關',
+          onTap: () => widget.onChatItem(0),
+        ),
+        _buildSettingItem(
+          index: 1,
+          icon: Icons.view_agenda,
+          title: '樣式',
+          value: widget.chatPopup ? '彈出式' : '列表',
+          onTap: () => widget.onChatItem(1),
+        ),
+        _buildSettingItem(
+          index: 2,
+          icon: Icons.swap_horiz,
+          title: '位置',
+          value: widget.chatOnLeft ? '左側' : '右側',
+          onTap: () => widget.onChatItem(2),
         ),
       ],
     );

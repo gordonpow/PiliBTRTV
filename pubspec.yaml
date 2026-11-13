@@ -46,6 +46,8 @@ dependencies:
   # 升级到 2.10.0+ 以支持 VideoViewType.platformView (SurfaceView 渲染模式)
   video_player: ^2.10.0
   video_player_android: ^2.9.1
+  # 直播時移需直接呼叫 platform interface 的 seekTo（避開 controller 夾限 duration）
+  video_player_platform_interface: ^6.6.0
   
   # Danmaku (bullet comments)
   canvas_danmaku: ^0.3.1

@@ -25,6 +25,7 @@ import '../../../services/translate/content_translator.dart';
 import '../../../models/subtitle.dart';
 import '../../../services/api/base_api.dart';
 import '../widgets/settings_panel.dart';
+import '../../home/settings/widgets/tv_menu_dialog.dart';
 import '../../../widgets/video_action_dialogs.dart';
 import '../player_screen.dart';
 import '../widgets/quality_picker_sheet.dart';
@@ -2900,6 +2901,85 @@ mixin PlayerActionMixin on PlayerStateMixin {
     });
   }
 
+  /// 彈幕選單的確認／右鍵：開關項目直接切換；數值項目開次級選單選值。
+  void activateDanmakuItem() {
+    final i = focusedSettingIndex;
+    if (i == 0 || i == 5 || i == 6) {
+      adjustDanmakuSetting(1);
+      return;
+    }
+    if (i >= 1 && i <= 4) _openDanmakuValueDialog(i);
+  }
+
+  Future<void> _openDanmakuValueDialog(int index) async {
+    if (danmakuValueDialogOpen) return;
+    danmakuValueDialogOpen = true;
+    hideTimer?.cancel(); // 彈窗開著時暫停控制列自動隱藏
+
+    // 值清單沿用 adjustDanmakuSetting 的範圍與級距
+    final Future<Object?> picked;
+    switch (index) {
+      case 1: // 透明度 10%–100%，步進 10%
+        final cur = (danmakuOpacity * 100).round().clamp(10, 100);
+        picked = showTvMenuDialog<int>(
+          context: context,
+          title: '彈幕透明度',
+          items: [for (var p = 10; p <= 100; p += 10) p],
+          current: ((cur / 10).round() * 10).clamp(10, 100),
+          itemLabel: (p) => '$p%',
+        );
+      case 2: // 字型大小 10–50，步進 2
+        final cur = danmakuFontSize.round().clamp(10, 50);
+        picked = showTvMenuDialog<int>(
+          context: context,
+          title: '彈幕字型大小',
+          items: [for (var s = 10; s <= 50; s += 2) s],
+          current: (10 + ((cur - 10) / 2).round() * 2).clamp(10, 50),
+          itemLabel: (s) => '$s',
+        );
+      case 3: // 佔屏比 25/50/75/100%
+        const areas = [0.25, 0.5, 0.75, 1.0];
+        picked = showTvMenuDialog<double>(
+          context: context,
+          title: '彈幕佔屏比',
+          items: areas,
+          current: areas.contains(danmakuArea) ? danmakuArea : 0.5,
+          itemLabel: (a) => '${(a * 100).round()}%',
+        );
+      default: // 速度 4–20，步進 1
+        picked = showTvMenuDialog<int>(
+          context: context,
+          title: '彈幕速度',
+          items: [for (var s = 4; s <= 20; s++) s],
+          current: danmakuSpeed.round().clamp(4, 20),
+          itemLabel: (s) => '$s',
+        );
+    }
+    final value = await picked;
+    danmakuValueDialogOpen = false;
+    if (!mounted) return;
+    if (value != null) {
+      setState(() {
+        switch (index) {
+          case 1:
+            danmakuOpacity = ((value as int) / 100).clamp(0.1, 1.0);
+          case 2:
+            danmakuFontSize = (value as int).toDouble();
+          case 3:
+            danmakuArea = value as double;
+          default:
+            danmakuSpeed = (value as int).toDouble();
+        }
+        updateDanmakuOption();
+        saveSettings();
+      });
+    }
+    // 彈窗關閉後焦點回到播放器
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) playerFocusNode.requestFocus();
+    });
+  }
+
   /// 依 cid 更新番劇當前集的 ep_id / bvid / aid
   void _applyPgcEpisode(int forCid) {
     final idx = episodes.indexWhere((e) => e['cid'] == forCid);
@@ -3077,6 +3157,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
           break;
         case 2:
           setState(() {
+            danmakuPanelDirect = false;
             settingsMenuType = SettingsMenuType.danmaku;
             focusedSettingIndex = 0;
           });
@@ -3115,11 +3196,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
           break;
       }
     } else if (settingsMenuType == SettingsMenuType.danmaku) {
-      if (focusedSettingIndex == 0 ||
-          focusedSettingIndex == 5 ||
-          focusedSettingIndex == 6) {
-        adjustDanmakuSetting(1);
-      }
+      activateDanmakuItem();
     } else if (settingsMenuType == SettingsMenuType.speed) {
       final speed = availableSpeeds[focusedSettingIndex];
       setState(() => playbackSpeed = speed);

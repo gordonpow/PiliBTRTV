@@ -97,6 +97,30 @@ class FrameService {
     }
   }
 
+  /// 直播時移預覽：把 [paths]（init 檔＋片段檔）在原生端虛擬串接後取第一幀。
+  ///
+  /// [gen] 為單調遞增的請求序號；原生端開始處理時若已有更新的序號就直接回 null。
+  static Future<Uint8List?> getLocalFrame(
+    List<String> paths, {
+    required int gen,
+    int width = 320,
+  }) async {
+    if (paths.isEmpty) return null;
+    try {
+      final dynamic raw = await _channel
+          .invokeMethod('getLocalFrame', {
+            'paths': paths,
+            'width': width,
+            'gen': gen,
+          })
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      return _extractBytes(raw);
+    } catch (e) {
+      debugPrint('🎬 [FrameService] 本機抽幀失敗: $e');
+      return null;
+    }
+  }
+
   static Uint8List? _extractBytes(dynamic raw) {
     if (raw == null) return null;
     if (raw is Uint8List) return raw;

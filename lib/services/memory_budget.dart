@@ -57,4 +57,14 @@ class MemoryBudget {
 
   /// critical 時是否停用鄰近預解析
   static bool disablePreResolve(MemoryTier tier) => tier == MemoryTier.critical;
+
+  /// 直播時移可用的分鐘數上限（0 = 不啟用）；[requested] 為使用者設定，0 代表關閉
+  static int liveTimeshiftMinutes(MemoryTier tier, int requested) {
+    if (requested <= 0) return 0;
+    return switch (tier) {
+      MemoryTier.high || MemoryTier.mid => requested,
+      MemoryTier.low => requested > 5 ? 5 : requested,
+      MemoryTier.critical => 0,
+    };
+  }
 }

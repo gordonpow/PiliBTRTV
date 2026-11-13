@@ -394,6 +394,51 @@ class SettingsService {
     await _prefs!.setBool(_hideLiveControlsOnStartKey, value);
   }
 
+  // 直播: 右側聊天列表（留言）是否顯示，預設關閉
+  static const String _liveChatVisibleKey = 'live_chat_visible';
+  static bool get liveChatVisible {
+    return _prefs?.getBool(_liveChatVisibleKey) ?? false;
+  }
+
+  static Future<void> setLiveChatVisible(bool value) async {
+    await init();
+    await _prefs!.setBool(_liveChatVisibleKey, value);
+  }
+
+  // 直播: 留言樣式（popup 彈出式／list 列表），預設彈出式
+  static const String _liveChatStyleKey = 'live_chat_style';
+  static String get liveChatStyle {
+    return _prefs?.getString(_liveChatStyleKey) ?? 'popup';
+  }
+
+  static Future<void> setLiveChatStyle(String value) async {
+    await init();
+    await _prefs!.setString(_liveChatStyleKey, value);
+  }
+
+  // 直播: 留言位置（left／right），預設左側
+  static const String _liveChatSideKey = 'live_chat_side';
+  static String get liveChatSide {
+    return _prefs?.getString(_liveChatSideKey) ?? 'left';
+  }
+
+  static Future<void> setLiveChatSide(String value) async {
+    await init();
+    await _prefs!.setString(_liveChatSideKey, value);
+  }
+
+  // 直播: 本機時移（分鐘；0 = 關閉，可選 5、10、30）
+  static const String _liveTimeshiftMinutesKey = 'live_timeshift_minutes';
+  static const List<int> liveTimeshiftOptions = [0, 5, 10, 30];
+  static int get liveTimeshiftMinutes {
+    return _prefs?.getInt(_liveTimeshiftMinutesKey) ?? 0;
+  }
+
+  static Future<void> setLiveTimeshiftMinutes(int value) async {
+    await init();
+    await _prefs!.setInt(_liveTimeshiftMinutesKey, value);
+  }
+
   // 直播: 播放器右上角時間顯示設定
   static const String _showLiveTimeDisplayKey = 'show_live_time_display';
   static bool get showLiveTimeDisplay {

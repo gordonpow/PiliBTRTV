@@ -14,6 +14,10 @@ import 'auth_service.dart'; // Import AuthService
 class LiveSocketService {
   WebSocketChannel? _channel;
   Timer? _heartbeatTimer;
+
+  /// 最後一次收到伺服器封包的時間；心跳時超過 [_rxTimeout] 未收到視為斷線
+  DateTime _lastRx = DateTime.now();
+  static const Duration _rxTimeout = Duration(seconds: 70);
   final StreamController<Map<String, dynamic>> _msgController =
       StreamController.broadcast();
 
@@ -26,21 +30,46 @@ class LiveSocketService {
   bool _isConnected = false;
   bool get isConnected => _isConnected;
 
-  /// 連線直播間
+  // 連線世代：每次 connect / disconnect 遞增，舊連線的回呼比對不符就忽略
+  int _gen = 0;
+  bool _connecting = false;
+  int _connectGen = -1;
+  bool _disposed = false;
+
+  void _emit(Map<String, dynamic> msg) {
+    if (_disposed || _msgController.isClosed) return;
+    _msgController.add(msg);
+  }
+
+  /// 連線直播間。
+  ///
+  /// 事件：`error`（錯誤訊息）、`connected`（認證成功）、
+  /// `disconnected`（意外斷線或連線失敗，呼叫端應退避重連；
+  /// 主動 [disconnect] 不會發出此事件）。
   Future<void> connect(int roomId) async {
-    disconnect(); // 先斷開舊連線
+    if (_disposed) return;
+    // 同一代連線進行中，不重複連線
+    if (_connecting && _connectGen == _gen) return;
+    disconnect(); // 先斷開舊連線（遞增世代）
+    final gen = _gen;
+    _connecting = true;
+    _connectGen = gen;
 
     try {
       // 1. 獲取彈幕伺服器配置
       final conf = await LiveApi.getDanmakuConf(roomId);
+      if (gen != _gen) return;
       if (conf == null) {
-        _msgController.add({'type': 'error', 'msg': '獲取彈幕配置失敗'});
+        _fail(gen, '獲取彈幕配置失敗');
         return;
       }
 
       final token = conf['token'];
       final hostList = conf['host_list'] as List;
-      if (hostList.isEmpty) return;
+      if (hostList.isEmpty) {
+        _fail(gen, '彈幕伺服器清單為空');
+        return;
+      }
 
       // 優先使用 wss
       final hostInfo = hostList.firstWhere(
@@ -51,11 +80,12 @@ class LiveSocketService {
       final port = hostInfo['wss_port'] ?? hostInfo['port'];
       final wssUrl = 'wss://$host:$port/sub';
 
-      _log('🔌 Connecting to Live WS: $wssUrl');
+      _log('Connecting to Live WS: $wssUrl');
 
       // 2. 建立連線
+      final WebSocket socket;
       try {
-        final socket = await WebSocket.connect(
+        socket = await WebSocket.connect(
           wssUrl,
           headers: {
             'User-Agent':
@@ -64,56 +94,97 @@ class LiveSocketService {
             'Referer': 'https://live.bilibili.com/',
           },
         );
-
-        socket.pingInterval = const Duration(seconds: 10);
-        _channel = IOWebSocketChannel(socket);
-        _isConnected = true;
-        _log('🚀 WS Connected & Channel Ready');
-
-        // 5. 監聽訊息 (先監聽，再發送)
-        _channel!.stream.listen(
-          (message) {
-            try {
-              _handleMessage(message);
-            } catch (e) {
-              _log('Message Handle Error: $e');
-            }
-          },
-          onError: (error) {
-            _log('WS Error: $error');
-            _isConnected = false;
-            _msgController.add({'type': 'error', 'msg': '連線中斷: $error'});
-            disconnect();
-          },
-          onDone: () {
-            _log(
-              'WS Closed (Code: ${socket.closeCode}, Reason: ${socket.closeReason})',
-            );
-            _isConnected = false;
-            disconnect();
-          },
-        );
-
-        // 3. 傳送進房認證包
-        _sendAuth(roomId, token);
-
-        // 4. 開啟心跳
-        _startHeartbeat();
       } catch (e) {
         _log('WS Handshake Error: $e');
-        _msgController.add({'type': 'error', 'msg': '握手失敗: $e'});
+        _fail(gen, '握手失敗: $e');
         return;
       }
+      if (gen != _gen) {
+        // 連線期間已被主動斷開或被新連線取代
+        try {
+          socket.close(status.goingAway);
+        } catch (_) {}
+        return;
+      }
+
+      // 不設 pingInterval：B 站彈幕伺服器不回 WebSocket pong，dart:io 會在
+      // 2 倍 pingInterval 後自行以 1001 關閉連線（原本 10 秒 → 每 20 秒斷線）。
+      // 存活改由應用層心跳回覆（op 3）判斷，見 [_startHeartbeat]。
+      _lastRx = DateTime.now();
+      final channel = IOWebSocketChannel(socket);
+      _channel = channel;
+      _isConnected = true;
+      _log('WS Connected & Channel Ready');
+
+      // 3. 監聽訊息（先監聽，再發送）
+      channel.stream.listen(
+        (message) {
+          if (gen != _gen) return;
+          _lastRx = DateTime.now();
+          try {
+            _handleMessage(message);
+          } catch (e) {
+            _log('Message Handle Error: $e');
+          }
+        },
+        onError: (error) {
+          if (gen != _gen || !identical(_channel, channel)) return;
+          _log('WS Error: $error');
+          _handleUnexpectedClose('連線中斷: $error');
+        },
+        onDone: () {
+          if (gen != _gen || !identical(_channel, channel)) return;
+          _log(
+            'WS Closed (Code: ${socket.closeCode}, Reason: ${socket.closeReason})',
+          );
+          _handleUnexpectedClose(null);
+        },
+      );
+
+      // 4. 傳送進房認證包
+      _sendAuth(roomId, token);
+
+      // 5. 開啟心跳
+      _startHeartbeat();
     } catch (e) {
       _log('Connect Error: $e');
-      _msgController.add({'type': 'error', 'msg': '連線失敗: $e'});
+      _fail(gen, '連線失敗: $e');
+    } finally {
+      if (_connectGen == gen) _connecting = false;
     }
   }
 
-  void disconnect() {
-    _channel?.sink.close(status.goingAway);
+  /// 連線流程失敗：仍是當前世代才通知畫面（舊世代的失敗不影響新連線）
+  void _fail(int gen, String msg) {
+    if (gen != _gen) return;
+    _isConnected = false;
+    _emit({'type': 'error', 'msg': msg});
+    _emit({'type': 'disconnected'});
+  }
+
+  /// 意外斷線（非 [disconnect] 觸發）：清理並通知畫面重連
+  void _handleUnexpectedClose(String? errorMsg) {
+    final channel = _channel;
     _channel = null;
     _heartbeatTimer?.cancel();
+    _isConnected = false;
+    try {
+      channel?.sink.close(status.goingAway);
+    } catch (_) {}
+    if (errorMsg != null) _emit({'type': 'error', 'msg': errorMsg});
+    _emit({'type': 'disconnected'});
+  }
+
+  /// 主動斷線：遞增世代，使舊連線的回呼全部失效，不發出 disconnected 事件
+  void disconnect() {
+    _gen++;
+    final channel = _channel;
+    _channel = null;
+    try {
+      channel?.sink.close(status.goingAway);
+    } catch (_) {}
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     _isConnected = false;
   }
 
@@ -155,6 +226,12 @@ class LiveSocketService {
     // 每 30 秒傳送一次心跳
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (_isConnected) {
+        // 70 秒沒有任何回應（含心跳回覆）：連線已失效，通知畫面重連
+        if (DateTime.now().difference(_lastRx) > _rxTimeout) {
+          _log('WS heartbeat timeout');
+          _handleUnexpectedClose(null);
+          return;
+        }
         // Bilibili quirk: server expects "[object Object]" as heartbeat body
         // to return correct popularity. Empty body returns 1.
         _sendPacket(
@@ -245,10 +322,13 @@ class LiveSocketService {
         // Heartbeat Reply
         final viewers = ByteData.sublistView(body).getUint32(0);
         // debugPrint('Heartbeat Reply: $viewers');
-        _msgController.add({'type': 'popularity', 'count': viewers});
+        _emit({'type': 'popularity', 'count': viewers});
       } else if (op == 8) {
         // Auth Reply
-        _log('✅ Live WS Auth Success');
+        _log('Live WS Auth Success');
+        // 認證成功後立即送一次心跳（同網頁版），之後每 30 秒一次
+        _sendPacket(1, 2, utf8.encode('[object Object]'));
+        _emit({'type': 'connected'});
       }
 
       offset += totalLen;
@@ -279,7 +359,7 @@ class LiveSocketService {
           // ignore
         }
 
-        _msgController.add({
+        _emit({
           'type': 'danmaku',
           'content': content,
           'user': userName,
@@ -296,6 +376,7 @@ class LiveSocketService {
   }
 
   void dispose() {
+    _disposed = true;
     disconnect();
     _msgController.close();
   }
