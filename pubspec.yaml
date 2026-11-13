@@ -1,7 +1,7 @@
 name: bili_tv_app
 description: "PiliBTRTV - 嗶哩嗶哩電視版用戶端，加上 BTR 多 CDN 播放加速"
 publish_to: 'none'
-version: 1.2.2-btr.24+28
+version: 1.2.2-btr.25+29
 
 environment:
   sdk: ^3.10.3
