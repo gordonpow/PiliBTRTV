@@ -75,6 +75,12 @@ mixin PlayerActionMixin on PlayerStateMixin {
     await prefs.setBool('hide_bottom_danmaku', hideBottomDanmaku);
   }
 
+  /// 本頁最後一次寫入 LocalServer 的 MPD token（dispose 時用 clearMpdContentIf）
+  int _mpdToken = 0;
+
+  /// 投放指定的集數確實被選中時才套用 forceStartMs（PGC）
+  bool _forcedEpOk = false;
+
   Future<void> initializePlayer() async {
     final startupWatch = Stopwatch()..start();
     // 換片：先重設音軌，避免舊 controller 殘留的錯誤事件以舊音軌觸發退回
@@ -323,7 +329,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
           final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
 
           // 使用全域性 LocalServer 提供 MPD 內容 (純記憶體)
-          LocalServer.instance.setMpdContent(mpdContent);
+          _mpdToken = LocalServer.instance.setMpdContent(mpdContent);
           playUrl = LocalServer.instance.mpdUrl;
         } else {
           // 回退到直接 URL (mp4/flv)
@@ -478,10 +484,16 @@ mixin PlayerActionMixin on PlayerStateMixin {
           historyProgress = widget.video.progress;
         }
 
+        // 投放：指定位置優先於所有紀錄，且不套用片尾判斷
+        final forcedMs = _forcedEpOk ? widget.video.forceStartMs : null;
+        if (forcedMs != null) historyProgress = forcedMs ~/ 1000;
+
         if (historyProgress > 0) {
           // 🔥 如果進度接近影片總時長（最後5秒內），說明影片已播完，從頭開始
           final videoDuration = videoController!.value.duration.inSeconds;
-          if (videoDuration > 0 && historyProgress >= videoDuration - 5) {
+          if (forcedMs == null &&
+              videoDuration > 0 &&
+              historyProgress >= videoDuration - 5) {
             debugPrint(
               '🎬 [Resume] Video was completed (progress $historyProgress >= duration $videoDuration - 5), starting from beginning',
             );
@@ -489,7 +501,9 @@ mixin PlayerActionMixin on PlayerStateMixin {
           } else {
             initialProgress = historyProgress;
 
-            final seekPos = Duration(seconds: historyProgress);
+            final seekPos = forcedMs != null
+                ? Duration(milliseconds: forcedMs)
+                : Duration(seconds: historyProgress);
             await videoController!.seekTo(seekPos);
             resetDanmakuIndex(seekPos);
 
@@ -542,6 +556,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     warmPlayback = null;
     // 按 OK 時暖機還在準備：等它完成後接手（比從頭再準備一次快）
     if (prepared == null &&
+        widget.video.forceStartMs == null &&
         CardPreviewService.instance.isPendingFor(widget.video.bvid)) {
       prepared = vetWarmPlayback(
         await CardPreviewService.instance.waitAndTake(widget.video.bvid),
@@ -591,6 +606,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
         qn: currentQuality,
         videoInfo: videoInfo,
         seed: leftover,
+        startCid: widget.startCid,
         isCancelled: () => !mounted,
         onStep: mark,
         onDecoderFallback: () => showZhToast(
@@ -637,6 +653,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
     final playInfo = p.playInfo;
     final controller = p.controller;
     videoController = controller;
+    if (p.mpdToken != 0) _mpdToken = p.mpdToken;
 
     setState(() {
       cid = p.cid;
@@ -720,9 +737,13 @@ mixin PlayerActionMixin on PlayerStateMixin {
     });
 
     // 續播：prepare 已 seek 好。暖機接手時以目前位置為準。
+    final forcedMs = widget.video.forceStartMs;
+    // seek 失敗時 resumeSeconds 為 0，起點以實際位置（0）為準
     final startPos = fromWarm
         ? controller.value.position
-        : Duration(seconds: p.resumeSeconds);
+        : (forcedMs != null && p.resumeSeconds > 0
+              ? Duration(milliseconds: forcedMs)
+              : Duration(seconds: p.resumeSeconds));
     if (p.resumeSeconds > 0) initialProgress = p.resumeSeconds;
     resetDanmakuIndex(startPos);
     final startSec = startPos.inSeconds;
@@ -781,13 +802,21 @@ mixin PlayerActionMixin on PlayerStateMixin {
       return false;
     }
 
-    // 起始集：伺服器觀看紀錄 > 本地快取 > 列表帶入的 ep > 第一集
-    final lastEpId = season['lastEpId'] as int? ?? 0;
-    var startIdx = lastEpId > 0
-        ? eps.indexWhere((e) => e['ep_id'] == lastEpId)
+    // 起始集：投放指定集（forceEpId）> 伺服器觀看紀錄 > 本地快取 > 列表帶入的 ep > 第一集
+    final forceEpId = widget.video.forceEpId ?? 0;
+    var startIdx = forceEpId > 0
+        ? eps.indexWhere((e) => e['ep_id'] == forceEpId)
         : -1;
-    var resume = startIdx != -1 ? (season['lastTime'] as int? ?? 0) : 0;
-    if (startIdx == -1 && cachedRecord != null) {
+    final forced = startIdx != -1;
+    _forcedEpOk = forced;
+    final lastEpId = season['lastEpId'] as int? ?? 0;
+    if (!forced && lastEpId > 0) {
+      startIdx = eps.indexWhere((e) => e['ep_id'] == lastEpId);
+    }
+    var resume = (!forced && startIdx != -1)
+        ? (season['lastTime'] as int? ?? 0)
+        : 0;
+    if (!forced && startIdx == -1 && cachedRecord != null) {
       startIdx = eps.indexWhere((e) => e['cid'] == cachedRecord.cid);
       if (startIdx != -1) resume = cachedRecord.progress;
     }
@@ -1161,7 +1190,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       String? playUrl;
       if (playInfo['dashData'] != null) {
         final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
-        LocalServer.instance.setMpdContent(mpdContent);
+        _mpdToken = LocalServer.instance.setMpdContent(mpdContent);
         playUrl = LocalServer.instance.mpdUrl;
       } else {
         final rawUrl = playInfo['url'] as String? ?? '';
@@ -1569,7 +1598,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       if (playInfo['dashData'] != null) {
         final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
         if (!alive()) return;
-        LocalServer.instance.setMpdContent(mpdContent);
+        _mpdToken = LocalServer.instance.setMpdContent(mpdContent);
         playUrl = LocalServer.instance.mpdUrl;
       } else {
         final rawUrl = playInfo['url'] as String? ?? '';
@@ -2023,7 +2052,8 @@ mixin PlayerActionMixin on PlayerStateMixin {
 
     await videoController?.dispose();
     videoController = null;
-    LocalServer.instance.clearMpdContent();
+    // 只清自己寫入的 MPD，避免 pushReplacement 時清掉新頁剛寫入的內容
+    LocalServer.instance.clearMpdContentIf(_mpdToken);
   }
 
   /// 獲取線上觀看人數
@@ -3109,7 +3139,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       if (playInfo['dashData'] != null) {
         final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
 
-        LocalServer.instance.setMpdContent(mpdContent);
+        _mpdToken = LocalServer.instance.setMpdContent(mpdContent);
         playUrl = LocalServer.instance.mpdUrl;
       } else {
         final rawUrl = playInfo['url'] as String? ?? '';
@@ -3352,7 +3382,7 @@ mixin PlayerActionMixin on PlayerStateMixin {
       if (playInfo['dashData'] != null) {
         final mpdContent = await MpdGenerator.generate(playInfo['dashData']);
 
-        LocalServer.instance.setMpdContent(mpdContent);
+        _mpdToken = LocalServer.instance.setMpdContent(mpdContent);
         playUrl = LocalServer.instance.mpdUrl;
       } else {
         final rawUrl = playInfo['url'] as String? ?? '';

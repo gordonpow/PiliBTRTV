@@ -21,6 +21,9 @@ import 'services/translate/content_translator.dart';
 import 'utils/frame_monitor.dart';
 import 'utils/zh_convert.dart';
 
+/// 全域 navigator key（投放詢問框等非 widget 程式碼用）
+final appNavigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
   // 整個啟動流程放在同一個 zone，未捕捉的非同步錯誤會寫入 log
   await runZonedGuarded(_main, LogService.recordError);
@@ -113,6 +116,7 @@ class BiliTvApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       title: 'BiliTV',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

@@ -27,6 +27,7 @@ class PreparedPlayback {
     required this.playInfo,
     required this.resumeSeconds,
     this.requestedQn = 0,
+    this.mpdToken = 0,
   });
 
   final String bvid;
@@ -41,6 +42,9 @@ class PreparedPlayback {
   /// 取得 [playInfo] 時請求的 qn（可能與 playInfo 的實際畫質不同）；
   /// 冷啟動沿用時必須與當時請求的 qn 相同才有效。
   final int requestedQn;
+
+  /// 寫入 LocalServer 的 MPD token（沒有寫入為 0），供 clearMpdContentIf 使用
+  final int mpdToken;
 }
 
 /// prepare 的結果；playback 為 null 時看其他欄位
@@ -80,6 +84,8 @@ class PlaybackPreparer {
   /// [onHdrFallback] 非暖機時 HDR 解碼失敗、改以較低非 HDR 畫質重試後呼叫（由呼叫端 toast）。
   /// [onDecoderFallback] 非暖機時解碼器失敗、已改用 AVC 後呼叫（由呼叫端 toast）。
   /// [isCancelled] 在寫入 LocalServer 前與建立 controller 後檢查。
+  /// [startCid] > 0 且在分 P 清單內時優先使用（合集換片、投放指定分 P）。
+  /// [video.forceStartMs] 有值時，起播位置以它為準（投放）。
   /// [seed] 是被棄用的暖機結果：只讀它的 playInfo，且 cid 與請求 qn 都相同才沿用。
   static Future<PrepareOutcome> prepare(
     Video video, {
@@ -87,6 +93,7 @@ class PlaybackPreparer {
     bool warm = false,
     Map<String, dynamic>? videoInfo,
     PreparedPlayback? seed,
+    int startCid = 0,
     bool Function()? isCancelled,
     void Function(String step)? onStep,
     void Function()? onDecoderFallback,
@@ -169,7 +176,12 @@ class PlaybackPreparer {
     if (videoInfo != null) {
       final pages = videoInfo['pages'] ?? [];
       final server = serverProgress;
-      if (server != null) {
+      if (startCid > 0 &&
+          pages is List &&
+          pages.any((p) => p is Map && p['cid'] == startCid)) {
+        cid = startCid;
+        debugPrint('🎬 [Init] Using startCid: $cid');
+      } else if (server != null) {
         final inPages =
             pages is List &&
             pages.any((p) => p is Map && p['cid'] == server.cid);
@@ -277,12 +289,13 @@ class PlaybackPreparer {
       final maxRetries = warm ? 1 : 3;
       const retryDelay = Duration(milliseconds: 1500);
       VideoPlayerController? controller;
+      var mpdToken = 0;
 
       for (int attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           // setMpdContent 與建立 controller／initialize 之間不得有其他 await
           if (mpdContent != null) {
-            LocalServer.instance.setMpdContent(mpdContent);
+            mpdToken = LocalServer.instance.setMpdContent(mpdContent);
             playUrl = LocalServer.instance.mpdUrl;
           }
           if (playUrl == null || playUrl.isEmpty) break;
@@ -383,22 +396,32 @@ class PlaybackPreparer {
         listProgress: video.progress,
         listViewAt: video.viewAt,
       );
-      final historyProgress = resume.seconds;
+      final forcedMs = video.forceStartMs;
+      final historyProgress = forcedMs != null
+          ? forcedMs ~/ 1000
+          : resume.seconds;
       debugPrint(
         '🎬 [Resume] source=${resume.source} progress=$historyProgress',
       );
 
       var resumeSeconds = 0;
-      if (historyProgress > 0) {
+      if (historyProgress > 0 || (forcedMs != null && forcedMs > 0)) {
         final duration = controller.value.duration.inSeconds;
-        if (duration > 0 && historyProgress >= duration - 5) {
+        // 投放指定位置時不套用「接近片尾就從頭播」
+        if (forcedMs == null &&
+            duration > 0 &&
+            historyProgress >= duration - 5) {
           debugPrint(
             '🎬 [Resume] Video was completed (progress $historyProgress >= duration $duration - 5), starting from beginning',
           );
         } else {
           resumeSeconds = historyProgress;
           try {
-            await controller.seekTo(Duration(seconds: historyProgress));
+            await controller.seekTo(
+              forcedMs != null
+                  ? Duration(milliseconds: forcedMs)
+                  : Duration(seconds: historyProgress),
+            );
           } catch (_) {
             // seek 失敗：從頭播放
             resumeSeconds = 0;
@@ -419,6 +442,7 @@ class PlaybackPreparer {
           playInfo: playInfo,
           resumeSeconds: resumeSeconds,
           requestedQn: qn,
+          mpdToken: mpdToken,
         ),
       );
     }

@@ -4,6 +4,8 @@ import 'package:bili_tv_app/core/plugin/plugin_manager.dart';
 import 'package:bili_tv_app/core/plugin/plugin_store.dart';
 import 'package:bili_tv_app/core/focus/focus_navigation.dart';
 import 'package:bili_tv_app/services/local_server.dart';
+import 'package:bili_tv_app/screens/home/settings/cast_settings_page.dart';
+import 'package:bili_tv_app/screens/home/settings/widgets/setting_action_row.dart';
 
 /// 外掛設定頁
 class PluginsSettingsTab extends StatefulWidget {
@@ -56,6 +58,19 @@ class _PluginsSettingsTabState extends State<PluginsSettingsTab> {
             ],
           ),
         ),
+        // 投放配對
+        SettingActionRow(
+          label: '投放配對',
+          value: '讓手機一鍵投放影片到這台電視',
+          buttonLabel: '開啟',
+          isFirst: true,
+          onMoveUp: widget.onMoveUp,
+          sidebarFocusNode: widget.sidebarFocusNode,
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const CastSettingsPage())),
+        ),
+        const SizedBox(height: 12),
         // 外掛列表
         ..._pluginManager.plugins.asMap().entries.map((entry) {
           final index = entry.key;
@@ -63,7 +78,7 @@ class _PluginsSettingsTabState extends State<PluginsSettingsTab> {
           return _PluginCard(
             plugin: plugin,
             onToggle: _togglePlugin,
-            isFirst: index == 0,
+            isFirst: false,
             isLast: index == _pluginManager.plugins.length - 1,
             onMoveUp: widget.onMoveUp,
             sidebarFocusNode: widget.sidebarFocusNode,

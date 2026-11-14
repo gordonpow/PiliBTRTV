@@ -58,12 +58,15 @@ class _PlayerScreenState extends State<PlayerScreen>
     // 第一個 await 之前同步接手暖機播放器；沒有就釋放卡片預覽的解碼器。
     // 兩種畫面模式都接手暖機播放器；原生模式遇到 4K／HDR／杜比或直式影片
     // 才拒絕（見 CardPreviewService.warmRejectReason），改走冷啟動並沿用其資料。
-    warmPlayback = vetWarmPlayback(
-      CardPreviewService.instance.take(widget.video.bvid),
-    );
+    // 投放（forceStartMs）不接手暖機播放器
+    final forced = widget.video.forceStartMs != null;
+    warmPlayback = forced
+        ? null
+        : vetWarmPlayback(CardPreviewService.instance.take(widget.video.bvid));
     // 暖機還在準備且已保留給本頁時不要停掉它，initializePlayer 會等它完成
     if (warmPlayback == null &&
-        !CardPreviewService.instance.isPendingFor(widget.video.bvid)) {
+        (forced ||
+            !CardPreviewService.instance.isPendingFor(widget.video.bvid))) {
       CardPreviewService.instance.stopAll();
     }
     SystemChannels.textInput.invokeMethod('TextInput.hide');

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'cast/cast_service.dart';
 import '../plugins/ad_filter_plugin.dart';
 import '../plugins/danmaku_enhance_plugin.dart';
 import '../core/plugin/plugin_manager.dart';
@@ -45,6 +46,36 @@ class LocalServer {
   /// 重新抓取區網 IP（登入頁開啟時呼叫，網路可能在啟動後才連上）
   Future<void> refreshAddress() async {
     _localIp = await _getLocalIp();
+    _localIps = await _listPrivateIps();
+  }
+
+  List<String> _localIps = const [];
+
+  /// 所有私有 IPv4 位址（投放配對頁用；需先呼叫 [start] 或 [refreshAddress]）
+  List<String> get localIps => List.unmodifiable(_localIps);
+
+  static Future<List<String>> _listPrivateIps() async {
+    final out = <String>[];
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLoopback: false,
+      );
+      for (final i in interfaces) {
+        for (final a in i.addresses) {
+          final b = a.rawAddress;
+          if (b.length != 4) continue;
+          final isPrivate =
+              b[0] == 10 ||
+              (b[0] == 172 && b[1] >= 16 && b[1] <= 31) ||
+              (b[0] == 192 && b[1] == 168);
+          if (isPrivate && !out.contains(a.address)) out.add(a.address);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error listing private IPs: $e');
+    }
+    return out;
   }
 
   /// 獲取 MPD 播放地址
@@ -57,6 +88,7 @@ class LocalServer {
     try {
       // 獲取本地 IP（使用 NetworkInterface）
       _localIp = await _getLocalIp();
+      _localIps = await _listPrivateIps();
 
       // 繫結到所有網路介面；預設埠被其他程式佔用時改用後面的埠，
       // 都失敗就讓系統分配（否則播放用的本機 MPD 也會無法使用）
@@ -125,8 +157,17 @@ class LocalServer {
   }
 
   /// 設定當前 MPD 內容
-  void setMpdContent(String content) {
+  /// 回傳遞增 token，供 [clearMpdContentIf] 判斷內容是否仍是自己寫入的
+  int setMpdContent(String content) {
     _currentMpdContent = content;
+    return ++_mpdTokenSeq;
+  }
+
+  int _mpdTokenSeq = 0;
+
+  /// 只在 [token] 仍是目前內容的 token 時才清除（避免舊頁清掉新頁的 MPD）
+  void clearMpdContentIf(int token) {
+    if (token == _mpdTokenSeq) _currentMpdContent = null;
   }
 
   /// 清除 MPD 內容
@@ -140,6 +181,11 @@ class LocalServer {
     // 登入教學圖片：需帶有效代碼，不加 CORS 標頭（必須在 /login 判斷之前）
     if (reqPath.startsWith('/login/guide/')) {
       await _handleLoginGuideImage(request);
+      return;
+    }
+    // 一鍵投放：不加 CORS 標頭，也不放行 OPTIONS
+    if (reqPath.startsWith('/api/cast/')) {
+      await CastService.instance.handle(request);
       return;
     }
     // 手機登入：不加 CORS 標頭，也不放行 OPTIONS

@@ -31,6 +31,10 @@ class Video {
   final int aid; // 影片 aid (0 表示未知，可由 bvid 換算)
   final String historyKid; // 觀看歷史刪除用 kid (如 archive_123)，非歷史項目為空
 
+  /// 投放用：強制起播位置（毫秒）與強制集數；不寫入 toJson／快取
+  final int? forceStartMs;
+  final int? forceEpId;
+
   Video({
     required this.bvid,
     required this.title,
@@ -56,6 +60,8 @@ class Video {
     this.epIndexText = '',
     this.aid = 0,
     this.historyKid = '',
+    this.forceStartMs,
+    this.forceEpId,
   }) : badge = _filterBadge(badge);
 
   static String _filterBadge(String badge) {
