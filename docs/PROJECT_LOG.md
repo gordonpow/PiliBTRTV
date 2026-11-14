@@ -103,6 +103,8 @@
 - #58 點影片秒開：原生模式也接手暖機播放器（4K／HDR／杜比／直式例外，`CardPreviewService.warmRejectReason`）；沒接手時沿用暖機與預載的 videoInfo／playurl（`takePlayUrl(consume: false)`、`prepare(seed:)`），續播進度與 playurl 並行；`PlayerRoute` 淡入 120ms。計時 log：`⏱ [E2E] open`、`PiliStartup firstFrame`。規格見 `docs/work/fast-open/`。
 - #59 播放掉幀：位置更新改遞增 `positionTick`（ValueNotifier），只有狀態旗標改變才整頁 setState；彈幕改毫秒同步；RelatedStrip callback 穩定化；DanmakuOption 快取；新增 `FrameMonitor`（`⏱ [Jank]`）。
 
+- #60 切換卡片瞬間掉幀（`a60a807`，btr.26）：`exoPlayer.release()` 在 Android 主執行緒同步等待解碼器釋放（模擬器實測 107–286ms，卡住 vsync）。`VideoPlayer.dispose()` 改為移除 listener、`stop()`，1 秒後再 `release()`（實測 1–12ms），`TextureVideoPlayer` 改在 `onPlayerReleased()` 釋放 surface。彈幕 XML 解壓與解析改用 `Isolate.run`。
+
 ### 待辦
 
 - 執行中途的 -101（登入在使用中失效）尚未處理，只在啟動時檢查。
@@ -380,3 +382,10 @@
 | 驗證載入速度，盡量做到 100～300ms | 使用者選量「點影片到開始播放」。TV 模擬器基準：馬上按 OK 2.7～3.9 秒；暖機 ready 後按 OK 6.6 秒（原生模式不接手暖機，且暖機吃掉預載 playurl）。使用者選「原生也接手暖機」（4K／HDR／杜比／直式例外）。Sonnet 實作 T-1。改後：暖機 ready 後按 OK，`open`→`shown` 1～2ms（另加 120ms 淡入）；馬上按 OK 約 2.3 秒到 play（playInfo 0.74 秒、initialize 1.16 秒，網路與解碼器初始化為下限）；按 OK 時暖機尚在準備則等它完成（一次 3.1 秒，模擬器網路慢） |
 | 播放彈幕、選相關影片時掉幀 | Explore 找出每 100ms 整頁 setState、彈幕整秒集中加入等；Sonnet 實作 T-2。模擬器為軟體 GPU，每幀 raster 都超過 16ms，無法判定掉幀改善，待使用者在電視上確認。`flutter analyze` 無問題、328 項測試通過；未 commit |
 | 發布 | commit `4597637`（#58、#59）、`28543b5`（規格）、`83e7138`（版本 `1.2.2-btr.25+29`）、發布說明 `docs/work/fast-open/release-notes-btr.25.md`。`flutter analyze` 無問題、328 項測試通過；versionCode 2029／1029，簽章 `17fcf8ed…`，`libapp.so` 內含 `v1.2.2-btr.25`。推送並發布 GitHub Release v1.2.2-btr.25，F-Droid 套件庫已更新到 btr.25，#58、#59 已關閉。掉幀改善未經實機確認 |
+
+### 2026-11-14：切換卡片掉幀（#60）
+
+| 項目 | 內容 |
+|---|---|
+| 請求 | 電視游標切換影片卡片時有時瞬間掉幀；之後要求推送並發布 |
+| 結果 | 實測找到預覽播放器 release 卡主執行緒 107–286ms，改為 stop 後延遲 release（1–12ms）；彈幕解析移到背景 isolate。`flutter analyze` 無問題、328 項測試通過，x64 已裝到 TV 模擬器。另一個工作階段的投放功能（#61，`7cc8a54`）已在本地 main，使用者選擇合併成一版：commit `a60a807`，發布說明 `docs/work/cast/release-notes-btr.26.md`（`4b1952a`），versionCode 2030／1030，簽章 `17fcf8ed…`。推送並發布 GitHub Release v1.2.2-btr.26，F-Droid 已更新到 btr.26，#60、#61 已關閉。掉幀改善待實機確認 |
