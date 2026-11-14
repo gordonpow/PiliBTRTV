@@ -117,10 +117,9 @@ public final class TextureVideoPlayer extends VideoPlayer implements SurfaceProd
     needsSurface = true;
   }
 
-  public void dispose() {
-    // Super must be called first to ensure the player is released before the surface.
-    super.dispose();
-
+  @Override
+  protected void onPlayerReleased() {
+    // 播放器 release() 之後才釋放 surface（dispose() 會延後 release）。
     // TextureVideoPlayer must always set a surfaceProducer.
     assert surfaceProducer != null;
     surfaceProducer.release();

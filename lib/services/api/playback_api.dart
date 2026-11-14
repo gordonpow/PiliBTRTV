@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'base_api.dart';
@@ -586,48 +587,10 @@ class PlaybackApi {
       );
 
       if (response.statusCode == 200) {
-        String xmlString;
         final bytes = response.bodyBytes;
-
         if (bytes.isEmpty) return [];
-
-        try {
-          if (bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
-            final decompressed = gzip.decode(bytes);
-            xmlString = utf8.decode(decompressed);
-          } else if (bytes.length >= 2 && bytes[0] == 0x78) {
-            final decompressed = zlib.decode(bytes);
-            xmlString = utf8.decode(decompressed);
-          } else if (bytes.isNotEmpty && bytes[0] == 0x3c) {
-            xmlString = utf8.decode(bytes);
-          } else {
-            final decompressed = ZLibDecoder(raw: true).convert(bytes);
-            xmlString = utf8.decode(decompressed);
-          }
-        } catch (e) {
-          xmlString = utf8.decode(bytes, allowMalformed: true);
-        }
-
-        final danmakuList = <Map<String, dynamic>>[];
-
-        final regex = RegExp(r'<d p="([^"]+)">([^<]*)</d>');
-        for (final match in regex.allMatches(xmlString)) {
-          final pAttr = match.group(1)!;
-          final content = match.group(2)!;
-
-          final parts = pAttr.split(',');
-          if (parts.length >= 4) {
-            danmakuList.add({
-              'time': double.tryParse(parts[0]) ?? 0.0,
-              'type': int.tryParse(parts[1]) ?? 1,
-              'fontSize': double.tryParse(parts[2]) ?? 25.0,
-              'color': int.tryParse(parts[3]) ?? 0xFFFFFF,
-              'content': content,
-            });
-          }
-        }
-
-        return danmakuList;
+        // 解壓與解析在 UI isolate 會卡住畫面（數千則時可達數十 ms），改在背景 isolate 執行
+        return await Isolate.run(() => _parseDanmakuXml(bytes));
       }
     } catch (e) {
       // 忽略錯誤
@@ -721,4 +684,38 @@ class PlaybackApi {
     }
     return null;
   }
+}
+
+/// 解壓並解析彈幕 XML（在背景 isolate 執行）
+List<Map<String, dynamic>> _parseDanmakuXml(Uint8List bytes) {
+  String xmlString;
+  try {
+    if (bytes.length >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b) {
+      xmlString = utf8.decode(gzip.decode(bytes));
+    } else if (bytes.length >= 2 && bytes[0] == 0x78) {
+      xmlString = utf8.decode(zlib.decode(bytes));
+    } else if (bytes[0] == 0x3c) {
+      xmlString = utf8.decode(bytes);
+    } else {
+      xmlString = utf8.decode(ZLibDecoder(raw: true).convert(bytes));
+    }
+  } catch (e) {
+    xmlString = utf8.decode(bytes, allowMalformed: true);
+  }
+
+  final danmakuList = <Map<String, dynamic>>[];
+  final regex = RegExp(r'<d p="([^"]+)">([^<]*)</d>');
+  for (final match in regex.allMatches(xmlString)) {
+    final parts = match.group(1)!.split(',');
+    if (parts.length >= 4) {
+      danmakuList.add({
+        'time': double.tryParse(parts[0]) ?? 0.0,
+        'type': int.tryParse(parts[1]) ?? 1,
+        'fontSize': double.tryParse(parts[2]) ?? 25.0,
+        'color': int.tryParse(parts[3]) ?? 0xFFFFFF,
+        'content': match.group(2)!,
+      });
+    }
+  }
+  return danmakuList;
 }

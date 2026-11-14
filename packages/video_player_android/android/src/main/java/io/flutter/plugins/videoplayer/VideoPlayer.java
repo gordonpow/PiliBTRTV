@@ -21,6 +21,10 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import io.flutter.view.TextureRegistry.SurfaceProducer;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
+import android.util.Log;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,6 +37,10 @@ public abstract class VideoPlayer implements VideoPlayerInstanceApi {
   @NonNull protected final VideoPlayerCallbacks videoPlayerEvents;
   @Nullable protected final SurfaceProducer surfaceProducer;
   @Nullable private DisposeHandler disposeHandler;
+  @Nullable private ExoPlayerEventListener eventListener;
+
+  /** stop() 之後延後多久才 release()，讓解碼器先在播放執行緒釋放完。 */
+  private static final long RELEASE_DELAY_MS = 1000;
   @NonNull protected ExoPlayer exoPlayer;
   // TODO: Migrate to stable API, see https://github.com/flutter/flutter/issues/147039.
   @UnstableApi @Nullable protected DefaultTrackSelector trackSelector;
@@ -75,7 +83,8 @@ public abstract class VideoPlayer implements VideoPlayerInstanceApi {
 
     exoPlayer.setMediaItem(mediaItem);
     exoPlayer.prepare();
-    exoPlayer.addListener(createExoPlayerEventListener(exoPlayer, surfaceProducer));
+    eventListener = createExoPlayerEventListener(exoPlayer, surfaceProducer);
+    exoPlayer.addListener(eventListener);
     setAudioAttributes(exoPlayer, options.mixWithOthers);
   }
 
@@ -237,6 +246,25 @@ public abstract class VideoPlayer implements VideoPlayerInstanceApi {
     if (disposeHandler != null) {
       disposeHandler.onDispose();
     }
-    exoPlayer.release();
+    // release() 會在主執行緒同步等待播放執行緒釋放解碼器（電視上約 100–300ms），
+    // 而 Flutter 的 vsync 由主執行緒送出，期間畫面停住（例如切換卡片時的預覽播放器）。
+    // 先 stop()：不阻塞，解碼器在播放執行緒釋放；之後再 release()，這時已經很快。
+    if (eventListener != null) {
+      exoPlayer.removeListener(eventListener);
+      eventListener = null;
+    }
+    exoPlayer.stop();
+    new Handler(Looper.getMainLooper())
+        .postDelayed(
+            () -> {
+              long t0 = SystemClock.uptimeMillis();
+              exoPlayer.release();
+              onPlayerReleased();
+              Log.i("PiliStartup", "release " + (SystemClock.uptimeMillis() - t0) + "ms");
+            },
+            RELEASE_DELAY_MS);
   }
+
+  /** 播放器真正 release() 之後呼叫，子類別在這裡釋放 surface。 */
+  protected void onPlayerReleased() {}
 }
