@@ -389,3 +389,21 @@
 |---|---|
 | 請求 | 電視游標切換影片卡片時有時瞬間掉幀；之後要求推送並發布 |
 | 結果 | 實測找到預覽播放器 release 卡主執行緒 107–286ms，改為 stop 後延遲 release（1–12ms）；彈幕解析移到背景 isolate。`flutter analyze` 無問題、328 項測試通過，x64 已裝到 TV 模擬器。另一個工作階段的投放功能（#61，`7cc8a54`）已在本地 main，使用者選擇合併成一版：commit `a60a807`，發布說明 `docs/work/cast/release-notes-btr.26.md`（`4b1952a`），versionCode 2030／1030，簽章 `17fcf8ed…`。推送並發布 GitHub Release v1.2.2-btr.26，F-Droid 已更新到 btr.26，#60、#61 已關閉。掉幀改善待實機確認 |
+
+### 2026-11-14：B 站介紹影片素材
+
+| 項目 | 內容 |
+|---|---|
+| 請求 | 做一支介紹 App 的影片發在 B 站（選擇：腳本＋錄製素材、1–2 分鐘、繁體中文字幕） |
+| 結果 | 腳本、分鏡與投稿資訊草稿在 `docs/work/promo-video/script.md`；TV 模擬器錄了 8 段素材（`docs/work/promo-video/clips/`，啟動、卡片預覽、秒開、CDN 狀態、彈幕與畫質、快轉縮圖與相關影片、直播留言與時移、分頁）。未 commit。模擬器的彈幕設定因錄影改為開。之後用 ffmpeg 合成 `docs/work/promo-video/PiliBTRTV-promo.mp4`（110 秒、1080p、繁中字幕帶、標題／投放／片尾文字卡、無聲音軌；腳本 `build.sh`） |
+
+### 2026-11-15：錯誤報告分析、App 未開啟時接收投放（#62）
+
+| 項目 | 內容 |
+|---|---|
+| 請求 | 分析使用者送來的錯誤報告 `report-76KVUB.txt` |
+| 結果 | log 中沒有錯誤或當機紀錄，只有兩次約 30 秒的正常播放。裝置為 Android 7.0、32 位元，版本仍是 btr.6、未登入（最高 480P）。建議升級到 btr.26 的 armeabi-v7a 版，並請回報者描述症狀；症狀不明，未開 issue |
+| 請求 | 電視不開 App 也能接收投放；有 Google 服務就用 Cast Connect，沒有就用背景服務 |
+| 結果 | 說明 Cast Connect 需要非開源套件、拆兩個版本、付費註冊與手機端重寫，使用者決定只做方案 A（原生前景服務）。開 issue #62，走完整流程：需求 `docs/work/cast-background/1-requirements.md`、規格 `2-spec.md`。規格審查（Claude Sonnet）10 點採用 9 點（R-1～R-9）。實作改用 Claude Sonnet：依 gemini-flash-oversight，生命週期／併發不交給 Flash。新增 `CastWakeService.kt`、`CastBootReceiver.kt`，修改 `MainActivity.kt`、`AndroidManifest.xml`，以及 Dart 的 `cast_service.dart`、`cast_playback.dart`、`home_screen.dart`、`settings_service.dart`、`main.dart`、`cast_settings_page.dart`。`flutter analyze` 無問題、328 項測試通過。x64（split-per-abi）已裝到 TV 模擬器，App 開著時 `/api/cast/info` 由 Dart 回應、port 3322。功能面待使用者以手機實測 |
+| 請求 | 「好 幫我發布」 |
+| 結果 | commit `5835c4e`（功能）、`7b22944`（版本號 btr.27+31）、發布說明 `docs/work/cast-background/release-notes-btr.27.md`。versionCode 2031／1031，簽章 `17fcf8ed…`。GitHub Release v1.2.2-btr.27 已發布，F-Droid 索引已列出 btr.27，#62 已關閉 |
