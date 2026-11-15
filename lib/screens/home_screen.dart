@@ -14,6 +14,7 @@ import 'home/live_tab.dart';
 import '../utils/anim.dart';
 import '../widgets/tv_focusable_item.dart';
 import '../services/auth_service.dart';
+import '../services/cast/cast_playback.dart';
 import '../services/settings_service.dart';
 import '../services/update_service.dart';
 import '../services/crash_report_service.dart';
@@ -80,6 +81,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       FocusManager.instance.highlightStrategy =
           FocusHighlightStrategy.alwaysTraditional;
       _checkCrashReport();
+      // 首頁已顯示：放行等待中的投放播放請求
+      CastPlayback.markHomeReady();
     });
   }
 

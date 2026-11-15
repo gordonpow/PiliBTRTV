@@ -48,6 +48,7 @@ class CastService {
   static const _tvIdKey = 'cast_tv_id';
   static const _pairedKey = 'cast_paired';
   static const _channel = MethodChannel('com.bili.tv/update');
+  static const _castChannel = MethodChannel('com.bili.tv/cast');
 
   static const _askTimeout = Duration(seconds: 30);
   static const _denyCooldown = Duration(seconds: 60);
@@ -232,15 +233,13 @@ class CastService {
 
     final deviceId = body['deviceId'];
     final rawName = body['deviceName'];
-    final bvid = body['bvid'];
-    final epIdRaw = _asInt(body['epId']);
-    final epId = epIdRaw != null && epIdRaw > 0 ? epIdRaw : null;
+    final cast = _parseCast(body);
     if (deviceId is! String ||
         deviceId.isEmpty ||
         deviceId.length > 64 ||
         rawName is! String ||
         rawName.trim().isEmpty ||
-        (epId == null && (bvid is! String || !_bvidRe.hasMatch(bvid)))) {
+        cast == null) {
       await _send(res, 400, {'ok': false, 'reason': 'bad_request'});
       return;
     }
@@ -248,16 +247,6 @@ class CastService {
     final deviceName = _truncate(
       rawName.replaceAll(RegExp(r'[\x00-\x1f\x7f]'), ' ').trim(),
       40,
-    );
-    final title = body['title'];
-    final cast = CastRequest(
-      bvid: bvid is String && _bvidRe.hasMatch(bvid) ? bvid : null,
-      aid: _asInt(body['aid']),
-      cid: _asInt(body['cid']),
-      epId: epId,
-      seasonId: _asInt(body['seasonId']),
-      positionMs: max(0, _asInt(body['positionMs']) ?? 0),
-      title: title is String ? _truncate(title, 200) : '',
     );
 
     final token = body['token'];
@@ -267,6 +256,14 @@ class CastService {
         // 詢問框顯示中時不可開播，否則會蓋掉詢問框
         if (_pendingId != null) {
           await _send(res, 409, {'ok': false, 'reason': 'busy'});
+          return;
+        }
+        // App 在背景（例如按了 Home）且沒有「顯示在其他應用程式上層」權限時，
+        // 系統不允許從背景開啟畫面，直接告知手機未就緒
+        if (WidgetsBinding.instance.lifecycleState !=
+                AppLifecycleState.resumed &&
+            !await canDrawOverlays()) {
+          await _send(res, 503, {'ok': false, 'reason': 'not_ready'});
           return;
         }
         await _send(res, 200, {'ok': true});
@@ -429,10 +426,83 @@ class CastService {
   }
 
   void _startPlayback(CastRequest cast) {
+    // 先把 App 帶到前景（忽略失敗）
+    _invokeCast<void>('bringToFront');
     CastPlayback.open(cast).catchError((Object e) {
       debugPrint('cast open failed: $e');
     });
   }
+
+  /// 從 body 建立投放請求並驗證 bvid／epId；不合法回傳 null
+  CastRequest? _parseCast(Map<String, dynamic> body) {
+    final bvid = body['bvid'];
+    final epIdRaw = _asInt(body['epId']);
+    final epId = epIdRaw != null && epIdRaw > 0 ? epIdRaw : null;
+    if (epId == null && (bvid is! String || !_bvidRe.hasMatch(bvid))) {
+      return null;
+    }
+    final title = body['title'];
+    return CastRequest(
+      bvid: bvid is String && _bvidRe.hasMatch(bvid) ? bvid : null,
+      aid: _asInt(body['aid']),
+      cid: _asInt(body['cid']),
+      epId: epId,
+      seasonId: _asInt(body['seasonId']),
+      positionMs: max(0, _asInt(body['positionMs']) ?? 0),
+      title: title is String ? _truncate(title, 200) : '',
+    );
+  }
+
+  // ---------- 原生通道（App 未開啟時接收投放） ----------
+
+  /// 呼叫原生方法；任何例外（MissingPluginException 等）都吞掉
+  Future<T?> _invokeCast<T>(String method, [Object? args]) async {
+    try {
+      return await _castChannel.invokeMethod<T>(method, args);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 啟動時呼叫：註冊原生通道、處理冷啟動帶來的投放、確保背景服務在跑
+  Future<void> initNative() async {
+    try {
+      _castChannel.setMethodCallHandler((call) async {
+        if (call.method == 'castPayload') {
+          final arg = call.arguments;
+          if (arg is String) _openPayload(arg);
+        }
+        return null;
+      });
+      final pending = await _invokeCast<String>('takePendingPayload');
+      if (pending != null && pending.isNotEmpty) _openPayload(pending);
+      if (SettingsService.castBackground) {
+        await _invokeCast<void>('setBackground', {'enabled': true});
+      }
+    } catch (_) {}
+  }
+
+  void _openPayload(String json) {
+    try {
+      final decoded = jsonDecode(json);
+      if (decoded is! Map<String, dynamic>) return;
+      final cast = _parseCast(decoded);
+      if (cast != null) _startPlayback(cast);
+    } catch (_) {}
+  }
+
+  /// 設定頁用：先寫入設定，再通知原生啟動／停止服務
+  Future<void> setBackground(bool enabled) async {
+    await SettingsService.setCastBackground(enabled);
+    await _invokeCast<void>('setBackground', {'enabled': enabled});
+  }
+
+  Future<bool> canDrawOverlays() async =>
+      await _invokeCast<bool>('canDrawOverlays') ?? true;
+
+  /// 開啟系統的「顯示在其他應用程式上層」設定頁；沒有該頁面回傳 false
+  Future<bool> openOverlaySettings() async =>
+      await _invokeCast<bool>('openOverlaySettings') ?? false;
 
   // ---------- 工具 ----------
 

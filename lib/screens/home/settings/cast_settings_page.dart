@@ -1,9 +1,11 @@
 import 'package:bili_tv_app/services/cast/cast_service.dart';
 import 'package:bili_tv_app/services/local_server.dart';
+import 'package:bili_tv_app/services/settings_service.dart';
 import 'package:bili_tv_app/widgets/zh_material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import 'widgets/setting_action_row.dart';
+import 'widgets/setting_toggle_row.dart';
 
 /// 投放配對頁：顯示 QR code 與已配對的手機
 class CastSettingsPage extends StatefulWidget {
@@ -13,11 +15,14 @@ class CastSettingsPage extends StatefulWidget {
   State<CastSettingsPage> createState() => _CastSettingsPageState();
 }
 
-class _CastSettingsPageState extends State<CastSettingsPage> {
+class _CastSettingsPageState extends State<CastSettingsPage>
+    with WidgetsBindingObserver {
   List<String> _ips = LocalServer.instance.localIps;
   String _name = '';
   String _id = '';
   bool _loading = true;
+  bool _overlayOk = true;
+  bool _noOverlayPage = false;
   final _refreshNode = FocusNode();
   final Map<String, FocusNode> _rowNodes = {};
 
@@ -39,18 +44,46 @@ class _CastSettingsPageState extends State<CastSettingsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     CastService.instance.pairedChanged.addListener(_onPaired);
     _load();
+    _checkOverlay();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     CastService.instance.pairedChanged.removeListener(_onPaired);
     _refreshNode.dispose();
     for (final n in _rowNodes.values) {
       n.dispose();
     }
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 從系統授權頁回來時重新檢查
+    if (state == AppLifecycleState.resumed) _checkOverlay();
+  }
+
+  Future<void> _checkOverlay() async {
+    final ok = await CastService.instance.canDrawOverlays();
+    if (!mounted || ok == _overlayOk) return;
+    setState(() => _overlayOk = ok);
+  }
+
+  Future<void> _toggleBackground(bool v) async {
+    await CastService.instance.setBackground(v);
+    if (!mounted) return;
+    setState(() {});
+    await _checkOverlay();
+  }
+
+  Future<void> _openOverlay() async {
+    final ok = await CastService.instance.openOverlaySettings();
+    if (!mounted) return;
+    setState(() => _noOverlayPage = !ok);
   }
 
   void _onPaired() {
@@ -84,6 +117,8 @@ class _CastSettingsPageState extends State<CastSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final paired = CastService.instance.pairedList();
+    final bgOn = SettingsService.castBackground;
+    final showOverlay = bgOn && !_overlayOk;
     return Scaffold(
       appBar: AppBar(
         title: const Text('投放配對'),
@@ -117,10 +152,34 @@ class _CastSettingsPageState extends State<CastSettingsPage> {
             buttonLabel: '重新整理',
             autofocus: true,
             isFirst: true,
-            isLast: paired.isEmpty,
             focusNode: _refreshNode,
             onTap: _load,
           ),
+          SettingToggleRow(
+            label: 'App 未開啟時也接收投放',
+            subtitle: '開機自動啟動，通知列會顯示常駐通知',
+            value: bgOn,
+            isLast: !showOverlay && paired.isEmpty,
+            onChanged: _toggleBackground,
+          ),
+          if (showOverlay)
+            SettingActionRow(
+              label: '顯示在其他應用程式上層',
+              value: '未授權：App 關閉時無法開啟畫面',
+              buttonLabel: '前往授權',
+              isLast: paired.isEmpty,
+              onTap: _openOverlay,
+            ),
+          if (showOverlay && _noOverlayPage)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(15, 8, 15, 0),
+              child: Text(
+                '這台電視沒有授權頁面，請用電腦執行：'
+                'adb shell appops set com.gordonpow.pilibtrtv '
+                'SYSTEM_ALERT_WINDOW allow',
+                style: TextStyle(color: Colors.orange, fontSize: 13),
+              ),
+            ),
           const SizedBox(height: 16),
           const Text(
             '已配對的手機',

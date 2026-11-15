@@ -10,6 +10,7 @@ import 'package:bili_tv_app/plugins/danmaku_enhance_plugin.dart';
 import 'services/auth_service.dart';
 import 'services/btr/btr_host_ranker.dart';
 import 'services/card_preview_service.dart';
+import 'services/cast/cast_service.dart';
 import 'services/device_profile.dart';
 import 'services/live/live_timeshift.dart';
 import 'services/local_server.dart';
@@ -62,6 +63,8 @@ Future<void> _main() async {
 
   // 啟動本地 HTTP 服務 (提供外掛配置 API)
   await LocalServer.instance.start();
+  // 投放：原生通道（App 未開啟時收到的投放、背景服務開關）
+  unawaited(CastService.instance.initNative());
 
   await AuthService.init(); // 全屏模式 - 隱藏狀態列和導航欄
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);

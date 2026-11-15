@@ -6,6 +6,11 @@
     <!-- 存储权限 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <!-- App 未開啟時接收手機投放：前景服務、開機啟動、背景開啟畫面 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     
     <!-- TV 应用声明 -->
     <uses-feature android:name="android.software.leanback" android:required="false"/>
@@ -44,6 +49,26 @@
             </intent-filter>
         </activity>
         
+        <!-- 投放接收服務：App 未開啟時監聽區網投放請求 -->
+        <service
+            android:name=".CastWakeService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Receive cast requests from the paired phone app on the local network"/>
+        </service>
+
+        <!-- 開機或更新後，依設定重新啟動投放接收服務 -->
+        <receiver
+            android:name=".CastBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

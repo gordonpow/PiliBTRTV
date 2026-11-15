@@ -219,6 +219,16 @@ class SettingsService {
     await _prefs!.setBool(_translateContentKey, value);
   }
 
+  // 投放：App 未開啟時也接收（前景服務，原生端直接讀此 key）
+  static const String _castBackgroundKey = 'cast_background';
+  static bool get castBackground =>
+      _prefs?.getBool(_castBackgroundKey) ?? false;
+
+  static Future<void> setCastBackground(bool value) async {
+    await init();
+    await _prefs!.setBool(_castBackgroundKey, value);
+  }
+
   // 翻譯模型背景下載上次失敗的時間（毫秒），24 小時內不重試
   static const String _translateDlFailedKey = 'translate_download_failed_at';
   static int get translateDownloadFailedAt =>

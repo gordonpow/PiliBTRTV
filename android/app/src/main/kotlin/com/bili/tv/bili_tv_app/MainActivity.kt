@@ -16,17 +16,90 @@ import java.io.File
 class MainActivity : FlutterActivity() {
     private val UPDATE_CHANNEL = "com.bili.tv/update"
     private val CODEC_CHANNEL = "com.bili.tv/codec"
+    private val CAST_CHANNEL = "com.bili.tv/cast"
+    private val CAST_PAYLOAD_KEY = "cast_payload"
+
+    // 服務喚醒時帶進來的投放內容，等 Dart 用 takePendingPayload 取走
+    private var pendingCastPayload: String? = null
+    private var castChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
         // 記錄未捕捉的 Java/Kotlin 例外，下次啟動時詢問是否上傳
         CrashChannel.installHandler(applicationContext)
+        // 必須在 super.onCreate 之前：先讓原生服務放掉 3322，Dart 的 LocalServer 才綁得到
+        CastWakeService.activityAlive++
+        CastWakeService.pauseListening()
+        if (savedInstanceState == null) {
+            pendingCastPayload = intent?.getStringExtra(CAST_PAYLOAD_KEY)
+        }
+        // 移除 extra，避免重建時重播
+        intent?.removeExtra(CAST_PAYLOAD_KEY)
         super.onCreate(savedInstanceState)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val payload = intent.getStringExtra(CAST_PAYLOAD_KEY)
+        if (payload != null) {
+            intent.removeExtra(CAST_PAYLOAD_KEY)
+            castChannel?.invokeMethod("castPayload", payload)
+        }
+    }
+
+    override fun onDestroy() {
+        castChannel = null
+        super.onDestroy()
+        if (CastWakeService.activityAlive > 0) CastWakeService.activityAlive--
+        if (!isChangingConfigurations && CastWakeService.isEnabled(applicationContext)) {
+            // 內部會延遲 1.5 秒，讓 Dart 引擎先釋放連接埠
+            CastWakeService.resumeListening()
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         CrashChannel.register(flutterEngine, applicationContext)
         FrameChannel.register(flutterEngine)
+
+        // 投放接收 Channel
+        castChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CAST_CHANNEL).also { ch ->
+            ch.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "takePendingPayload" -> {
+                        val p = pendingCastPayload
+                        pendingCastPayload = null
+                        result.success(p)
+                    }
+                    "setBackground" -> {
+                        if (call.argument<Boolean>("enabled") == true) {
+                            CastWakeService.start(applicationContext)
+                        } else {
+                            CastWakeService.stop(applicationContext)
+                        }
+                        result.success(null)
+                    }
+                    "canDrawOverlays" -> {
+                        result.success(
+                            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || Settings.canDrawOverlays(this)
+                        )
+                    }
+                    "openOverlaySettings" -> result.success(openOverlaySettings())
+                    "bringToFront" -> {
+                        try {
+                            startActivity(
+                                Intent(this, MainActivity::class.java).addFlags(
+                                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_NEW_TASK
+                                )
+                            )
+                        } catch (e: Exception) {
+                            // 忽略
+                        }
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
 
         // 更新安装 Channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATE_CHANNEL).setMethodCallHandler { call, result ->
@@ -133,6 +206,23 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    // 開啟「顯示在其他應用程式上層」授權頁；全部失敗回 false
+    private fun openOverlaySettings(): Boolean {
+        try {
+            startActivity(
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            )
+            return true
+        } catch (e: Exception) {
+        }
+        return try {
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 

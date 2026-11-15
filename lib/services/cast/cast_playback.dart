@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../main.dart' show appNavigatorKey;
 import '../../models/video.dart';
 import '../../screens/player/player_route.dart';
@@ -29,7 +31,21 @@ abstract final class CastPlayback {
   static bool _opening = false;
   static CastRequest? _pending;
 
+  static final Completer<void> _homeReady = Completer<void>();
+
+  /// 首頁已顯示（冷啟動時，投放要等到啟動畫面換成首頁之後才開播放頁）
+  static void markHomeReady() {
+    if (!_homeReady.isCompleted) _homeReady.complete();
+  }
+
   static Future<void> open(CastRequest r) async {
+    // 最多等 15 秒，逾時仍開啟
+    if (!_homeReady.isCompleted) {
+      await _homeReady.future.timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {},
+      );
+    }
     if (_opening) {
       _pending = r; // 開頁進行中：記下最新的請求，結束後執行（最後一筆為準）
       return;
