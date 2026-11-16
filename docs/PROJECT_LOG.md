@@ -407,3 +407,21 @@
 | 結果 | 說明 Cast Connect 需要非開源套件、拆兩個版本、付費註冊與手機端重寫，使用者決定只做方案 A（原生前景服務）。開 issue #62，走完整流程：需求 `docs/work/cast-background/1-requirements.md`、規格 `2-spec.md`。規格審查（Claude Sonnet）10 點採用 9 點（R-1～R-9）。實作改用 Claude Sonnet：依 gemini-flash-oversight，生命週期／併發不交給 Flash。新增 `CastWakeService.kt`、`CastBootReceiver.kt`，修改 `MainActivity.kt`、`AndroidManifest.xml`，以及 Dart 的 `cast_service.dart`、`cast_playback.dart`、`home_screen.dart`、`settings_service.dart`、`main.dart`、`cast_settings_page.dart`。`flutter analyze` 無問題、328 項測試通過。x64（split-per-abi）已裝到 TV 模擬器，App 開著時 `/api/cast/info` 由 Dart 回應、port 3322。功能面待使用者以手機實測 |
 | 請求 | 「好 幫我發布」 |
 | 結果 | commit `5835c4e`（功能）、`7b22944`（版本號 btr.27+31）、發布說明 `docs/work/cast-background/release-notes-btr.27.md`。versionCode 2031／1031，簽章 `17fcf8ed…`。GitHub Release v1.2.2-btr.27 已發布，F-Droid 索引已列出 btr.27，#62 已關閉 |
+
+### 2026-11-16：留言表情與附圖（#63）
+
+| 項目 | 內容 |
+|---|---|
+| 請求 | 使用者回饋：TV 版留言看不到網友貼的圖片，表情被文字代替（例如 `[笑哭]`） |
+| 結果 | 開 issue #63（已實作未 commit）。`reply_item.dart` 解析 `content.emote`（網址、大小）與 `content.pictures`；`ContentText` 新增 `emotes` 參數，把 `[代碼]` 換成表情圖片（繁簡轉換後的代碼也對應）；`info_panel.dart` 在留言文字下方顯示附圖縮圖（高 140，用 B 站 `@280h.webp` 縮圖）。新增 2 項單元測試。`flutter analyze` 無問題，`reply_api_test.dart` 7 項通過。x64 已裝到 TV 模擬器；未做獨立審查（低風險），功能面待使用者測試 |
+
+### 2026-11-17：首頁常駐搜尋列、搜尋焦點（#64、#65、#66）
+
+| 項目 | 內容 |
+|---|---|
+| 請求 | 1. 首頁最上方加常駐搜尋，左側欄不要搜尋圖示 2. 進入搜尋時焦點預設在搜尋框 3. 焦點在搜尋框時按右鍵要能移到搜尋結果（建議／歷史） |
+| 結果 | 開 issue #64、#65、#66（已實作未 commit）。`home_tab.dart` 頂部新增 `_HomeSearchBar`（確認鍵進入搜尋，上鍵從分類列到達，下鍵回分類列），頂部高度 80→130、影片清單位移同步調整；`home_screen.dart` 側欄不再顯示搜尋（index 0 保留給搜尋分頁），新增 `_openSearch`／`_backToHomeFromSearch`（返回時焦點回到首頁搜尋列）；`search_tab.dart` 新增 `enterSearch()`；`search_keyboard_view.dart` 新增 `focusBox()`，搜尋框（含隱藏 TextField）按右鍵移到右側清單第一項。`flutter analyze` 無問題。x64 已裝到 TV 模擬器並以按鍵實測：首頁搜尋列顯示正常、進入搜尋焦點在搜尋框、右鍵到第一筆歷史、返回後焦點回到首頁搜尋列。未做獨立審查（低風險） |
+| 請求 | 焦點在搜尋歷史／建議上按左鍵會跳到「後退」按鈕，應回到搜尋框 |
+| 結果 | `_SuggestionItem` 新增 `onMoveLeft`，建議、歷史、清除搜尋記錄按左鍵都回到搜尋框（併入 #66）。`flutter analyze` 無問題；模擬器按鍵實測：右鍵到歷史第二筆後按左鍵，焦點回到搜尋框 |
+| 請求 | 「我發布」（發布 btr.28） |
+| 結果 | commit `e66935b`（#63）、`0c08f89`（#64–#66）、`eb39a71`（版本 `1.2.2-btr.28+32`）、發布說明 `docs/work/search-home-bar/release-notes-btr.28.md`。排除只有排版差異的 `btr_config.dart`、`app_restart.dart` 與 `img/`。`flutter analyze` 無問題、330 項測試通過；versionCode 2032／1032，簽章 `17fcf8ed…`，`libapp.so` 內含 `v1.2.2-btr.28`，arm64-v8a 39.6MB、armeabi-v7a 33.1MB。GitHub Release v1.2.2-btr.28 已發布，F-Droid 已觸發更新 |
