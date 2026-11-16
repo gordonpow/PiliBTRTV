@@ -61,6 +61,21 @@ class SearchTabState extends State<SearchTab> {
     if (_showResults) _backToKeyboard();
   }
 
+  final GlobalKey<SearchKeyboardViewState> _keyboardKey =
+      GlobalKey<SearchKeyboardViewState>();
+
+  /// 從首頁搜尋列進入：顯示鍵盤並把焦點放在搜尋框。
+  /// 停在搜尋結果時回到鍵盤（保留上次的關鍵字，鍵盤建立後會自己聚焦搜尋框）。
+  void enterSearch() {
+    if (_showResults) {
+      _backToKeyboard();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _keyboardKey.currentState?.focusBox();
+    });
+  }
+
   void _onSearch(String query) {
     setState(() {
       _searchText = query;
@@ -79,6 +94,7 @@ class SearchTabState extends State<SearchTab> {
                 onBackToKeyboard: _backToKeyboard,
               )
             : SearchKeyboardView(
+                key: _keyboardKey,
                 sidebarFocusNode: widget.sidebarFocusNode,
                 onBackToHome: widget.onBackToHome,
                 onSearch: _onSearch,

@@ -194,6 +194,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// 首頁搜尋列按確認：切到搜尋畫面，焦點放在搜尋框。
+  void _openSearch() {
+    setState(() => _selectedTabIndex = 0);
+    _searchTabKey.currentState?.enterSearch();
+  }
+
+  /// 搜尋畫面返回：回到首頁，焦點回到首頁搜尋列。
+  void _backToHomeFromSearch() {
+    setState(() => _selectedTabIndex = 1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _homeTabKey.currentState?.focusSearchBar();
+    });
+  }
+
   void _refreshCurrentTab() {
     setState(() {});
     // 登入後重新載入各分頁；原本只刷新畫面，分頁仍保留登入前的空資料。
@@ -229,11 +243,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (_selectedTabIndex == 0) {
           // 搜尋標籤
           final handled = _searchTabKey.currentState?.handleBack() ?? false;
-          if (!handled) {
-            // 鍵盤介面 → 回主頁
-            setState(() => _selectedTabIndex = 1);
-            _sideBarFocusNodes[1].requestFocus();
-          }
+          if (!handled) _backToHomeFromSearch(); // 鍵盤介面 → 回主頁
           return;
         }
 
@@ -305,7 +315,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.start,
-                    children: List.generate(_tabIcons.length, (index) {
+                    // 搜尋改由首頁頂部的搜尋列進入，側欄不顯示搜尋圖示（index 0）
+                    children: List.generate(_tabIcons.length - 1, (i) {
+                      final index = i + 1;
                       final isUserTab = index == 5; // 個人頁（頭像）
                       final isSettingsTab = index == 6;
                       final avatarUrl = isUserTab && AuthService.isLoggedIn
@@ -392,14 +404,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return IndexedStack(
       index: _selectedTabIndex,
       children: [
-        // 0: 搜尋
+        // 0: 搜尋（側欄沒有搜尋圖示，左鍵回到側欄的首頁）
         SearchTab(
           key: _searchTabKey,
-          sidebarFocusNode: _sideBarFocusNodes[0],
+          sidebarFocusNode: _sideBarFocusNodes[1],
           onBackToHome: () {
             _backFromSearchHandled = DateTime.now(); // 記錄處理時間
-            setState(() => _selectedTabIndex = 1);
-            _sideBarFocusNodes[1].requestFocus();
+            _backToHomeFromSearch();
           },
         ),
         // 1: 首頁
@@ -408,6 +419,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           sidebarFocusNode: _sideBarFocusNodes[1],
           onFirstLoadComplete: _activateFocusSystem,
           preloadedVideos: widget.preloadedVideos,
+          onOpenSearch: _openSearch,
         ),
         // 2: 動態
         DynamicTab(

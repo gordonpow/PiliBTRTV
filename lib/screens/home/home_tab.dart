@@ -18,11 +18,15 @@ class HomeTab extends StatefulWidget {
   final VoidCallback? onFirstLoadComplete;
   final List<Video>? preloadedVideos; // 接收預載入資料
 
+  /// 按下頂部搜尋列：切到搜尋畫面
+  final VoidCallback? onOpenSearch;
+
   const HomeTab({
     super.key,
     this.sidebarFocusNode,
     this.onFirstLoadComplete,
     this.preloadedVideos,
+    this.onOpenSearch,
   });
 
   @override
@@ -101,9 +105,19 @@ class HomeTabState extends State<HomeTab> {
       node.dispose();
     }
     _retryNode.dispose();
+    _searchBarFocus.dispose();
     _videoFocusNodes.clear();
     super.dispose();
   }
+
+  // 頂部常駐搜尋列（取代側欄的搜尋圖示）
+  final FocusNode _searchBarFocus = FocusNode(debugLabel: 'homeSearchBar');
+
+  // 頂部區域：搜尋列 + 分類標籤列的高度；影片清單從這之下開始
+  static const double _headerHeight = 130;
+
+  /// 從搜尋畫面返回時，焦點回到首頁搜尋列。
+  void focusSearchBar() => _searchBarFocus.requestFocus();
 
   // 獲取或建立影片卡片的 FocusNode
   FocusNode _getFocusNode(int index) {
@@ -259,9 +273,7 @@ class HomeTabState extends State<HomeTab> {
   }
 
   void _onVideoTap(Video video) {
-    Navigator.of(
-      context,
-    ).push(PlayerRoute(video: video));
+    Navigator.of(context).push(PlayerRoute(video: video));
   }
 
   Widget _buildRetry() {
@@ -323,7 +335,12 @@ class HomeTabState extends State<HomeTab> {
                         controller: _scrollController,
                         slivers: [
                           SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(30, 100, 30, 80),
+                            padding: const EdgeInsets.fromLTRB(
+                              30,
+                              _headerHeight + 20,
+                              30,
+                              80,
+                            ),
                             sliver: SliverGrid(
                               gridDelegate:
                                   const SliverGridDelegateWithFixedCrossAxisCount(
@@ -407,12 +424,14 @@ class HomeTabState extends State<HomeTab> {
                                             .getOffsetToReveal(object, 0.0)
                                             .offset;
                                         final targetOffset =
-                                            (offsetToReveal - 120).clamp(
-                                              0.0,
-                                              _scrollController
-                                                  .position
-                                                  .maxScrollExtent,
-                                            );
+                                            (offsetToReveal -
+                                                    (_headerHeight + 40))
+                                                .clamp(
+                                                  0.0,
+                                                  _scrollController
+                                                      .position
+                                                      .maxScrollExtent,
+                                                );
 
                                         if ((_scrollController.offset -
                                                     targetOffset)
@@ -459,34 +478,48 @@ class HomeTabState extends State<HomeTab> {
           ),
         ),
 
-        // ... (Header / Category Tabs 保持不變) ...
+        // 頂部：常駐搜尋列 + 分類標籤
         Positioned(
           top: 0,
           left: 0,
           right: 0,
-          height: 80,
+          height: _headerHeight,
           child: Container(
             color: const Color(0xFF121212),
-            padding: const EdgeInsets.only(left: 30, right: 180, top: 20),
-            child: FocusTraversalGroup(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: List.generate(_categories.length, (index) {
-                    return _CategoryTab(
-                      label: _categories[index].label,
-                      isSelected: _selectedCategoryIndex == index,
-                      focusNode: _categoryFocusNodes[index],
-                      onTap: () => _switchCategory(index),
-                      onFocus: () => _switchCategory(index),
-                      onConfirm: refreshCurrentCategory,
-                      onMoveLeft: index == 0
-                          ? () => widget.sidebarFocusNode?.requestFocus()
-                          : null,
-                    );
-                  }),
+            padding: const EdgeInsets.only(left: 30, right: 180, top: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _HomeSearchBar(
+                  focusNode: _searchBarFocus,
+                  onTap: () => widget.onOpenSearch?.call(),
+                  onMoveLeft: () => widget.sidebarFocusNode?.requestFocus(),
+                  onMoveDown: () => _categoryFocusNodes[_selectedCategoryIndex]
+                      .requestFocus(),
                 ),
-              ),
+                const SizedBox(height: 10),
+                FocusTraversalGroup(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: List.generate(_categories.length, (index) {
+                        return _CategoryTab(
+                          label: _categories[index].label,
+                          isSelected: _selectedCategoryIndex == index,
+                          focusNode: _categoryFocusNodes[index],
+                          onTap: () => _switchCategory(index),
+                          onFocus: () => _switchCategory(index),
+                          onConfirm: refreshCurrentCategory,
+                          onMoveLeft: index == 0
+                              ? () => widget.sidebarFocusNode?.requestFocus()
+                              : null,
+                          onMoveUp: _searchBarFocus.requestFocus,
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -518,6 +551,7 @@ class _CategoryTab extends StatelessWidget {
   final VoidCallback onFocus;
   final VoidCallback onConfirm;
   final VoidCallback? onMoveLeft;
+  final VoidCallback? onMoveUp;
 
   const _CategoryTab({
     required this.label,
@@ -527,6 +561,7 @@ class _CategoryTab extends StatelessWidget {
     required this.onFocus,
     required this.onConfirm,
     this.onMoveLeft,
+    this.onMoveUp,
   });
 
   @override
@@ -551,6 +586,11 @@ class _CategoryTab extends StatelessWidget {
             if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
                 onMoveLeft != null) {
               onMoveLeft!();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+                onMoveUp != null) {
+              onMoveUp!();
               return KeyEventResult.handled;
             }
             // 確定鍵重新整理當前分類
@@ -613,6 +653,91 @@ class _CategoryTab extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// 首頁頂部的常駐搜尋列：按確認鍵進入搜尋畫面。
+class _HomeSearchBar extends StatelessWidget {
+  final FocusNode focusNode;
+  final VoidCallback onTap;
+  final VoidCallback onMoveLeft;
+  final VoidCallback onMoveDown;
+
+  const _HomeSearchBar({
+    required this.focusNode,
+    required this.onTap,
+    required this.onMoveLeft,
+    required this.onMoveDown,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      focusNode: focusNode,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter ||
+            key == LogicalKeyboardKey.numpadEnter) {
+          onTap();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          onMoveLeft();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown) {
+          onMoveDown();
+          return KeyEventResult.handled;
+        }
+        // 上、右沒有目標：吃掉，避免焦點跑到別處
+        if (key == LogicalKeyboardKey.arrowUp ||
+            key == LogicalKeyboardKey.arrowRight) {
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (ctx) {
+          final f = Focus.of(ctx).hasFocus;
+          return GestureDetector(
+            onTap: onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 420,
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: f ? Colors.white24 : Colors.white10,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: f ? Colors.white : Colors.white12,
+                  width: f ? 2 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.search,
+                    size: 22,
+                    color: f ? Colors.white : Colors.white54,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '搜尋影片、UP 主',
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: f ? Colors.white : Colors.white38,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

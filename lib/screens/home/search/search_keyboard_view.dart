@@ -44,10 +44,10 @@ class SearchKeyboardView extends StatefulWidget {
   });
 
   @override
-  State<SearchKeyboardView> createState() => _SearchKeyboardViewState();
+  State<SearchKeyboardView> createState() => SearchKeyboardViewState();
 }
 
-class _SearchKeyboardViewState extends State<SearchKeyboardView>
+class SearchKeyboardViewState extends State<SearchKeyboardView>
     with WidgetsBindingObserver {
   String _searchText = '';
   List<String> _suggestions = [];
@@ -55,6 +55,8 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
   // 搜尋框（D-pad 焦點）與隱藏的 TextField（系統鍵盤輸入）
   final FocusNode _boxFocus = FocusNode(debugLabel: 'searchBox');
   late final FocusNode _textFocus;
+  // 右側清單（搜尋建議或搜尋歷史）的第一項：搜尋框按右鍵移到這裡
+  final FocusNode _firstItemFocus = FocusNode(debugLabel: 'searchFirstItem');
   final TextEditingController _controller = TextEditingController();
   bool _boxFocused = false;
   bool _imeVisible = false;
@@ -128,6 +130,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
     _controller.dispose();
     _textFocus.dispose();
     _boxFocus.dispose();
+    _firstItemFocus.dispose();
     super.dispose();
   }
 
@@ -148,6 +151,16 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
     }
   }
 
+  /// 把焦點放到搜尋框（從首頁搜尋列進入搜尋時）。
+  void focusBox() => _boxFocus.requestFocus();
+
+  /// 移到右側清單第一項；清單沒有項目時回傳 false。
+  bool _focusFirstItem() {
+    if (_firstItemFocus.context == null) return false;
+    _firstItemFocus.requestFocus();
+    return true;
+  }
+
   bool _isBackKey(KeyEvent event) =>
       event.logicalKey == LogicalKeyboardKey.escape ||
       event.logicalKey == LogicalKeyboardKey.goBack ||
@@ -166,6 +179,11 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
       if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
         _boxFocus.requestFocus();
         widget.sidebarFocusNode?.requestFocus();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        _boxFocus.requestFocus();
+        _focusFirstItem();
         return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
@@ -311,6 +329,10 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
                         }
                         if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
                           widget.sidebarFocusNode?.requestFocus();
+                          return KeyEventResult.handled;
+                        }
+                        if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
+                            _focusFirstItem()) {
                           return KeyEventResult.handled;
                         }
                         if (_isBackKey(event) && widget.onBackToHome != null) {
@@ -572,6 +594,7 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
                           setState(() {});
                         },
                         onBack: widget.onBackToHome,
+                        onMoveLeft: _boxFocus.requestFocus,
                       ),
                     );
                   }
@@ -579,10 +602,12 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: _SuggestionItem(
+                      focusNode: index == 0 ? _firstItemFocus : null,
                       text: item,
                       icon: Icons.history,
                       onTap: () => _selectSuggestion(item),
                       onBack: widget.onBackToHome,
+                      onMoveLeft: _boxFocus.requestFocus,
                     ),
                   );
                 },
@@ -602,9 +627,11 @@ class _SearchKeyboardViewState extends State<SearchKeyboardView>
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: _SuggestionItem(
+              focusNode: index == 0 ? _firstItemFocus : null,
               text: suggestion,
               onTap: () => _selectSuggestion(suggestion),
               onBack: widget.onBackToHome,
+              onMoveLeft: _boxFocus.requestFocus,
             ),
           );
         },
@@ -619,8 +646,14 @@ class _SuggestionItem extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback? onBack;
   final IconData? icon;
+  final FocusNode? focusNode;
+
+  /// 左鍵：回到搜尋框（不讓方向導覽跳到最近的「後退」按鈕）
+  final VoidCallback? onMoveLeft;
 
   const _SuggestionItem({
+    this.focusNode,
+    this.onMoveLeft,
     required this.text,
     required this.onTap,
     this.onBack,
@@ -639,6 +672,7 @@ class _SuggestionItemState extends State<_SuggestionItem> {
     return GestureDetector(
       onTap: widget.onTap,
       child: Focus(
+        focusNode: widget.focusNode,
         onFocusChange: (focused) => setState(() => _isFocused = focused),
         onKeyEvent: (node, event) {
           if (event is KeyDownEvent) {
@@ -648,6 +682,11 @@ class _SuggestionItemState extends State<_SuggestionItem> {
                     event.logicalKey == LogicalKeyboardKey.browserBack) &&
                 widget.onBack != null) {
               widget.onBack!();
+              return KeyEventResult.handled;
+            }
+            if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+                widget.onMoveLeft != null) {
+              widget.onMoveLeft!();
               return KeyEventResult.handled;
             }
             if (event.logicalKey == LogicalKeyboardKey.enter ||
