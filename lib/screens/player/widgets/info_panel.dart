@@ -1,4 +1,5 @@
 import 'package:bili_tv_app/models/reply_item.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:bili_tv_app/services/bilibili_api.dart';
 import 'package:bili_tv_app/utils/anim.dart';
 import 'package:bili_tv_app/utils/format_count.dart';
@@ -399,6 +400,36 @@ class _InfoPanelState extends State<InfoPanel> {
     );
   }
 
+  // 留言附圖縮圖：限制高度，寬度依原圖比例（上限避免過寬的長圖）。
+  Widget _buildPicture(String src) {
+    const h = 140.0;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: h, maxWidth: 280),
+        child: CachedNetworkImage(
+          // B 站圖床支援 @<高>h 參數取縮圖，省流量與解碼記憶體。
+          imageUrl: '$src@${(h * 2).round()}h.webp',
+          height: h,
+          fit: BoxFit.contain,
+          placeholder: (_, _) => const SizedBox(
+            width: h,
+            height: h,
+            child: ColoredBox(color: Colors.white12),
+          ),
+          errorWidget: (_, _, _) => const SizedBox(
+            width: h,
+            height: h,
+            child: ColoredBox(
+              color: Colors.white12,
+              child: Icon(Icons.broken_image_outlined, color: Colors.white38),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildReply(int index) {
     final r = _replies[index];
     final selected = index == _selected;
@@ -468,12 +499,21 @@ class _InfoPanelState extends State<InfoPanel> {
           const SizedBox(height: 8),
           ContentText(
             r.message,
+            emotes: r.emotes,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 17,
               height: 1.4,
             ),
           ),
+          if (r.pictures.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [for (final src in r.pictures) _buildPicture(src)],
+            ),
+          ],
           if (r.replyCount > 0) ...[
             const SizedBox(height: 6),
             Text(

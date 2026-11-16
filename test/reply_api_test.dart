@@ -107,4 +107,56 @@ void main() {
     expect(page.items.map((e) => e.rpid), [4]);
     expect(parseReplyPage({'code': -400}), isNull);
   });
+
+  test('解析表情與附圖', () {
+    final page = parseReplyPage({
+      'code': 0,
+      'data': {
+        'replies': [
+          {
+            'rpid': 9,
+            'ctime': 1,
+            'like': 0,
+            'member': {'uname': 'x'},
+            'content': {
+              'message': '好耶[笑哭][doge]',
+              'emote': {
+                '[笑哭]': {
+                  'url': 'http://i0.hdslb.com/a.png',
+                  'meta': {'size': 1},
+                },
+                '[doge]': {
+                  'url': '//i0.hdslb.com/b.png',
+                  'meta': {'size': 2},
+                },
+              },
+              'pictures': [
+                {'img_src': 'http://i0.hdslb.com/p1.jpg'},
+                {'img_src': ''},
+              ],
+            },
+          },
+        ],
+        'cursor': {'is_end': true},
+      },
+    })!;
+    final r = page.items.single;
+    expect(r.emotes['[笑哭]']!.url, 'https://i0.hdslb.com/a.png');
+    expect(r.emotes['[笑哭]']!.large, false);
+    expect(r.emotes['[doge]']!.url, 'https://i0.hdslb.com/b.png');
+    expect(r.emotes['[doge]']!.large, true);
+    expect(r.pictures, ['https://i0.hdslb.com/p1.jpg']);
+  });
+
+  test('沒有表情與附圖時為空', () {
+    final page = parseReplyPage({
+      'code': 0,
+      'data': {
+        'replies': [_reply(1)],
+        'cursor': {'is_end': true},
+      },
+    })!;
+    expect(page.items.single.emotes, isEmpty);
+    expect(page.items.single.pictures, isEmpty);
+  });
 }

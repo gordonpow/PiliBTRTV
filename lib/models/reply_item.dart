@@ -8,6 +8,12 @@ class ReplyItem {
   final int replyCount;
   final bool isTop;
 
+  /// 表情代碼（例如 `[笑哭]`）對應的圖片網址與大小（content.emote）。
+  final Map<String, ReplyEmote> emotes;
+
+  /// 留言附圖網址（content.pictures[].img_src）。
+  final List<String> pictures;
+
   const ReplyItem({
     required this.rpid,
     required this.uname,
@@ -16,7 +22,26 @@ class ReplyItem {
     required this.message,
     required this.replyCount,
     required this.isTop,
+    this.emotes = const {},
+    this.pictures = const [],
   });
+}
+
+/// 留言中的表情圖片。
+class ReplyEmote {
+  final String url;
+
+  /// B 站 meta.size：1 小表情（與文字同高），2 大表情。
+  final bool large;
+
+  const ReplyEmote({required this.url, required this.large});
+}
+
+/// 補上協定並改用 https（B 站有時回傳 `//` 或 `http://` 開頭的網址）。
+String normalizeImageUrl(String url) {
+  if (url.startsWith('//')) return 'https:$url';
+  if (url.startsWith('http://')) return 'https://${url.substring(7)}';
+  return url;
 }
 
 /// 一頁留言資料
@@ -83,7 +108,8 @@ ReplyPage? parseReplyPage(Map<String, dynamic> json, {bool firstPage = false}) {
 
     // Pagination
     final cursor = data['cursor'] as Map<String, dynamic>?;
-    final paginationReply = cursor?['pagination_reply'] as Map<String, dynamic>?;
+    final paginationReply =
+        cursor?['pagination_reply'] as Map<String, dynamic>?;
     final nextOffset = paginationReply?['next_offset'] as String? ?? '';
     final isEnd = cursor?['is_end'] == true || nextOffset.isEmpty;
 
@@ -104,6 +130,28 @@ ReplyItem? _parseItem(Map<String, dynamic> r, {required bool isTop}) {
     final content = r['content'] as Map<String, dynamic>?;
     final message = content?['message'] as String? ?? '';
     final replyCount = r['rcount'] as int? ?? 0;
+    final emotes = <String, ReplyEmote>{};
+    final emoteJson = content?['emote'];
+    if (emoteJson is Map) {
+      emoteJson.forEach((key, value) {
+        if (key is! String || value is! Map) return;
+        final url = value['url'];
+        if (url is! String || url.isEmpty) return;
+        final meta = value['meta'];
+        final size = meta is Map ? meta['size'] : null;
+        emotes[key] = ReplyEmote(url: normalizeImageUrl(url), large: size == 2);
+      });
+    }
+    final pictures = <String>[];
+    final picJson = content?['pictures'];
+    if (picJson is List) {
+      for (final p in picJson) {
+        final src = p is Map ? p['img_src'] : null;
+        if (src is String && src.isNotEmpty) {
+          pictures.add(normalizeImageUrl(src));
+        }
+      }
+    }
     return ReplyItem(
       rpid: rpid,
       uname: uname,
@@ -112,6 +160,8 @@ ReplyItem? _parseItem(Map<String, dynamic> r, {required bool isTop}) {
       message: message,
       replyCount: replyCount,
       isTop: isTop,
+      emotes: emotes,
+      pictures: pictures,
     );
   } catch (_) {
     return null;
